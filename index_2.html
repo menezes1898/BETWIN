@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Boletim — Consultoria</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root{
+    --bg: #10161A;
+    --surface: #1A2227;
+    --surface-2: #212B31;
+    --line: #2C383F;
+    --text: #E9EEF1;
+    --text-muted: #7E8C93;
+    --gold: #C9A227;
+    --gold-dim: #6E5C1E;
+    --green: #3FB68B;
+    --green-dim: rgba(63,182,139,0.14);
+    --red: #E0575A;
+    --red-dim: rgba(224,87,90,0.14);
+    --font-display: 'Barlow Condensed', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--font-body); -webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:960px;margin:0 auto;padding:24px 18px 60px;}
+
+  .brand{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:16px;}
+  .brand .mark{font-family:var(--font-display);font-weight:700;font-size:28px;letter-spacing:0.5px;color:var(--gold);}
+  .brand .sub{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;}
+
+  .tabs{display:flex;gap:4px;margin-bottom:22px;border-bottom:1px solid var(--line);}
+  .tab{
+    font-family:var(--font-display);font-size:17px;font-weight:600;letter-spacing:0.3px;
+    padding:9px 16px;cursor:pointer;color:var(--text-muted);border-bottom:2px solid transparent;
+  }
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:16px;}
+  .card h3{font-family:var(--font-display);font-size:20px;font-weight:600;margin:0 0 14px;letter-spacing:0.2px;}
+  label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px;margin-top:12px;text-transform:uppercase;letter-spacing:0.6px;}
+  input[type=text],input[type=date],input[type=time],input[type=number],select{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    padding:9px 10px;border-radius:4px;font-family:var(--font-body);font-size:14px;
+  }
+  input:focus,select:focus{outline:none;border-color:var(--gold-dim);}
+  input:disabled{color:var(--gold);opacity:0.9;cursor:not-allowed;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .row > div{flex:1;min-width:120px;}
+
+  button{
+    font-family:var(--font-body);font-weight:600;font-size:13px;letter-spacing:0.2px;
+    border:none;border-radius:4px;padding:9px 16px;cursor:pointer;transition:opacity .15s;
+  }
+  button:hover{opacity:0.85;}
+  .btn-primary{background:var(--gold);color:#1A1400;}
+  .btn-ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--line);}
+  .btn-sm{padding:5px 10px;font-size:11px;}
+  .btn-full{width:100%;padding:12px;font-size:14px;}
+  .btn-danger-ghost{background:var(--surface-2);color:var(--red);border:1px solid var(--line);}
+
+  .chip{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--font-mono);letter-spacing:0.3px;white-space:nowrap;}
+  .chip-green{background:var(--green-dim);color:var(--green);}
+  .chip-red{background:var(--red-dim);color:var(--red);}
+  .chip-pending{background:var(--surface-2);color:var(--text-muted);}
+  .chip-void{background:var(--surface-2);color:var(--text-muted);text-decoration:line-through;}
+
+  .ticket{border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:12px;background:var(--surface);}
+  .ticket-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .ticket-client{font-size:16px;font-weight:600;}
+  .ticket-meta{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .match-list{margin-top:10px;border-top:1px solid var(--line);}
+  .match-row{padding:9px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .match-row:last-child{border-bottom:none;}
+  .match-desc{font-size:13.5px;}
+  .match-desc .teams{font-weight:600;}
+  .match-desc .meta{font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted);display:block;margin-top:2px;}
+  .match-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+  .ticket-footer{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-family:var(--font-mono);font-size:13px;}
+  .ticket-actions{margin-top:10px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:9px 8px;text-align:left;border-bottom:1px solid var(--line);}
+  th{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;font-weight:600;}
+  td.num{font-family:var(--font-mono);text-align:right;}
+  tr.total td{font-weight:700;border-top:2px solid var(--line);border-bottom:none;}
+  .profit-pos{color:var(--green);}
+  .profit-neg{color:var(--red);}
+
+  .link-box{display:flex;gap:8px;align-items:center;margin-top:8px;}
+  .link-box code{flex:1;background:var(--surface-2);padding:8px 10px;border-radius:4px;font-family:var(--font-mono);font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  .empty{color:var(--text-muted);font-size:13px;padding:20px 0;text-align:center;}
+  .week-select{background:var(--surface-2);border:1px solid var(--line);color:var(--text);padding:7px 10px;border-radius:4px;font-family:var(--font-mono);font-size:12px;width:auto;}
+
+  .autocomplete-wrap{position:relative;}
+  .autocomplete-list{
+    position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--surface-2);
+    border:1px solid var(--line);border-radius:4px;max-height:190px;overflow-y:auto;z-index:20;display:none;
+  }
+  .autocomplete-item{padding:9px 10px;cursor:pointer;font-size:13.5px;border-bottom:1px solid var(--line);}
+  .autocomplete-item:last-child{border-bottom:none;}
+  .autocomplete-item:hover{background:var(--surface);color:var(--gold);}
+
+  .draft-card{background:var(--surface-2);border:1px dashed var(--line);}
+  .draft-match{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;gap:8px;}
+  .draft-match:last-child{border-bottom:none;}
+  .odd-total{font-family:var(--font-mono);color:var(--gold);font-size:14px;}
+
+  .client-header{margin-bottom:20px;}
+  .client-header .name{font-family:var(--font-display);font-size:30px;font-weight:700;color:var(--gold);}
+  .client-header .balance-now{font-family:var(--font-mono);font-size:13px;color:var(--text-muted);margin-top:4px;}
+
+  @media (max-width:600px){
+    .tab{font-size:15px;padding:8px 10px;}
+    th,td{font-size:12px;padding:7px 5px;}
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="empty">Carregando…</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ======= CONFIGURAÇÃO DO SUPABASE =======
+// Pegue esses dois valores em: Supabase > seu projeto > Settings > API
+const SUPABASE_URL = 'https://tymcwpyypvzjdzumlfkp.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Tf4F0bAvZsHyevsy0JUa0g_q8G4_-dW';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ==========================================
+
+let STATE = { clients: [], tickets: [] };
+let ADMIN_TAB = 'apostas';
+let ADMIN_SUBVIEW = 'list'; // 'list' | 'wizard'
+let DASH_WEEK = null;
+let DRAFT = null;
+let TEAM_RESULTS = {};
+let SEARCH_TIMERS = {};
+
+const MARKETS = [
+  {v:'Resultado Final', l:'Resultado Final (1X2)'},
+  {v:'Dupla Chance', l:'Dupla Chance'},
+  {v:'Ambas Marcam', l:'Ambas Marcam'},
+  {v:'Total de Gols', l:'Total de Gols (Over/Under)'},
+  {v:'Handicap Asiatico', l:'Handicap Asiático'},
+  {v:'Total de Escanteios', l:'Total de Escanteios'},
+  {v:'Total de Cartoes', l:'Total de Cartões'},
+  {v:'Resultado Exato', l:'Resultado Exato'},
+  {v:'Outro', l:'Outro'},
+];
+
+async function loadState(){
+  try{
+    const [{data: clients, error: err1}, {data: tickets, error: err2}] = await Promise.all([
+      supabaseClient.from('clients').select('*').order('created_at'),
+      supabaseClient.from('tickets').select('*').order('created_at')
+    ]);
+    if(err1 || err2){
+      alert('Erro ao conectar no Supabase: '+((err1||err2).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
+      return;
+    }
+    STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:c.discount||0}));
+    STATE.tickets = (tickets||[]).map(t=>({
+      id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,
+      stake: parseFloat(t.stake), odds: parseFloat(t.odds), matches: t.matches||[]
+    }));
+  }catch(e){
+    alert('Erro ao conectar no Supabase: '+e.message);
+  }
+}
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function fmtBRL(v){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v); }
+function fmtDate(d){ if(!d) return ''; const [y,m,day]=d.split('-'); return `${day}/${m}`; }
+
+function mondayOf(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const day = d.getDay();
+  const diff = (day===0?-6:1-day);
+  d.setDate(d.getDate()+diff);
+  return d.toISOString().slice(0,10);
+}
+function weekLabel(mondayStr){
+  const d = new Date(mondayStr+'T00:00:00');
+  const sun = new Date(d); sun.setDate(d.getDate()+6);
+  const f = x=>x.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  return `${f(d)} – ${f(sun)}`;
+}
+
+// ---------- TICKET (bilhete) HELPERS ----------
+function ticketDate(ticket){
+  return ticket.date || new Date().toISOString().slice(0,10);
+}
+function ticketResult(ticket){
+  if(!ticket.matches.length) return 'pending';
+  if(ticket.matches.some(m=>m.result==='red')) return 'red';
+  if(ticket.matches.every(m=>m.result==='void')) return 'void';
+  if(ticket.matches.some(m=>m.result==='pending')) return 'pending';
+  return 'green';
+}
+function ticketOddTotal(ticket){
+  return ticket.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
+}
+function ticketProfit(ticket){
+  const r = ticketResult(ticket);
+  if(r==='red') return -ticket.stake;
+  if(r==='green') return (ticket.stake*ticket.odds) - ticket.stake;
+  return 0;
+}
+function resultChip(r){
+  const map = {green:['chip-green','GREEN'], red:['chip-red','RED'], void:['chip-void','ANULADA'], pending:['chip-pending','PENDENTE']};
+  const [cls,label] = map[r]||map.pending;
+  return `<span class="chip ${cls}">${label}</span>`;
+}
+function allWeeksSorted(){
+  const set = new Set();
+  STATE.tickets.forEach(t=>set.add(mondayOf(ticketDate(t))));
+  return Array.from(set).sort().reverse();
+}
+
+// ---------- ROOT RENDER ----------
+function render(){
+  const hash = window.location.hash;
+  const m = hash.match(/cliente=([a-zA-Z0-9]+)/);
+  if(m){ renderClientView(m[1]); } else { renderAdmin(); }
+}
+
+// ---------- ADMIN ----------
+function renderAdmin(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="brand"><span class="mark">Boletim</span><span class="sub">Painel da Consultoria</span></div>
+    <div class="tabs">
+      <div class="tab ${ADMIN_TAB==='apostas'?'active':''}" onclick="setTab('apostas')">Apostas</div>
+      <div class="tab ${ADMIN_TAB==='clientes'?'active':''}" onclick="setTab('clientes')">Clientes</div>
+      <div class="tab ${ADMIN_TAB==='dashboard'?'active':''}" onclick="setTab('dashboard')">Dashboard</div>
+    </div>
+    <div id="tab-content"></div>
+  `;
+  const c = document.getElementById('tab-content');
+  if(ADMIN_TAB==='apostas') c.innerHTML = renderApostasTab();
+  if(ADMIN_TAB==='clientes') c.innerHTML = renderClientesTab();
+  if(ADMIN_TAB==='dashboard') c.innerHTML = renderDashboardTab();
+}
+function setTab(t){ ADMIN_TAB=t; ADMIN_SUBVIEW='list'; render(); }
+
+// ---------- APOSTAS TAB ----------
+function renderApostasTab(){
+  if(ADMIN_SUBVIEW==='wizard') return renderWizard();
+
+  const ticketsSorted = [...STATE.tickets].sort((a,b)=> ticketDate(b).localeCompare(ticketDate(a)));
+  return `
+    <button class="btn-primary btn-full" onclick="startNewTicket()">+ Nova Aposta</button>
+    <div style="height:16px"></div>
+    <div class="card">
+      <h3>Apostas cadastradas</h3>
+      ${ticketsSorted.length===0 ? '<div class="empty">Nenhuma aposta cadastrada ainda.</div>' : ticketsSorted.map(renderTicketCard).join('')}
+    </div>
+  `;
+}
+
+function renderTicketCard(ticket){
+  const cl = STATE.clients.find(c=>c.id===ticket.clientId);
+  const r = ticketResult(ticket);
+  const profit = ticketProfit(ticket);
+  const matchesHtml = ticket.matches.map(m=>{
+    const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+    const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+    return `
+      <div class="match-row">
+        <div class="match-desc">
+          <span class="teams">${teamsLabel}</span>
+          <span class="meta">${m.away ? fmtDate(m.date)+(m.time?' '+m.time:'')+' · ' : ''}${marketLabel}: ${m.selection} · odd ${m.odd.toFixed(2)}</span>
+        </div>
+        <div class="match-actions">
+          ${resultChip(m.result)}
+          <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','pending')">Pendente</button>
+          <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','green')">Green</button>
+          <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','red')">Red</button>
+          <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','void')">Anular</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="ticket">
+      <div class="ticket-top">
+        <div>
+          <div class="ticket-client">${cl?cl.name:'Cliente removido'}</div>
+          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · ${ticket.matches.length} jogo(s) · odd ${ticket.odds.toFixed(2)}</div>
+        </div>
+        ${resultChip(r)}
+      </div>
+      <div class="match-list">${matchesHtml}</div>
+      <div class="ticket-footer">
+        <span>Resultado</span>
+        <span class="${profit>=0?'profit-pos':'profit-neg'}">${r==='pending'?'—':(profit>=0?'+':'')+fmtBRL(profit)}</span>
+      </div>
+      <div class="ticket-actions"><button class="btn-danger-ghost btn-sm" onclick="deleteTicket('${ticket.id}')">Excluir aposta</button></div>
+    </div>
+  `;
+}
+
+async function setMatchResult(ticketId, matchId, result){
+  const ticket = STATE.tickets.find(t=>t.id===ticketId);
+  const match = ticket.matches.find(m=>m.id===matchId);
+  match.result = result;
+  const {error} = await supabaseClient.from('tickets').update({matches: ticket.matches}).eq('id', ticketId);
+  if(error){ alert('Erro ao salvar resultado: '+error.message); return; }
+  render();
+}
+async function deleteTicket(ticketId){
+  if(!confirm('Excluir esta aposta?')) return;
+  const {error} = await supabaseClient.from('tickets').delete().eq('id', ticketId);
+  if(error){ alert('Erro ao excluir aposta: '+error.message); return; }
+  STATE.tickets = STATE.tickets.filter(t=>t.id!==ticketId);
+  render();
+}
+
+// ---------- WIZARD (Nova Aposta) ----------
+function startNewTicket(){
+  DRAFT = {clientId:'', clientName:'', date:new Date().toISOString().slice(0,10), time:'', stake:'', matches:[]};
+  ADMIN_SUBVIEW='wizard';
+  render();
+}
+function cancelWizard(){
+  if(DRAFT.matches.length && !confirm('Descartar esta aposta em edição?')) return;
+  DRAFT=null; ADMIN_SUBVIEW='list'; render();
+}
+function updateWizardTotals(){
+  const stake = parseFloat(DRAFT.stake) || 0;
+  const odds = parseFloat(DRAFT.odds) || 0;
+  const display = document.getElementById('ticket-retorno-display');
+  if(display) display.value = (stake>0 && odds>0) ? fmtBRL(stake*odds - stake) : '';
+}
+
+async function saveTicket(){
+  const clientId = document.getElementById('new-client-id').value;
+  const date = document.getElementById('ticket-date').value;
+  const time = document.getElementById('ticket-time').value;
+  const stake = parseFloat(document.getElementById('ticket-stake').value);
+  const odds = parseFloat(document.getElementById('ticket-odds').value);
+  if(!clientId){ alert('Digite e selecione o cliente na lista.'); return; }
+  if(!date || !time){ alert('Informe a data e o horário do bilhete.'); return; }
+  if(!stake || stake<=0){ alert('Informe o valor da aposta.'); return; }
+  if(!odds || odds<=1){ alert('Informe a odd total do bilhete.'); return; }
+  if(!DRAFT.matches.length){ alert('Adicione ao menos uma partida.'); return; }
+  const {data, error} = await supabaseClient.from('tickets').insert({
+    client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
+  }).select().single();
+  if(error){ alert('Erro ao salvar aposta: '+error.message); return; }
+  STATE.tickets.push({
+    id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
+    stake:parseFloat(data.stake), odds:parseFloat(data.odds), matches:data.matches||[]
+  });
+  DRAFT=null; ADMIN_SUBVIEW='list';
+  render();
+}
+
+function renderWizard(){
+  const oddTotal = DRAFT.matches.reduce((p,m)=>p*m.odd,1);
+  const stakeNum = parseFloat(DRAFT.stake)||0;
+  const marketOptions = MARKETS.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
+
+  const draftList = DRAFT.matches.map(m=>{
+    const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+    const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+    return `
+      <div class="draft-match">
+        <div>
+          <strong>${teamsLabel}</strong> — ${marketLabel}: ${m.selection}
+          <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:11.5px">${m.away ? fmtDate(m.date)+(m.time?' '+m.time:'')+' · ' : ''}odd ${m.odd.toFixed(2)}</div>
+        </div>
+        <button class="btn-ghost btn-sm" onclick="removeDraftMatch('${m.id}')">Remover</button>
+      </div>
+    `;
+  }).join('') || '<div class="empty">Nenhuma partida adicionada ainda.</div>';
+
+  return `
+    <div class="card">
+      <h3>Nova Aposta — dados do bilhete</h3>
+      <label>Cliente</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="new-client-search" value="${DRAFT.clientName||''}" placeholder="Buscar cliente…" autocomplete="off"
+          oninput="filterClientOptions()" onfocus="filterClientOptions()"
+          onblur="setTimeout(()=>{const b=document.getElementById('client-options'); if(b) b.style.display='none';},150)">
+        <input type="hidden" id="new-client-id" value="${DRAFT.clientId||''}">
+        <div id="client-options" class="autocomplete-list"></div>
+      </div>
+      <div class="row">
+        <div><label>Data</label><input type="date" id="ticket-date" value="${DRAFT.date||''}" onchange="DRAFT.date=this.value"></div>
+        <div><label>Hora</label><input type="time" id="ticket-time" value="${DRAFT.time||''}" onchange="DRAFT.time=this.value"></div>
+      </div>
+      <label>Valor</label>
+      <input type="number" id="ticket-stake" step="0.01" value="${DRAFT.stake||''}" oninput="DRAFT.stake=this.value;updateWizardTotals()" placeholder="Valor (ex: 100,00 ou 100.00)">
+      <div class="row">
+        <div><label>Odds</label><input type="number" id="ticket-odds" step="0.01" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" placeholder="Odds (ex: 2,50 ou 2.50)"></div>
+        <div><label>Retorno (lucro)</label><input type="text" id="ticket-retorno-display" value="${(parseFloat(DRAFT.stake)>0 && parseFloat(DRAFT.odds)>0) ? fmtBRL(parseFloat(DRAFT.stake)*parseFloat(DRAFT.odds)-parseFloat(DRAFT.stake)) : ''}" placeholder="Calculado automaticamente" disabled></div>
+      </div>
+    </div>
+
+    <div class="card draft-card">
+      <h3>Adicionar partida</h3>
+      <div class="row" style="align-items:center;gap:10px;margin-top:0">
+        <span style="font-size:13px;font-weight:600">Com Evento</span>
+        <input type="checkbox" id="match-sem-evento" onchange="toggleEventoFields()" style="width:auto">
+        <span style="font-size:13px;font-weight:600">Sem Evento (Longo Prazo)</span>
+      </div>
+      <div id="evento-fields">
+        <div class="row">
+          <div><label>Time da casa</label><input type="text" id="match-home" placeholder="Ex: Flamengo"></div>
+          <div><label>Time visitante</label><input type="text" id="match-away" placeholder="Ex: Palmeiras"></div>
+        </div>
+        <div class="row">
+          <div><label>Data do jogo</label><input type="date" id="match-date" value="${new Date().toISOString().slice(0,10)}"></div>
+          <div><label>Horário</label><input type="time" id="match-time"></div>
+        </div>
+      </div>
+      <div id="sem-evento-fields" style="display:none">
+        <label>Descrição (longo prazo)</label>
+        <input type="text" id="match-manual-desc" placeholder="Ex: Campeão Brasileiro 2026 — Flamengo">
+      </div>
+      <label>Mercados rápidos</label>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:0">
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final','Casa')">RF 1</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final','Empate')">RF X</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final','Fora')">RF 2</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Dupla Chance','Casa ou Empate')">DP 1X</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Dupla Chance','Empate ou Fora')">DP X2</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Dupla Chance','Casa ou Fora')">DP 12</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Gols','Over 2.5')">GOL +</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Gols','Under 2.5')">GOL -</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico','Casa -1')">AH1</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico','Fora -1')">AH2</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Ambas Marcam','Sim')">BTTS Sim</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Ambas Marcam','Não')">BTTS Não</button>
+      </div>
+      <div class="row">
+        <div><label>Mercado</label><select id="match-market">${marketOptions}</select></div>
+        <div><label>Seleção</label><input type="text" id="match-selection" placeholder="Ex: Casa, Over 2.5, Sim"></div>
+        <div><label>Odds da seleção</label><input type="number" id="match-odd" step="0.01" placeholder="1.85"></div>
+      </div>
+      <div style="margin-top:14px"><button class="btn-ghost" onclick="addDraftMatch()">Adicionar partida ao bilhete</button></div>
+    </div>
+
+    <div class="card">
+      <h3>Partidas do bilhete</h3>
+      ${draftList}
+      ${DRAFT.matches.length>0 ? `<div style="margin-top:10px" class="odd-total">Soma das odds das partidas (informativo): ${oddTotal.toFixed(2)}</div>` : ''}
+    </div>
+
+    <div class="row">
+      <div><button class="btn-ghost btn-full" onclick="cancelWizard()">Cancelar</button></div>
+      <div><button class="btn-primary btn-full" onclick="saveTicket()">Salvar aposta</button></div>
+    </div>
+  `;
+}
+
+function toggleEventoFields(){
+  const semEvento = document.getElementById('match-sem-evento').checked;
+  document.getElementById('evento-fields').style.display = semEvento ? 'none' : 'block';
+  document.getElementById('sem-evento-fields').style.display = semEvento ? 'block' : 'none';
+}
+function quickMarket(market, selection){
+  document.getElementById('match-market').value = market;
+  document.getElementById('match-selection').value = selection;
+}
+
+function addDraftMatch(){
+  const semEvento = document.getElementById('match-sem-evento').checked;
+  const market = document.getElementById('match-market').value;
+  const selection = document.getElementById('match-selection').value.trim();
+  const odd = parseFloat(document.getElementById('match-odd').value);
+  if(!selection){ alert('Informe a seleção (ex: Casa, Over 2.5, Sim).'); return; }
+  if(!odd || odd<=1){ alert('Informe a odd da seleção (maior que 1).'); return; }
+
+  let home, away, date, time;
+  if(semEvento){
+    const desc = document.getElementById('match-manual-desc').value.trim();
+    if(!desc){ alert('Informe a descrição da aposta de longo prazo.'); return; }
+    home = desc; away = ''; date = DRAFT.date || new Date().toISOString().slice(0,10); time = null;
+  } else {
+    home = document.getElementById('match-home').value.trim();
+    away = document.getElementById('match-away').value.trim();
+    date = document.getElementById('match-date').value;
+    time = document.getElementById('match-time').value;
+    if(!home || !away){ alert('Informe os dois times.'); return; }
+    if(!date){ alert('Informe a data do jogo.'); return; }
+  }
+  DRAFT.matches.push({id:uid(), home, away, date, time:time||null, market, selection, odd, result:'pending'});
+  render();
+}
+function removeDraftMatch(matchId){
+  DRAFT.matches = DRAFT.matches.filter(m=>m.id!==matchId);
+  render();
+}
+
+// ---------- CLIENTES TAB ----------
+function renderClientesTab(){
+  const baseUrl = window.location.href.split('#')[0];
+  const rows = STATE.clients.map(cl=>`
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">${cl.name}</h3>
+        <button class="btn-ghost btn-sm" onclick="deleteClient('${cl.id}')">Remover</button>
+      </div>
+      <div class="link-box">
+        <code id="link-${cl.id}">${baseUrl}#cliente=${cl.code}</code>
+        <button class="btn-ghost btn-sm" onclick="copyLink('${cl.id}')">Copiar link</button>
+      </div>
+      <div class="row" style="align-items:center;gap:8px;margin-top:10px">
+        <span style="font-size:12px;color:var(--text-muted)">Desconto em caso de perda</span>
+        <input type="number" min="0" max="100" step="1" value="${cl.discount||0}" style="width:80px" onchange="setClientDiscount('${cl.id}', this.value)">
+        <span style="font-size:12px;color:var(--text-muted)">%</span>
+      </div>
+    </div>
+  `).join('');
+  return `
+    <div class="card">
+      <h3>Novo cliente</h3>
+      <label>Nome do cliente</label>
+      <input type="text" id="new-client-name" placeholder="Ex: João Silva">
+      <label>Desconto em caso de perda (%)</label>
+      <input type="number" id="new-client-discount" min="0" max="100" step="1" value="0" placeholder="Ex: 15">
+      <div style="margin-top:14px"><button class="btn-primary" onclick="addClient()">Cadastrar</button></div>
+    </div>
+    ${rows || '<div class="empty">Nenhum cliente cadastrado ainda.</div>'}
+  `;
+}
+async function addClient(){
+  const name = document.getElementById('new-client-name').value.trim();
+  const discount = parseFloat(document.getElementById('new-client-discount').value) || 0;
+  if(!name) return;
+  const code = uid()+uid();
+  const {data, error} = await supabaseClient.from('clients').insert({name, code, discount}).select().single();
+  if(error){ alert('Erro ao salvar cliente: '+error.message); return; }
+  STATE.clients.push({id:data.id, name:data.name, code:data.code, discount:data.discount||0});
+  render();
+}
+async function setClientDiscount(id, value){
+  const discount = Math.max(0, Math.min(100, parseFloat(value)||0));
+  const {error} = await supabaseClient.from('clients').update({discount}).eq('id', id);
+  if(error){ alert('Erro ao salvar desconto: '+error.message); return; }
+  const cl = STATE.clients.find(c=>c.id===id);
+  if(cl) cl.discount = discount;
+}
+async function deleteClient(id){
+  if(!confirm('Remover este cliente? As apostas associadas a ele permanecerão, mas sem acesso ao link.')) return;
+  const {error} = await supabaseClient.from('clients').delete().eq('id', id);
+  if(error){ alert('Erro ao remover cliente: '+error.message); return; }
+  STATE.clients = STATE.clients.filter(c=>c.id!==id);
+  render();
+}
+function copyLink(id){
+  const text = document.getElementById(`link-${id}`).textContent;
+  navigator.clipboard?.writeText(text);
+}
+function filterClientOptions(){
+  const input = document.getElementById('new-client-search');
+  const box = document.getElementById('client-options');
+  const val = input.value.trim().toLowerCase();
+  document.getElementById('new-client-id').value = '';
+  if(DRAFT) DRAFT.clientId='';
+  if(val.length < 3){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = STATE.clients.filter(c=>c.name.toLowerCase().includes(val));
+  if(matches.length===0){
+    box.innerHTML = '<div class="autocomplete-item" style="cursor:default;color:var(--text-muted)">Nenhum cliente encontrado</div>';
+  } else {
+    box.innerHTML = matches.map(c=>`<div class="autocomplete-item" onmousedown="selectClientOption('${c.id}')">${c.name}</div>`).join('');
+  }
+  box.style.display='block';
+}
+function selectClientOption(id){
+  const cl = STATE.clients.find(c=>c.id===id);
+  if(!cl) return;
+  if(DRAFT){ DRAFT.clientId = id; DRAFT.clientName = cl.name; }
+  document.getElementById('new-client-id').value = id;
+  document.getElementById('new-client-search').value = cl.name;
+  const box = document.getElementById('client-options');
+  box.style.display='none'; box.innerHTML='';
+}
+
+// ---------- DASHBOARD TAB ----------
+function countBadges(tickets){
+  let green=0, red=0, pending=0, voidCount=0;
+  tickets.forEach(t=>{
+    const r = ticketResult(t);
+    if(r==='green') green++;
+    else if(r==='red') red++;
+    else if(r==='pending') pending++;
+    else if(r==='void') voidCount++;
+  });
+  let html='';
+  if(green) html += `<span class="chip chip-green" style="margin-right:4px">✓ ${green}</span>`;
+  if(red) html += `<span class="chip chip-red" style="margin-right:4px">✗ ${red}</span>`;
+  if(pending) html += `<span class="chip chip-pending" style="margin-right:4px">⏱ ${pending}</span>`;
+  if(voidCount) html += `<span class="chip chip-void" style="margin-right:4px">⊘ ${voidCount}</span>`;
+  return html || '—';
+}
+
+function renderDashboardTab(){
+  const weeks = allWeeksSorted();
+  if(weeks.length===0) return '<div class="card"><div class="empty">Cadastre apostas para ver a dashboard.</div></div>';
+  if(!DASH_WEEK || !weeks.includes(DASH_WEEK)) DASH_WEEK = weeks[0];
+
+  const rows = STATE.clients.map(cl=>{
+    const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && mondayOf(ticketDate(t))===DASH_WEEK);
+    if(tickets.length===0) return null;
+    const volume = tickets.reduce((s,t)=>s+t.stake,0);
+    const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
+    const descontoPct = cl.discount||0;
+    const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
+    const liquido = resultado + desconto;
+    const perf = volume>0 ? (resultado/volume*100) : 0;
+    return {name:cl.name, tickets, volume, resultado, desconto, liquido, perf};
+  }).filter(Boolean);
+
+  const totalVolume = rows.reduce((s,r)=>s+r.volume,0);
+  const totalResultado = rows.reduce((s,r)=>s+r.resultado,0);
+  const totalDesconto = rows.reduce((s,r)=>s+r.desconto,0);
+  const totalLiquido = rows.reduce((s,r)=>s+r.liquido,0);
+  const allTickets = rows.flatMap(r=>r.tickets);
+
+  const options = weeks.map(w=>`<option value="${w}" ${w===DASH_WEEK?'selected':''}>Semana de ${weekLabel(w)}</option>`).join('');
+
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Resumo geral</h3>
+        <select class="week-select" onchange="DASH_WEEK=this.value;render()">${options}</select>
+      </div>
+      <div class="row" style="gap:22px">
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Apostas</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${allTickets.length} ${countBadges(allTickets)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${fmtBRL(totalVolume)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${totalResultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalResultado)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Desconto</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${fmtBRL(totalDesconto)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${totalLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalLiquido)}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Por cliente</h3>
+      ${rows.length===0 ? '<div class="empty">Nenhuma aposta nessa semana.</div>' : `
+      <table>
+        <tr><th>Cliente</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Perf.</th><th>Líquido</th></tr>
+        ${rows.map(r=>`
+          <tr>
+            <td>${r.name}</td>
+            <td>${countBadges(r.tickets)}</td>
+            <td class="num">${fmtBRL(r.volume)}</td>
+            <td class="num ${r.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.resultado)}</td>
+            <td class="num">${r.desconto>0 ? fmtBRL(r.desconto) : '—'}</td>
+            <td class="num">${r.perf.toFixed(1)}%</td>
+            <td class="num ${r.liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.liquido)}</td>
+          </tr>
+        `).join('')}
+        <tr class="total">
+          <td>Total</td>
+          <td>${countBadges(allTickets)}</td>
+          <td class="num">${fmtBRL(totalVolume)}</td>
+          <td class="num ${totalResultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalResultado)}</td>
+          <td class="num">${totalDesconto>0 ? fmtBRL(totalDesconto) : '—'}</td>
+          <td class="num">${totalVolume>0 ? ((totalResultado/totalVolume)*100).toFixed(1) : '0.0'}%</td>
+          <td class="num ${totalLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalLiquido)}</td>
+        </tr>
+      </table>
+      `}
+    </div>
+  `;
+}
+
+// ---------- CLIENT VIEW ----------
+function renderClientView(code){
+  const app = document.getElementById('app');
+  const client = STATE.clients.find(c=>c.code===code);
+  if(!client){
+    app.innerHTML = `<div class="client-theme" style="--gold:#3EC1F3; background:#0B1E3D; margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;"><div class="brand"><span class="mark">Boletim</span></div><div class="empty">Link inválido ou cliente não encontrado.</div></div>`;
+    return;
+  }
+  const myTickets = STATE.tickets.filter(t=>t.clientId===client.id)
+    .sort((a,b)=>ticketDate(b).localeCompare(ticketDate(a)));
+
+  const weekMap = {};
+  myTickets.forEach(t=>{
+    const wk = mondayOf(ticketDate(t));
+    weekMap[wk] = (weekMap[wk]||0) + ticketProfit(t);
+  });
+  const weeks = Object.keys(weekMap).sort().reverse();
+  const currentWeek = weeks[0];
+  const currentBalance = currentWeek ? weekMap[currentWeek] : 0;
+
+  const ticketRows = myTickets.map(t=>{
+    const r = ticketResult(t);
+    const profit = ticketProfit(t);
+    const matchesHtml = t.matches.map(m=>{
+      const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+      const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+      return `
+        <div class="match-row">
+          <div class="match-desc">
+            <span class="teams">${teamsLabel}</span>
+            <span class="meta">${m.away ? fmtDate(m.date)+(m.time?' '+m.time:'')+' · ' : ''}${marketLabel}: ${m.selection} · odd ${m.odd.toFixed(2)}</span>
+          </div>
+          ${resultChip(m.result)}
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="ticket">
+        <div class="ticket-top">
+          <div class="ticket-meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · stake ${fmtBRL(t.stake)} · ${t.matches.length} jogo(s) · odd ${t.odds.toFixed(2)}</div>
+          ${resultChip(r)}
+        </div>
+        <div class="match-list">${matchesHtml}</div>
+        <div class="ticket-footer">
+          <span>Resultado</span>
+          <span class="${profit>=0?'profit-pos':'profit-neg'}">${r==='pending'?'—':(profit>=0?'+':'')+fmtBRL(profit)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const weekRows = weeks.map(w=>`
+    <tr>
+      <td>Semana de ${weekLabel(w)}</td>
+      <td class="num ${weekMap[w]>=0?'profit-pos':'profit-neg'}">${weekMap[w]>=0?'+':''}${fmtBRL(weekMap[w])}</td>
+    </tr>
+  `).join('');
+
+  app.innerHTML = `
+    <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#0B1E3D; --surface:#122A52; --surface-2:#173562; --line:#254a80; --text:#EAF3FF; --text-muted:#8FB3DC; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
+    <div class="brand"><span class="mark">Boletim</span><span class="sub">Área do Cliente</span></div>
+    <div class="client-header">
+      <div class="name">${client.name}</div>
+      <div class="balance-now">Saldo da semana atual: <span class="${currentBalance>=0?'profit-pos':'profit-neg'}">${currentBalance>=0?'+':''}${fmtBRL(currentBalance||0)}</span></div>
+    </div>
+    <div class="card">
+      <h3>Minhas apostas</h3>
+      ${ticketRows || '<div class="empty">Você ainda não recebeu nenhuma aposta.</div>'}
+    </div>
+    <div class="card">
+      <h3>Saldo por semana</h3>
+      ${weekRows ? `<table><tr><th>Semana</th><th>Resultado</th></tr>${weekRows}</table>` : '<div class="empty">Sem histórico ainda.</div>'}
+    </div>
+    </div>
+  `;
+}
+
+window.addEventListener('hashchange', render);
+(async ()=>{ await loadState(); render(); })();
+</script>
+</body>
+</html>
