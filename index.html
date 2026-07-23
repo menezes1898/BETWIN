@@ -165,7 +165,6 @@ const MARKETS = [
   {v:'Total de Escanteios', l:'Total de Escanteios'},
   {v:'Total de Cartoes', l:'Total de Cartões'},
   {v:'Resultado Exato', l:'Resultado Exato'},
-  {v:'Outro', l:'Outro'},
 ];
 
 async function loadState(){
@@ -181,7 +180,8 @@ async function loadState(){
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0}));
     STATE.tickets = (tickets||[]).map(t=>({
       id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,
-      stake: parseFloat(t.stake), odds: t.odds!=null ? parseFloat(t.odds) : null, matches: t.matches||[]
+      stake: parseFloat(t.stake), odds: t.odds!=null ? parseFloat(t.odds) : null, matches: t.matches||[],
+      createdAt: t.created_at
     }));
   }catch(e){
     alert('Erro ao conectar no Supabase: '+e.message);
@@ -253,27 +253,45 @@ function render(){
 // ---------- ADMIN ----------
 function renderAdmin(){
   const app = document.getElementById('app');
+  const pendentesCount = STATE.tickets.filter(t=>ticketResult(t)==='pending').length;
   app.innerHTML = `
     <div class="brand"><span class="mark">Boletim</span><span class="sub">Painel da Consultoria</span></div>
     <div class="tabs">
-      <div class="tab ${ADMIN_TAB==='apostas'?'active':''}" onclick="setTab('apostas')">Apostas</div>
-      <div class="tab ${ADMIN_TAB==='clientes'?'active':''}" onclick="setTab('clientes')">Clientes</div>
       <div class="tab ${ADMIN_TAB==='dashboard'?'active':''}" onclick="setTab('dashboard')">Dashboard</div>
+      <div class="tab ${ADMIN_TAB==='apostas'?'active':''}" onclick="setTab('apostas')">Apostas</div>
+      <div class="tab ${ADMIN_TAB==='pendentes'?'active':''}" onclick="setTab('pendentes')">Pendentes${pendentesCount?' ('+pendentesCount+')':''}</div>
+      <div class="tab ${ADMIN_TAB==='clientes'?'active':''}" onclick="setTab('clientes')">Clientes</div>
     </div>
     <div id="tab-content"></div>
   `;
   const c = document.getElementById('tab-content');
   if(ADMIN_TAB==='apostas') c.innerHTML = renderApostasTab();
+  if(ADMIN_TAB==='pendentes') c.innerHTML = renderPendentesTab();
   if(ADMIN_TAB==='clientes') c.innerHTML = renderClientesTab();
   if(ADMIN_TAB==='dashboard') c.innerHTML = renderDashboardTab();
 }
 function setTab(t){ ADMIN_TAB=t; ADMIN_SUBVIEW='list'; render(); }
+function renderPendentesTab(){
+  const pendentes = STATE.tickets.filter(t=>ticketResult(t)==='pending').sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Apostas pendentes</h3>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span>
+      </div>
+    </div>
+    <div class="card">
+      ${pendentes.length===0 ? '<div class="empty">Nenhuma aposta pendente no momento.</div>' : pendentes.map(renderTicketCard).join('')}
+    </div>
+  `;
+}
 
 // ---------- APOSTAS TAB ----------
 function renderApostasTab(){
   if(ADMIN_SUBVIEW==='wizard') return renderWizard();
 
-  const ticketsSorted = [...STATE.tickets].sort((a,b)=> ticketDate(b).localeCompare(ticketDate(a)));
+  const ticketsSorted = [...STATE.tickets].sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
   const pendentes = STATE.tickets.filter(t=>ticketResult(t)==='pending');
   const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
 
@@ -445,7 +463,8 @@ async function saveTicket(){
     const idx = STATE.tickets.findIndex(t=>t.id===EDITING_TICKET_ID);
     const updated = {
       id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
-      stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[]
+      stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
+      createdAt: data.created_at
     };
     if(idx>=0) STATE.tickets[idx] = updated; else STATE.tickets.push(updated);
   } else {
@@ -455,7 +474,8 @@ async function saveTicket(){
     if(error){ alert('Erro ao salvar aposta: '+error.message); return; }
     STATE.tickets.push({
       id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
-      stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[]
+      stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
+      createdAt: data.created_at
     });
   }
   DRAFT=null; EDITING_TICKET_ID=null; ADMIN_SUBVIEW='list';
