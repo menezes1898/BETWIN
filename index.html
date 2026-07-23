@@ -727,7 +727,7 @@ function renderClientView(code){
   const app = document.getElementById('app');
   const client = STATE.clients.find(c=>c.code===code);
   if(!client){
-    app.innerHTML = `<div class="client-theme" style="--gold:#3EC1F3; background:#0B1E3D; margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;"><div class="brand"><span class="mark">Boletim</span></div><div class="empty">Link inválido ou cliente não encontrado.</div></div>`;
+    app.innerHTML = `<div class="client-theme" style="--gold:#3EC1F3; background:#050B18; margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;"><div class="empty">Link inválido ou cliente não encontrado.</div></div>`;
     return;
   }
   const myTickets = STATE.tickets.filter(t=>t.clientId===client.id);
@@ -735,9 +735,8 @@ function renderClientView(code){
 
   if(weeks.length===0){
     app.innerHTML = `
-      <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#0B1E3D; --surface:#122A52; --surface-2:#173562; --line:#254a80; --text:#EAF3FF; --text-muted:#8FB3DC; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
-      <div class="brand"><span class="mark">Boletim</span><span class="sub">Área do Cliente</span></div>
-      <div class="client-header"><div class="name">${client.name}</div></div>
+      <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#050B18; --surface:#0D1B33; --surface-2:#122544; --line:#1D3966; --text:#EAF3FF; --text-muted:#7FA3D1; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
+      <div class="client-header"><div class="name" style="color:var(--text)">${client.name}</div></div>
       <div class="card"><div class="empty">Você ainda não recebeu nenhuma aposta.</div></div>
       </div>
     `;
@@ -771,9 +770,8 @@ function renderClientView(code){
   }).join('');
 
   app.innerHTML = `
-    <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#0B1E3D; --surface:#122A52; --surface-2:#173562; --line:#254a80; --text:#EAF3FF; --text-muted:#8FB3DC; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
-    <div class="brand"><span class="mark">Boletim</span><span class="sub">Área do Cliente</span></div>
-    <div class="client-header"><div class="name">${client.name}</div></div>
+    <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#050B18; --surface:#0D1B33; --surface-2:#122544; --line:#1D3966; --text:#EAF3FF; --text-muted:#7FA3D1; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
+    <div class="client-header"><div class="name" style="color:var(--text)">${client.name}</div></div>
 
     <div class="card">
       <div style="display:flex;justify-content:center;align-items:center;gap:16px">
@@ -783,16 +781,18 @@ function renderClientView(code){
       </div>
     </div>
 
-    <div class="row" style="gap:12px">
-      <div class="card" style="flex:1;text-align:center;margin-bottom:0">
+    <div class="card" style="display:flex;padding:0">
+      <div style="flex:1;text-align:center;padding:1rem 0.5rem">
         <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado</div>
         <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
       </div>
-      <div class="card" style="flex:1;text-align:center;margin-bottom:0">
+      <div style="width:1px;background:var(--line)"></div>
+      <div style="flex:1;text-align:center;padding:1rem 0.5rem">
         <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Desconto</div>
         <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px">${fmtBRL(desconto)}</div>
       </div>
-      <div class="card" style="flex:1;text-align:center;margin-bottom:0">
+      <div style="width:1px;background:var(--line)"></div>
+      <div style="flex:1;text-align:center;padding:1rem 0.5rem">
         <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido</div>
         <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
       </div>
