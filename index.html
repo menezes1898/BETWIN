@@ -166,7 +166,7 @@ async function loadState(){
       alert('Erro ao conectar no Supabase: '+((err1||err2).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
       return;
     }
-    STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:c.discount||0}));
+    STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0}));
     STATE.tickets = (tickets||[]).map(t=>({
       id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,
       stake: parseFloat(t.stake), odds: parseFloat(t.odds), matches: t.matches||[]
@@ -218,6 +218,12 @@ function resultChip(r){
   const map = {green:['chip-green','GREEN'], red:['chip-red','RED'], void:['chip-void','ANULADA'], pending:['chip-pending','PENDENTE']};
   const [cls,label] = map[r]||map.pending;
   return `<span class="chip ${cls}">${label}</span>`;
+}
+function resultIconSmall(r){
+  if(r==='green') return '<span style="color:var(--green);font-weight:700">✓</span>';
+  if(r==='red') return '<span style="color:var(--red);font-weight:700">✗</span>';
+  if(r==='void') return '<span style="color:var(--text-muted);font-weight:700">⊘</span>';
+  return '<span style="color:var(--gold);font-weight:700">⏱</span>';
 }
 function allWeeksSorted(){
   const set = new Set();
@@ -452,10 +458,6 @@ function renderWizard(){
           <div><label>Time da casa</label><input type="text" id="match-home" placeholder="Ex: Flamengo"></div>
           <div><label>Time visitante</label><input type="text" id="match-away" placeholder="Ex: Palmeiras"></div>
         </div>
-        <div class="row">
-          <div><label>Data do jogo</label><input type="date" id="match-date" value="${new Date().toISOString().slice(0,10)}"></div>
-          <div><label>Horário</label><input type="time" id="match-time"></div>
-        </div>
       </div>
       <div id="sem-evento-fields" style="display:none">
         <label>Descrição (longo prazo)</label>
@@ -519,16 +521,15 @@ function addDraftMatch(){
   if(semEvento){
     const desc = document.getElementById('match-manual-desc').value.trim();
     if(!desc){ alert('Informe a descrição da aposta de longo prazo.'); return; }
-    home = desc; away = ''; date = DRAFT.date || new Date().toISOString().slice(0,10); time = null;
+    home = desc; away = '';
   } else {
     home = document.getElementById('match-home').value.trim();
     away = document.getElementById('match-away').value.trim();
-    date = document.getElementById('match-date').value;
-    time = document.getElementById('match-time').value;
     if(!home || !away){ alert('Informe os dois times.'); return; }
-    if(!date){ alert('Informe a data do jogo.'); return; }
   }
-  DRAFT.matches.push({id:uid(), home, away, date, time:time||null, market, selection, odd, result:'pending'});
+  date = DRAFT.date || new Date().toISOString().slice(0,10);
+  time = DRAFT.time || null;
+  DRAFT.matches.push({id:uid(), home, away, date, time, market, selection, odd, result:'pending'});
   render();
 }
 function removeDraftMatch(matchId){
@@ -758,31 +759,14 @@ function renderClientView(code){
   const ticketRows = weekTickets.map(t=>{
     const r = ticketResult(t);
     const profit = ticketProfit(t);
-    const matchesHtml = t.matches.map(m=>{
-      const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
-      const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
-      return `
-        <div class="match-row">
-          <div class="match-desc">
-            <span class="teams">${teamsLabel}</span>
-            <span class="meta">${m.away ? fmtDate(m.date)+(m.time?' '+m.time:'')+' · ' : ''}${marketLabel}: ${m.selection} · odd ${m.odd.toFixed(2)}</span>
-          </div>
-          ${resultChip(m.result)}
-        </div>
-      `;
-    }).join('');
     return `
-      <div class="ticket">
-        <div class="ticket-top">
-          <div class="ticket-meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · stake ${fmtBRL(t.stake)} · odd ${t.odds.toFixed(2)}</div>
-          ${resultChip(r)}
-        </div>
-        <div class="match-list">${matchesHtml}</div>
-        <div class="ticket-footer">
-          <span>Resultado</span>
-          <span class="${profit>=0?'profit-pos':'profit-neg'}">${r==='pending'?'—':(profit>=0?'+':'')+fmtBRL(profit)}</span>
-        </div>
-      </div>
+      <tr>
+        <td style="font-family:var(--font-mono);font-size:12px;white-space:nowrap">${fmtDate(t.date)}${t.time?'<br>'+t.time:''}</td>
+        <td class="num" style="white-space:nowrap">${fmtBRL(t.stake)}</td>
+        <td class="num" style="white-space:nowrap">${t.odds.toFixed(2)}</td>
+        <td style="font-size:12.5px">${resultIconSmall(r)} ${ticketDetailsShort(t)}</td>
+        <td class="num ${profit>=0?'profit-pos':'profit-neg'}" style="white-space:nowrap">${r==='pending'?'—':fmtBRL(profit)}</td>
+      </tr>
     `;
   }).join('');
 
@@ -835,7 +819,7 @@ function renderClientView(code){
 
     <div class="card">
       <h3>Apostas da semana</h3>
-      ${ticketRows || '<div class="empty">Nenhuma aposta nessa semana.</div>'}
+      ${ticketRows ? `<table><tr><th>Data</th><th>Valor</th><th>Odds</th><th>Detalhes</th><th>Resultado</th></tr>${ticketRows}</table>` : '<div class="empty">Nenhuma aposta nessa semana.</div>'}
     </div>
     </div>
   `;
