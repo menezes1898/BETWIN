@@ -140,6 +140,9 @@ let DASH_WEEK = null;
 let DRAFT = null;
 let TEAM_RESULTS = {};
 let SEARCH_TIMERS = {};
+let SHOW_PENDENTES = false;
+let CLIENT_WEEK = null;
+let CLIENT_SHOW_PENDENTES = false;
 
 const MARKETS = [
   {v:'Resultado Final', l:'Resultado Final (1X2)'},
@@ -253,14 +256,47 @@ function renderApostasTab(){
   if(ADMIN_SUBVIEW==='wizard') return renderWizard();
 
   const ticketsSorted = [...STATE.tickets].sort((a,b)=> ticketDate(b).localeCompare(ticketDate(a)));
+  const pendentes = STATE.tickets.filter(t=>ticketResult(t)==='pending');
+  const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
+
   return `
     <button class="btn-primary btn-full" onclick="startNewTicket()">+ Nova Aposta</button>
+    <div style="height:16px"></div>
+    <div class="card" style="cursor:pointer" onclick="SHOW_PENDENTES=!SHOW_PENDENTES;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">PENDENTES (${pendentes.length})</span>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span>
+      </div>
+      ${SHOW_PENDENTES ? (pendentes.length===0 ? '<div class="empty">Nenhuma aposta pendente.</div>' : `
+        <div style="margin-top:12px;border-top:1px solid var(--line)">
+          ${pendentes.map(t=>{
+            const cl = STATE.clients.find(c=>c.id===t.clientId);
+            return `
+              <div class="match-row">
+                <div class="match-desc">
+                  <span class="teams">${cl?cl.name:'Cliente removido'}</span>
+                  <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · ${ticketDetailsShort(t)}</span>
+                </div>
+                <span style="font-family:var(--font-mono);font-size:13px">${fmtBRL(t.stake)}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `) : ''}
+    </div>
     <div style="height:16px"></div>
     <div class="card">
       <h3>Apostas cadastradas</h3>
       ${ticketsSorted.length===0 ? '<div class="empty">Nenhuma aposta cadastrada ainda.</div>' : ticketsSorted.map(renderTicketCard).join('')}
     </div>
   `;
+}
+function ticketDetailsShort(ticket){
+  return ticket.matches.map(m=>{
+    const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+    const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+    return `${teamsLabel} — ${marketLabel}: ${m.selection}`;
+  }).join('; ');
 }
 
 function renderTicketCard(ticket){
@@ -674,6 +710,18 @@ function renderDashboardTab(){
 }
 
 // ---------- CLIENT VIEW ----------
+function changeClientWeek(dir){
+  const hash = window.location.hash;
+  const m = hash.match(/cliente=([a-zA-Z0-9]+)/);
+  if(!m) return;
+  const client = STATE.clients.find(c=>c.code===m[1]);
+  if(!client) return;
+  const weeks = Array.from(new Set(STATE.tickets.filter(t=>t.clientId===client.id).map(t=>mondayOf(ticketDate(t))))).sort();
+  const idx = weeks.indexOf(CLIENT_WEEK);
+  const newIdx = idx + dir;
+  if(newIdx>=0 && newIdx<weeks.length){ CLIENT_WEEK = weeks[newIdx]; render(); }
+}
+
 function renderClientView(code){
   const app = document.getElementById('app');
   const client = STATE.clients.find(c=>c.code===code);
@@ -681,19 +729,33 @@ function renderClientView(code){
     app.innerHTML = `<div class="client-theme" style="--gold:#3EC1F3; background:#0B1E3D; margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;"><div class="brand"><span class="mark">Boletim</span></div><div class="empty">Link inválido ou cliente não encontrado.</div></div>`;
     return;
   }
-  const myTickets = STATE.tickets.filter(t=>t.clientId===client.id)
-    .sort((a,b)=>ticketDate(b).localeCompare(ticketDate(a)));
+  const myTickets = STATE.tickets.filter(t=>t.clientId===client.id);
+  const weeks = Array.from(new Set(myTickets.map(t=>mondayOf(ticketDate(t))))).sort();
 
-  const weekMap = {};
-  myTickets.forEach(t=>{
-    const wk = mondayOf(ticketDate(t));
-    weekMap[wk] = (weekMap[wk]||0) + ticketProfit(t);
-  });
-  const weeks = Object.keys(weekMap).sort().reverse();
-  const currentWeek = weeks[0];
-  const currentBalance = currentWeek ? weekMap[currentWeek] : 0;
+  if(weeks.length===0){
+    app.innerHTML = `
+      <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#0B1E3D; --surface:#122A52; --surface-2:#173562; --line:#254a80; --text:#EAF3FF; --text-muted:#8FB3DC; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
+      <div class="brand"><span class="mark">Boletim</span><span class="sub">Área do Cliente</span></div>
+      <div class="client-header"><div class="name">${client.name}</div></div>
+      <div class="card"><div class="empty">Você ainda não recebeu nenhuma aposta.</div></div>
+      </div>
+    `;
+    return;
+  }
+  if(CLIENT_WEEK===null || !weeks.includes(CLIENT_WEEK)) CLIENT_WEEK = weeks[weeks.length-1];
+  const idx = weeks.indexOf(CLIENT_WEEK);
+  const hasPrev = idx>0;
+  const hasNext = idx<weeks.length-1;
 
-  const ticketRows = myTickets.map(t=>{
+  const weekTickets = myTickets.filter(t=>mondayOf(ticketDate(t))===CLIENT_WEEK).sort((a,b)=>ticketDate(b).localeCompare(ticketDate(a)));
+  const resultado = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
+  const descontoPct = client.discount||0;
+  const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
+  const liquido = resultado + desconto;
+  const pendentes = weekTickets.filter(t=>ticketResult(t)==='pending');
+  const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
+
+  const ticketRows = weekTickets.map(t=>{
     const r = ticketResult(t);
     const profit = ticketProfit(t);
     const matchesHtml = t.matches.map(m=>{
@@ -712,7 +774,7 @@ function renderClientView(code){
     return `
       <div class="ticket">
         <div class="ticket-top">
-          <div class="ticket-meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · stake ${fmtBRL(t.stake)} · ${t.matches.length} jogo(s) · odd ${t.odds.toFixed(2)}</div>
+          <div class="ticket-meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · stake ${fmtBRL(t.stake)} · odd ${t.odds.toFixed(2)}</div>
           ${resultChip(r)}
         </div>
         <div class="match-list">${matchesHtml}</div>
@@ -724,27 +786,56 @@ function renderClientView(code){
     `;
   }).join('');
 
-  const weekRows = weeks.map(w=>`
-    <tr>
-      <td>Semana de ${weekLabel(w)}</td>
-      <td class="num ${weekMap[w]>=0?'profit-pos':'profit-neg'}">${weekMap[w]>=0?'+':''}${fmtBRL(weekMap[w])}</td>
-    </tr>
-  `).join('');
-
   app.innerHTML = `
     <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#0B1E3D; --surface:#122A52; --surface-2:#173562; --line:#254a80; --text:#EAF3FF; --text-muted:#8FB3DC; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
     <div class="brand"><span class="mark">Boletim</span><span class="sub">Área do Cliente</span></div>
-    <div class="client-header">
-      <div class="name">${client.name}</div>
-      <div class="balance-now">Saldo da semana atual: <span class="${currentBalance>=0?'profit-pos':'profit-neg'}">${currentBalance>=0?'+':''}${fmtBRL(currentBalance||0)}</span></div>
-    </div>
+    <div class="client-header"><div class="name">${client.name}</div></div>
+
     <div class="card">
-      <h3>Minhas apostas</h3>
-      ${ticketRows || '<div class="empty">Você ainda não recebeu nenhuma aposta.</div>'}
+      <div style="display:flex;justify-content:center;align-items:center;gap:16px">
+        <button class="btn-ghost btn-sm" onclick="changeClientWeek(-1)" ${!hasPrev?'disabled':''}>‹</button>
+        <span style="font-family:var(--font-mono);font-size:13px">Semana de ${weekLabel(CLIENT_WEEK)}</span>
+        <button class="btn-ghost btn-sm" onclick="changeClientWeek(1)" ${!hasNext?'disabled':''}>›</button>
+      </div>
     </div>
+
+    <div class="row" style="gap:12px">
+      <div class="card" style="flex:1;text-align:center;margin-bottom:0">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado</div>
+        <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
+      </div>
+      <div class="card" style="flex:1;text-align:center;margin-bottom:0">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Desconto</div>
+        <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px">${fmtBRL(desconto)}</div>
+      </div>
+      <div class="card" style="flex:1;text-align:center;margin-bottom:0">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido</div>
+        <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
+      </div>
+    </div>
+
+    <div class="card" style="cursor:pointer" onclick="CLIENT_SHOW_PENDENTES=!CLIENT_SHOW_PENDENTES;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">PENDENTES (${pendentes.length})</span>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span>
+      </div>
+      ${CLIENT_SHOW_PENDENTES ? (pendentes.length===0 ? '<div class="empty">Nenhuma aposta pendente.</div>' : `
+        <div style="margin-top:12px;border-top:1px solid var(--line)">
+          ${pendentes.map(t=>`
+            <div class="match-row">
+              <div class="match-desc">
+                <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · ${ticketDetailsShort(t)}</span>
+              </div>
+              <span style="font-family:var(--font-mono);font-size:13px">${fmtBRL(t.stake)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `) : ''}
+    </div>
+
     <div class="card">
-      <h3>Saldo por semana</h3>
-      ${weekRows ? `<table><tr><th>Semana</th><th>Resultado</th></tr>${weekRows}</table>` : '<div class="empty">Sem histórico ainda.</div>'}
+      <h3>Apostas da semana</h3>
+      ${ticketRows || '<div class="empty">Nenhuma aposta nessa semana.</div>'}
     </div>
     </div>
   `;
