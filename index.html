@@ -71,18 +71,29 @@
   .chip-void{background:var(--surface-2);color:var(--text-muted);text-decoration:line-through;}
 
   .ticket{border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:12px;background:var(--surface);}
+  .ticket.ticket-compact{padding:9px 12px;margin-bottom:7px;}
   .ticket-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .ticket-compact .ticket-top{gap:6px;}
   .ticket-client{font-size:16px;font-weight:600;}
+  .ticket-compact .ticket-client{font-size:13.5px;}
   .ticket-meta{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .ticket-compact .ticket-meta{font-size:11px;margin-top:1px;}
   .match-list{margin-top:10px;border-top:1px solid var(--line);}
+  .ticket-compact .match-list{margin-top:6px;}
   .match-row{padding:9px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ticket-compact .match-row{padding:5px 0;gap:6px;}
   .match-row:last-child{border-bottom:none;}
   .match-desc{font-size:13.5px;}
+  .ticket-compact .match-desc{font-size:12px;}
   .match-desc .teams{font-weight:600;}
   .match-desc .meta{font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted);display:block;margin-top:2px;}
+  .ticket-compact .match-desc .meta{font-size:10.5px;margin-top:0;}
   .match-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+  .ticket-compact .match-actions .btn-sm{padding:3px 7px;font-size:10px;}
   .ticket-footer{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-family:var(--font-mono);font-size:13px;}
-  .ticket-actions{margin-top:10px;}
+  .ticket-compact .ticket-footer{margin-top:6px;padding-top:6px;font-size:12px;}
+  .ticket-actions{margin-top:10px;display:flex;gap:6px;}
+  .ticket-compact .ticket-actions{margin-top:6px;}
 
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th,td{padding:9px 8px;text-align:left;border-bottom:1px solid var(--line);}
@@ -134,10 +145,11 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 // ==========================================
 
 let STATE = { clients: [], tickets: [] };
-let ADMIN_TAB = 'apostas';
+let ADMIN_TAB = 'dashboard';
 let ADMIN_SUBVIEW = 'list'; // 'list' | 'wizard'
 let DASH_WEEK = null;
 let DRAFT = null;
+let EDITING_TICKET_ID = null;
 let TEAM_RESULTS = {};
 let SEARCH_TIMERS = {};
 let SHOW_PENDENTES = false;
@@ -169,7 +181,7 @@ async function loadState(){
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0}));
     STATE.tickets = (tickets||[]).map(t=>({
       id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,
-      stake: parseFloat(t.stake), odds: parseFloat(t.odds), matches: t.matches||[]
+      stake: parseFloat(t.stake), odds: t.odds!=null ? parseFloat(t.odds) : null, matches: t.matches||[]
     }));
   }catch(e){
     alert('Erro ao conectar no Supabase: '+e.message);
@@ -211,7 +223,7 @@ function ticketOddTotal(ticket){
 function ticketProfit(ticket){
   const r = ticketResult(ticket);
   if(r==='red') return -ticket.stake;
-  if(r==='green') return (ticket.stake*ticket.odds) - ticket.stake;
+  if(r==='green') return ticket.odds ? (ticket.stake*ticket.odds) - ticket.stake : 0;
   return 0;
 }
 function resultChip(r){
@@ -316,7 +328,7 @@ function renderTicketCard(ticket){
       <div class="match-row">
         <div class="match-desc">
           <span class="teams">${teamsLabel}</span>
-          <span class="meta">${m.away ? fmtDate(m.date)+(m.time?' '+m.time:'')+' · ' : ''}${marketLabel}: ${m.selection} · odd ${m.odd.toFixed(2)}</span>
+          <span class="meta">${marketLabel}: ${m.selection} · odd ${m.odd.toFixed(2)}</span>
         </div>
         <div class="match-actions">
           ${resultChip(m.result)}
@@ -330,11 +342,11 @@ function renderTicketCard(ticket){
   }).join('');
 
   return `
-    <div class="ticket">
+    <div class="ticket ticket-compact">
       <div class="ticket-top">
         <div>
           <div class="ticket-client">${cl?cl.name:'Cliente removido'}</div>
-          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · ${ticket.matches.length} jogo(s) · odd ${ticket.odds.toFixed(2)}</div>
+          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · odd ${ticket.odds!=null?ticket.odds.toFixed(2):'—'}</div>
         </div>
         ${resultChip(r)}
       </div>
@@ -343,7 +355,11 @@ function renderTicketCard(ticket){
         <span>Resultado</span>
         <span class="${profit>=0?'profit-pos':'profit-neg'}">${r==='pending'?'—':(profit>=0?'+':'')+fmtBRL(profit)}</span>
       </div>
-      <div class="ticket-actions"><button class="btn-danger-ghost btn-sm" onclick="deleteTicket('${ticket.id}')">Excluir aposta</button></div>
+      <div class="ticket-actions">
+        <button class="btn-ghost btn-sm" onclick="editTicket('${ticket.id}')">Editar</button>
+        <button class="btn-ghost btn-sm" onclick="duplicateTicket('${ticket.id}')">Duplicar</button>
+        <button class="btn-danger-ghost btn-sm" onclick="deleteTicket('${ticket.id}')">Excluir</button>
+      </div>
     </div>
   `;
 }
@@ -367,12 +383,39 @@ async function deleteTicket(ticketId){
 // ---------- WIZARD (Nova Aposta) ----------
 function startNewTicket(){
   DRAFT = {clientId:'', clientName:'', date:new Date().toISOString().slice(0,10), time:'', stake:'', matches:[]};
+  EDITING_TICKET_ID = null;
+  ADMIN_SUBVIEW='wizard';
+  render();
+}
+function editTicket(ticketId){
+  const ticket = STATE.tickets.find(t=>t.id===ticketId);
+  if(!ticket) return;
+  const cl = STATE.clients.find(c=>c.id===ticket.clientId);
+  DRAFT = {
+    clientId: ticket.clientId, clientName: cl?cl.name:'', date: ticket.date, time: ticket.time||'',
+    stake: String(ticket.stake), odds: ticket.odds!=null ? String(ticket.odds) : '',
+    matches: ticket.matches.map(m=>({...m}))
+  };
+  EDITING_TICKET_ID = ticketId;
+  ADMIN_SUBVIEW='wizard';
+  render();
+}
+function duplicateTicket(ticketId){
+  const ticket = STATE.tickets.find(t=>t.id===ticketId);
+  if(!ticket) return;
+  const cl = STATE.clients.find(c=>c.id===ticket.clientId);
+  DRAFT = {
+    clientId: ticket.clientId, clientName: cl?cl.name:'', date: new Date().toISOString().slice(0,10), time: ticket.time||'',
+    stake: String(ticket.stake), odds: ticket.odds!=null ? String(ticket.odds) : '',
+    matches: ticket.matches.map(m=>({...m, id:uid(), result:'pending'}))
+  };
+  EDITING_TICKET_ID = null;
   ADMIN_SUBVIEW='wizard';
   render();
 }
 function cancelWizard(){
   if(DRAFT.matches.length && !confirm('Descartar esta aposta em edição?')) return;
-  DRAFT=null; ADMIN_SUBVIEW='list'; render();
+  DRAFT=null; EDITING_TICKET_ID=null; ADMIN_SUBVIEW='list'; render();
 }
 function updateWizardTotals(){
   const stake = parseFloat(DRAFT.stake) || 0;
@@ -386,21 +429,36 @@ async function saveTicket(){
   const date = document.getElementById('ticket-date').value;
   const time = document.getElementById('ticket-time').value;
   const stake = parseFloat(document.getElementById('ticket-stake').value);
-  const odds = parseFloat(document.getElementById('ticket-odds').value);
+  const oddsRaw = document.getElementById('ticket-odds').value;
+  const odds = oddsRaw ? parseFloat(oddsRaw) : null;
   if(!clientId){ alert('Digite e selecione o cliente na lista.'); return; }
   if(!date || !time){ alert('Informe a data e o horário do bilhete.'); return; }
   if(!stake || stake<=0){ alert('Informe o valor da aposta.'); return; }
-  if(!odds || odds<=1){ alert('Informe a odd total do bilhete.'); return; }
+  if(odds!==null && odds<=1){ alert('A odd total, se informada, precisa ser maior que 1.'); return; }
   if(!DRAFT.matches.length){ alert('Adicione ao menos uma partida.'); return; }
-  const {data, error} = await supabaseClient.from('tickets').insert({
-    client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
-  }).select().single();
-  if(error){ alert('Erro ao salvar aposta: '+error.message); return; }
-  STATE.tickets.push({
-    id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
-    stake:parseFloat(data.stake), odds:parseFloat(data.odds), matches:data.matches||[]
-  });
-  DRAFT=null; ADMIN_SUBVIEW='list';
+
+  if(EDITING_TICKET_ID){
+    const {data, error} = await supabaseClient.from('tickets').update({
+      client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
+    }).eq('id', EDITING_TICKET_ID).select().single();
+    if(error){ alert('Erro ao salvar aposta: '+error.message); return; }
+    const idx = STATE.tickets.findIndex(t=>t.id===EDITING_TICKET_ID);
+    const updated = {
+      id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
+      stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[]
+    };
+    if(idx>=0) STATE.tickets[idx] = updated; else STATE.tickets.push(updated);
+  } else {
+    const {data, error} = await supabaseClient.from('tickets').insert({
+      client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
+    }).select().single();
+    if(error){ alert('Erro ao salvar aposta: '+error.message); return; }
+    STATE.tickets.push({
+      id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
+      stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[]
+    });
+  }
+  DRAFT=null; EDITING_TICKET_ID=null; ADMIN_SUBVIEW='list';
   render();
 }
 
@@ -425,7 +483,7 @@ function renderWizard(){
 
   return `
     <div class="card">
-      <h3>Nova Aposta — dados do bilhete</h3>
+      <h3>${EDITING_TICKET_ID ? 'Editar Aposta' : 'Nova Aposta'} — dados do bilhete</h3>
       <label>Cliente</label>
       <div class="autocomplete-wrap">
         <input type="text" id="new-client-search" value="${DRAFT.clientName||''}" placeholder="Buscar cliente…" autocomplete="off"
@@ -441,7 +499,7 @@ function renderWizard(){
       <label>Valor</label>
       <input type="number" id="ticket-stake" step="0.01" value="${DRAFT.stake||''}" oninput="DRAFT.stake=this.value;updateWizardTotals()" placeholder="Valor (ex: 100,00 ou 100.00)">
       <div class="row">
-        <div><label>Odds</label><input type="number" id="ticket-odds" step="0.01" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" placeholder="Odds (ex: 2,50 ou 2.50)"></div>
+        <div><label>Odds (opcional)</label><input type="number" id="ticket-odds" step="0.01" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" placeholder="Pode preencher depois"></div>
         <div><label>Retorno (lucro)</label><input type="text" id="ticket-retorno-display" value="${(parseFloat(DRAFT.stake)>0 && parseFloat(DRAFT.odds)>0) ? fmtBRL(parseFloat(DRAFT.stake)*parseFloat(DRAFT.odds)-parseFloat(DRAFT.stake)) : ''}" placeholder="Calculado automaticamente" disabled></div>
       </div>
     </div>
@@ -494,7 +552,7 @@ function renderWizard(){
 
     <div class="row">
       <div><button class="btn-ghost btn-full" onclick="cancelWizard()">Cancelar</button></div>
-      <div><button class="btn-primary btn-full" onclick="saveTicket()">Salvar aposta</button></div>
+      <div><button class="btn-primary btn-full" onclick="saveTicket()">${EDITING_TICKET_ID ? 'Salvar alterações' : 'Salvar aposta'}</button></div>
     </div>
   `;
 }
@@ -762,7 +820,7 @@ function renderClientView(code){
       <tr>
         <td style="font-family:var(--font-mono);font-size:12px;white-space:nowrap">${fmtDate(t.date)}${t.time?'<br>'+t.time:''}</td>
         <td class="num" style="white-space:nowrap">${fmtBRL(t.stake)}</td>
-        <td class="num" style="white-space:nowrap">${t.odds.toFixed(2)}</td>
+        <td class="num" style="white-space:nowrap">${t.odds!=null?t.odds.toFixed(2):'—'}</td>
         <td style="font-size:12.5px">${resultIconSmall(r)} ${ticketDetailsShort(t)}</td>
         <td class="num ${profit>=0?'profit-pos':'profit-neg'}" style="white-space:nowrap">${r==='pending'?'—':fmtBRL(profit)}</td>
       </tr>
