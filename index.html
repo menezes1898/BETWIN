@@ -7,14 +7,14 @@
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
 
   :root{
-    --bg: #10161A;
-    --surface: #1A2227;
-    --surface-2: #212B31;
-    --line: #2C383F;
-    --text: #E9EEF1;
-    --text-muted: #7E8C93;
-    --gold: #C9A227;
-    --gold-dim: #6E5C1E;
+    --bg: #050B18;
+    --surface: #0D1B33;
+    --surface-2: #122544;
+    --line: #1D3966;
+    --text: #EAF3FF;
+    --text-muted: #7FA3D1;
+    --gold: #3EC1F3;
+    --gold-dim: #1B5E86;
     --green: #3FB68B;
     --green-dim: rgba(63,182,139,0.14);
     --red: #E0575A;
@@ -58,7 +58,7 @@
     border:none;border-radius:4px;padding:9px 16px;cursor:pointer;transition:opacity .15s;
   }
   button:hover{opacity:0.85;}
-  .btn-primary{background:var(--gold);color:#1A1400;}
+  .btn-primary{background:var(--gold);color:#052034;}
   .btn-ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--line);}
   .btn-sm{padding:5px 10px;font-size:11px;}
   .btn-full{width:100%;padding:12px;font-size:14px;}
@@ -255,7 +255,7 @@ function renderAdmin(){
   const app = document.getElementById('app');
   const pendentesCount = STATE.tickets.filter(t=>ticketResult(t)==='pending').length;
   app.innerHTML = `
-    <div class="brand"><span class="mark">Boletim</span><span class="sub">Painel da Consultoria</span></div>
+    <div class="brand"><span class="mark" style="color:#3EC1F3">BET WIN</span><span class="sub">Painel da Consultoria</span></div>
     <div class="tabs">
       <div class="tab ${ADMIN_TAB==='dashboard'?'active':''}" onclick="setTab('dashboard')">Dashboard</div>
       <div class="tab ${ADMIN_TAB==='apostas'?'active':''}" onclick="setTab('apostas')">Apostas</div>
@@ -741,6 +741,9 @@ function renderDashboardTab(){
   const totalLiquido = rows.reduce((s,r)=>s+r.liquido,0);
   const allTickets = rows.flatMap(r=>r.tickets);
 
+  const resumoResultado = -totalResultado;
+  const resumoLiquido = resumoResultado - totalDesconto;
+
   const options = weeks.map(w=>`<option value="${w}" ${w===DASH_WEEK?'selected':''}>Semana de ${weekLabel(w)}</option>`).join('');
 
   return `
@@ -752,9 +755,9 @@ function renderDashboardTab(){
       <div class="row" style="gap:22px">
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Apostas</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${allTickets.length} ${countBadges(allTickets)}</div></div>
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${fmtBRL(totalVolume)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${totalResultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalResultado)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${resumoResultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resumoResultado)}</div></div>
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Desconto</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${fmtBRL(totalDesconto)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${totalLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalLiquido)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${resumoLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(resumoLiquido)}</div></div>
       </div>
     </div>
     <div class="card">
