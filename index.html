@@ -155,6 +155,7 @@ let SEARCH_TIMERS = {};
 let SHOW_PENDENTES = false;
 let CLIENT_WEEK = null;
 let CLIENT_SHOW_PENDENTES = false;
+let SESSION = null;
 
 const MARKETS = [
   {v:'Resultado Final', l:'Resultado Final (1X2)'},
@@ -247,7 +248,43 @@ function allWeeksSorted(){
 function render(){
   const hash = window.location.hash;
   const m = hash.match(/cliente=([a-zA-Z0-9]+)/);
-  if(m){ renderClientView(m[1]); } else { renderAdmin(); }
+  if(m){ renderClientView(m[1]); return; }
+  if(!SESSION){ renderLogin(); return; }
+  renderAdmin();
+}
+
+// ---------- LOGIN ----------
+function renderLogin(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="brand"><span class="mark" style="color:var(--gold)">BET WIN</span><span class="sub">Painel da Consultoria</span></div>
+    <div class="card" style="max-width:340px;margin:60px auto 0">
+      <h3>Entrar</h3>
+      <label>E-mail</label>
+      <input type="email" id="login-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()">
+      <label>Senha</label>
+      <input type="password" id="login-password" placeholder="Sua senha" onkeydown="if(event.key==='Enter') doLogin()">
+      <div id="login-error" style="color:var(--red);font-size:12px;margin-top:8px;display:none"></div>
+      <div style="margin-top:14px"><button class="btn-primary btn-full" onclick="doLogin()">Entrar</button></div>
+    </div>
+  `;
+  document.getElementById('login-email').focus();
+}
+async function doLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display='none';
+  if(!email || !password){ errEl.textContent='Preencha e-mail e senha.'; errEl.style.display='block'; return; }
+  const {data, error} = await supabaseClient.auth.signInWithPassword({email, password});
+  if(error){ errEl.textContent='E-mail ou senha incorretos.'; errEl.style.display='block'; return; }
+  SESSION = data.session;
+  render();
+}
+async function doLogout(){
+  await supabaseClient.auth.signOut();
+  SESSION = null;
+  render();
 }
 
 // ---------- ADMIN ----------
@@ -255,7 +292,10 @@ function renderAdmin(){
   const app = document.getElementById('app');
   const pendentesCount = STATE.tickets.filter(t=>ticketResult(t)==='pending').length;
   app.innerHTML = `
-    <div class="brand"><span class="mark" style="color:#3EC1F3">BET WIN</span><span class="sub">Painel da Consultoria</span></div>
+    <div class="brand">
+      <div><span class="mark">BET WIN</span><span class="sub">Painel da Consultoria</span></div>
+      <button class="btn-ghost btn-sm" onclick="doLogout()">Sair</button>
+    </div>
     <div class="tabs">
       <div class="tab ${ADMIN_TAB==='dashboard'?'active':''}" onclick="setTab('dashboard')">Dashboard</div>
       <div class="tab ${ADMIN_TAB==='apostas'?'active':''}" onclick="setTab('apostas')">Apostas</div>
@@ -907,7 +947,13 @@ function renderClientView(code){
 }
 
 window.addEventListener('hashchange', render);
-(async ()=>{ await loadState(); render(); })();
+supabaseClient.auth.onAuthStateChange((event, session)=>{ SESSION = session; });
+(async ()=>{
+  const { data } = await supabaseClient.auth.getSession();
+  SESSION = data.session;
+  await loadState();
+  render();
+})();
 </script>
 </body>
 </html>
