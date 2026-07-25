@@ -991,7 +991,7 @@ function renderFinanceiroTab(){
     const totalPaid = paidList.reduce((s,x)=>s+x.amount,0);
     const remaining = amount - totalPaid;
     const status = Math.abs(remaining)<0.01 ? 'pago' : (paidList.length>0 ? 'parcial' : 'pendente');
-    return {id:cl.id, name:cl.name, amount, totalPaid, remaining, status, emAbertoAmount};
+    return {id:cl.id, name:cl.name, amount, totalPaid, remaining, status, emAbertoAmount, betAmount};
   }).filter(Boolean);
 
   const pendentesReceber = rows.filter(r=>r.status!=='pago' && r.remaining>0).reduce((s,r)=>s+r.remaining,0);
@@ -1026,7 +1026,7 @@ function renderFinanceiroTab(){
           <div class="match-actions" style="flex-shrink:0;flex-wrap:nowrap;white-space:nowrap">
             ${r.status==='pago'
               ? `<span class="chip chip-green">PAGO</span><button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}','${FINANCE_WEEK}')">Desfazer última</button>`
-              : `<span style="font-family:var(--font-mono);font-size:15px;font-weight:700" class="${r.remaining>=0?'profit-pos':'profit-neg'}">${fmtBRL(Math.abs(r.remaining))}</span>
+              : `<span title="Saldo da semana de apostas: ${fmtBRL(r.betAmount)}${r.emAbertoAmount ? ' · Saldo anterior (em aberto): '+fmtBRL(r.emAbertoAmount) : ''}" style="font-family:var(--font-mono);font-size:15px;font-weight:700;cursor:help;border-bottom:1px dotted currentColor" class="${r.remaining>=0?'profit-pos':'profit-neg'}">${fmtBRL(Math.abs(r.remaining))}</span>
                  ${r.status==='parcial' ? `<span class="chip chip-pending">PARCIAL</span>` : `<span class="chip chip-pending">PENDENTE</span>`}
                  <button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining},${r.amount})">Dar baixa</button>
                  ${r.status==='parcial' ? `<button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}','${FINANCE_WEEK}')">Desfazer última</button>` : ''}`
