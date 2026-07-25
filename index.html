@@ -757,9 +757,23 @@ function renderClientDetail(id){
   const cl = STATE.clients.find(c=>c.id===id);
   if(!cl){ CLIENT_DETAIL_ID=null; return renderClientesTab(); }
   const baseUrl = window.location.href.split('#')[0];
+  const clientTickets = STATE.tickets.filter(t=>t.clientId===cl.id);
+  const volumeGeral = clientTickets.reduce((s,t)=>s+t.stake,0);
+  const resultadoGeral = clientTickets.reduce((s,t)=>s+ticketProfit(t),0);
   return `
     <button class="btn-ghost btn-sm" onclick="CLIENT_DETAIL_ID=null;render()">‹ Voltar</button>
     <div style="height:12px"></div>
+    <div class="card" style="display:flex;padding:0">
+      <div style="flex:1;text-align:center;padding:1rem 0.5rem">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume total (interno)</div>
+        <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px">${fmtBRL(volumeGeral)}</div>
+      </div>
+      <div style="width:1px;background:var(--line)"></div>
+      <div style="flex:1;text-align:center;padding:1rem 0.5rem">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado geral (interno)</div>
+        <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${resultadoGeral>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultadoGeral)}</div>
+      </div>
+    </div>
     <div class="card">
       <h3>Editar cliente</h3>
       <label>Nome do cliente</label>
