@@ -1370,7 +1370,7 @@ function renderClientView(code){
     <div class="card">
       <div style="display:flex;justify-content:center;align-items:center;gap:16px">
         <button class="btn-ghost" style="padding:10px 16px;font-size:16px" onclick="changeClientWeek(-1)">‹</button>
-        <span style="font-family:var(--font-mono);font-size:clamp(15px,4.5vw,17px);font-weight:600">Semana de ${weekLabel(CLIENT_WEEK)}</span>
+        <span style="font-family:var(--font-mono);font-size:clamp(15px,4.5vw,17px);font-weight:600">${weekLabel(CLIENT_WEEK)}</span>
         <button class="btn-ghost" style="padding:10px 16px;font-size:16px" onclick="changeClientWeek(1)">›</button>
       </div>
     </div>
@@ -1378,7 +1378,7 @@ function renderClientView(code){
     <div class="card" style="display:flex;padding:0">
       <div style="flex:1;text-align:center;padding:0.85rem 0.5rem">
         <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Resultado</div>
-        <div style="font-family:var(--font-mono);font-size:clamp(20px,6.5vw,26px);font-weight:700;margin-top:3px" class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
+        <div style="font-family:var(--font-mono);font-size:clamp(17px,5.5vw,21px);font-weight:700;margin-top:3px" class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
       </div>
       ${resultado<0 ? `
       <div style="width:1px;background:var(--line)"></div>
