@@ -1320,14 +1320,15 @@ function renderClientView(code){
   const pendentes = weekTickets.filter(t=>ticketResult(t)==='pending');
   const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
 
-  function ticketMatchesTitle(t){
-    return t.matches.map(m=> m.away ? `${m.home} x ${m.away}` : m.home).join(' + ');
-  }
-  function ticketMatchesSubtitle(t){
+  function ticketMatchesBlock(t){
     return t.matches.map(m=>{
       const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
-      return `${marketLabel}: ${m.selection}`;
-    }).join('; ');
+      const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+      return `
+        <p style="margin:0;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${teamsLabel}</p>
+        <p style="margin:1px 0 6px;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${marketLabel}: ${m.selection}</p>
+      `;
+    }).join('');
   }
   const dayGroups = {};
   weekTickets.forEach(t=>{
@@ -1342,11 +1343,11 @@ function renderClientView(code){
       const r = ticketResult(t);
       const profit = ticketProfit(t);
       return `
-        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
           <div style="min-width:40px"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${t.time||'—'}</span><br><span style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted);opacity:0.7">#${t.ticketNumber||'—'}</span></div>
           <div style="flex:1;min-width:0">
-            <p style="margin:0;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ticketMatchesTitle(t)}</p>
-            <p style="margin:2px 0 0;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ticketMatchesSubtitle(t)} · ${fmtBRL(t.stake)}</p>
+            ${ticketMatchesBlock(t)}
+            <p style="margin:0;font-size:11px;color:var(--text-muted)">Valor: ${fmtBRL(t.stake)}</p>
           </div>
           <div style="text-align:right;white-space:nowrap">
             <p style="margin:0;font-size:12px;font-family:var(--font-mono);color:var(--text-muted)">${t.odds!=null?'@'+t.odds.toFixed(2):'—'}</p>
