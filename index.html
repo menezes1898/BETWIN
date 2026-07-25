@@ -116,7 +116,7 @@
   }
   .autocomplete-item{padding:9px 10px;cursor:pointer;font-size:13.5px;border-bottom:1px solid var(--line);}
   .autocomplete-item:last-child{border-bottom:none;}
-  .autocomplete-item:hover{background:var(--surface);color:var(--gold);}
+  .autocomplete-item:hover, .autocomplete-item.autocomplete-active{background:var(--surface);color:var(--gold);}
 
   .draft-card{background:var(--surface-2);border:1px dashed var(--line);}
   .draft-match{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;gap:8px;}
@@ -212,6 +212,32 @@ async function loadState(){
 }
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
+function handleAutocompleteKeydown(e, listId){
+  const box = document.getElementById(listId);
+  if(!box || box.style.display==='none' || !box.innerHTML.trim()) return;
+  const items = Array.from(box.querySelectorAll('.autocomplete-item'));
+  if(items.length===0) return;
+  let idx = items.findIndex(it=>it.classList.contains('autocomplete-active'));
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    idx = (idx+1) % items.length;
+    items.forEach(it=>it.classList.remove('autocomplete-active'));
+    items[idx].classList.add('autocomplete-active');
+    items[idx].scrollIntoView({block:'nearest'});
+  } else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    idx = idx<=0 ? items.length-1 : idx-1;
+    items.forEach(it=>it.classList.remove('autocomplete-active'));
+    items[idx].classList.add('autocomplete-active');
+    items[idx].scrollIntoView({block:'nearest'});
+  } else if(e.key==='Enter'){
+    e.preventDefault();
+    const active = items[idx>=0?idx:0];
+    if(active) active.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));
+  } else if(e.key==='Escape'){
+    box.style.display='none';
+  }
+}
 function fmtBRL(v){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v); }
 function fmtDate(d){ if(!d) return ''; const [y,m,day]=d.split('-'); return `${day}/${m}`; }
 
@@ -542,7 +568,7 @@ async function saveTicket(){
   if(!clientId){ alert('Digite e selecione o cliente na lista.'); return; }
   if(!date || !time){ alert('Informe a data e o horário do bilhete.'); return; }
   if(!stake || stake<=0){ alert('Informe o valor da aposta.'); return; }
-  if(odds!==null && odds<=1){ alert('A odd total, se informada, precisa ser maior que 1.'); return; }
+  if(odds!==null && isNaN(odds)){ alert('Odd inválida.'); return; }
   if(!DRAFT.matches.length){ alert('Adicione ao menos uma partida.'); return; }
 
   if(EDITING_TICKET_ID){
@@ -609,7 +635,7 @@ function renderWizard(){
       <label>Cliente</label>
       <div class="autocomplete-wrap">
         <input type="text" id="new-client-search" value="${DRAFT.clientName||''}" placeholder="Buscar cliente…" autocomplete="off"
-          oninput="filterClientOptions()" onfocus="filterClientOptions()"
+          oninput="filterClientOptions()" onfocus="filterClientOptions()" onkeydown="handleAutocompleteKeydown(event,'client-options')"
           onblur="setTimeout(()=>{const b=document.getElementById('client-options'); if(b) b.style.display='none';},150)">
         <input type="hidden" id="new-client-id" value="${DRAFT.clientId||''}">
         <div id="client-options" class="autocomplete-list"></div>
@@ -695,7 +721,7 @@ function addDraftMatch(){
   const selection = document.getElementById('match-selection').value.trim();
   const odd = parseFloat(document.getElementById('match-odd').value);
   if(!selection){ alert('Informe a seleção (ex: Casa, Over 2.5, Sim).'); return; }
-  if(!odd || odd<=1){ alert('Informe a odd da seleção (maior que 1).'); return; }
+  if(!odd && odd!==0 || isNaN(odd)){ alert('Informe a odd da seleção.'); return; }
 
   let home, away, date, time;
   if(semEvento){
@@ -1220,7 +1246,7 @@ function renderLancamentosSection(){
       <label>Vincular a um cliente (opcional)</label>
       <div class="autocomplete-wrap">
         <input type="text" id="new-transaction-client-search" placeholder="Buscar cliente…" autocomplete="off"
-          oninput="filterTransactionClientOptions()" onfocus="filterTransactionClientOptions()"
+          oninput="filterTransactionClientOptions()" onfocus="filterTransactionClientOptions()" onkeydown="handleAutocompleteKeydown(event,'transaction-client-options')"
           onblur="setTimeout(()=>{const b=document.getElementById('transaction-client-options'); if(b) b.style.display='none';},150)">
         <input type="hidden" id="new-transaction-client-id" value="">
         <div id="transaction-client-options" class="autocomplete-list"></div>
