@@ -932,16 +932,14 @@ function renderDashboardTab(){
 }
 
 // ---------- CLIENT VIEW ----------
+function shiftWeek(dateStr, days){
+  const d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
+}
 function changeClientWeek(dir){
-  const hash = window.location.hash;
-  const m = hash.match(/cliente=([a-zA-Z0-9]+)/);
-  if(!m) return;
-  const client = STATE.clients.find(c=>c.code===m[1]);
-  if(!client) return;
-  const weeks = Array.from(new Set(STATE.tickets.filter(t=>t.clientId===client.id).map(t=>mondayOf(ticketDate(t))))).sort();
-  const idx = weeks.indexOf(CLIENT_WEEK);
-  const newIdx = idx + dir;
-  if(newIdx>=0 && newIdx<weeks.length){ CLIENT_WEEK = weeks[newIdx]; render(); }
+  CLIENT_WEEK = shiftWeek(CLIENT_WEEK, dir*7);
+  render();
 }
 
 function renderClientView(code){
@@ -952,21 +950,8 @@ function renderClientView(code){
     return;
   }
   const myTickets = STATE.tickets.filter(t=>t.clientId===client.id);
-  const weeks = Array.from(new Set(myTickets.map(t=>mondayOf(ticketDate(t))))).sort();
 
-  if(weeks.length===0){
-    app.innerHTML = `
-      <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#070B14; --surface:#10141F; --surface-2:#151B29; --line:#222B3E; --text:#F5F7FA; --text-muted:#B8BEC7; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
-      <div class="client-header"><div class="name" style="color:var(--text)">${client.name}</div></div>
-      <div class="card"><div class="empty">Você ainda não recebeu nenhuma aposta.</div></div>
-      </div>
-    `;
-    return;
-  }
-  if(CLIENT_WEEK===null || !weeks.includes(CLIENT_WEEK)) CLIENT_WEEK = weeks[weeks.length-1];
-  const idx = weeks.indexOf(CLIENT_WEEK);
-  const hasPrev = idx>0;
-  const hasNext = idx<weeks.length-1;
+  if(CLIENT_WEEK===null) CLIENT_WEEK = mondayOf(new Date().toISOString().slice(0,10));
 
   const weekTickets = myTickets.filter(t=>mondayOf(ticketDate(t))===CLIENT_WEEK).sort((a,b)=>ticketDate(b).localeCompare(ticketDate(a)));
   const resultado = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
@@ -1020,9 +1005,9 @@ function renderClientView(code){
 
     <div class="card">
       <div style="display:flex;justify-content:center;align-items:center;gap:16px">
-        <button class="btn-ghost btn-sm" onclick="changeClientWeek(-1)" ${!hasPrev?'disabled':''}>‹</button>
+        <button class="btn-ghost btn-sm" onclick="changeClientWeek(-1)">‹</button>
         <span style="font-family:var(--font-mono);font-size:13px">Semana de ${weekLabel(CLIENT_WEEK)}</span>
-        <button class="btn-ghost btn-sm" onclick="changeClientWeek(1)" ${!hasNext?'disabled':''}>›</button>
+        <button class="btn-ghost btn-sm" onclick="changeClientWeek(1)">›</button>
       </div>
     </div>
 
