@@ -1120,8 +1120,10 @@ async function deleteWithdrawal(id){
 function renderLancamentosSection(){
   const receitas = STATE.transactions.filter(t=>t.type==='receita');
   const despesas = STATE.transactions.filter(t=>t.type==='despesa');
+  const emAberto = STATE.transactions.filter(t=>t.type==='em_aberto');
   const totalReceitas = receitas.reduce((s,x)=>s+x.amount,0);
   const totalDespesas = despesas.reduce((s,x)=>s+x.amount,0);
+  const totalEmAberto = emAberto.reduce((s,x)=>s+x.amount,0);
   const saldo = totalReceitas - totalDespesas;
   const list = [...STATE.transactions].sort((a,b)=> (b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
 
@@ -1137,7 +1139,8 @@ function renderLancamentosSection(){
       <div class="row" style="gap:22px">
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Receitas</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-pos">${fmtBRL(totalReceitas)}</div></div>
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Despesas</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-neg">${fmtBRL(totalDespesas)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Saldo</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${saldo>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldo)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Em aberto</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px;color:var(--gold)">${fmtBRL(totalEmAberto)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Saldo (recebido)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${saldo>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldo)}</div></div>
       </div>
     </div>
     <div class="card">
@@ -1147,6 +1150,7 @@ function renderLancamentosSection(){
           <select id="new-transaction-type">
             <option value="receita">Receita</option>
             <option value="despesa">Despesa</option>
+            <option value="em_aberto">Em Aberto (saldo pendente do cliente)</option>
           </select>
         </div>
         <div><label>Data</label><input type="date" id="new-transaction-date" value="${new Date().toISOString().slice(0,10)}"></div>
@@ -1154,10 +1158,13 @@ function renderLancamentosSection(){
       <label>Categoria (opcional)</label>
       <input type="text" id="new-transaction-category" placeholder="Ex: Sistema, Funcionário, Comissão, Marketing…">
       <label>Vincular a um cliente (opcional)</label>
-      <select id="new-transaction-client">
-        <option value="">Nenhum</option>
-        ${STATE.clients.map(cl=>`<option value="${cl.id}">${cl.name}</option>`).join('')}
-      </select>
+      <div class="autocomplete-wrap">
+        <input type="text" id="new-transaction-client-search" placeholder="Buscar cliente…" autocomplete="off"
+          oninput="filterTransactionClientOptions()" onfocus="filterTransactionClientOptions()"
+          onblur="setTimeout(()=>{const b=document.getElementById('transaction-client-options'); if(b) b.style.display='none';},150)">
+        <input type="hidden" id="new-transaction-client-id" value="">
+        <div id="transaction-client-options" class="autocomplete-list"></div>
+      </div>
       <label>Descrição</label>
       <input type="text" id="new-transaction-desc" placeholder="Ex: Saldo antigo, serviço adquirido…">
       <label>Valor</label>
@@ -1169,14 +1176,18 @@ function renderLancamentosSection(){
       ${list.length===0 ? '<div class="empty">Nenhum lançamento registrado ainda.</div>' : list.map(t=>{
         const linkedClient = t.clientId ? STATE.clients.find(c=>c.id===t.clientId) : null;
         const registradoEm = t.createdAt ? new Date(t.createdAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        const typeLabel = t.type==='receita' ? 'Receita' : t.type==='despesa' ? 'Despesa' : 'Em Aberto';
+        const valueColor = t.type==='receita' ? 'profit-pos' : t.type==='despesa' ? 'profit-neg' : '';
+        const valueSign = t.type==='despesa' ? '-' : '+';
         return `
         <div class="match-row">
           <div class="match-desc">
-            <span class="teams">${t.description || (t.type==='receita'?'Receita':'Despesa')}${linkedClient?' — '+linkedClient.name:''}</span>
+            <span class="teams">${t.description || typeLabel}${linkedClient?' — '+linkedClient.name:''}${t.type==='em_aberto'?' <span class="chip chip-pending" style="margin-left:4px">EM ABERTO</span>':''}</span>
             <span class="meta">${fmtDate(t.date)}${t.category?' · '+t.category:''} · registrado em ${registradoEm}</span>
           </div>
           <div class="match-actions">
-            <span style="font-family:var(--font-mono);font-size:13px" class="${t.type==='receita'?'profit-pos':'profit-neg'}">${t.type==='receita'?'+':'-'}${fmtBRL(t.amount)}</span>
+            <span style="font-family:var(--font-mono);font-size:13px" class="${valueColor}" ${t.type==='em_aberto'?'style="color:var(--gold)"':''}>${valueSign}${fmtBRL(t.amount)}</span>
+            ${t.type==='em_aberto' ? `<button class="btn-ghost btn-sm" onclick="marcarComoRecebido('${t.id}')">Marcar recebido</button>` : ''}
             <button class="btn-danger-ghost btn-sm" onclick="deleteTransaction('${t.id}')">Excluir</button>
           </div>
         </div>
@@ -1185,10 +1196,39 @@ function renderLancamentosSection(){
     ` : ''}
   `;
 }
+function filterTransactionClientOptions(){
+  const input = document.getElementById('new-transaction-client-search');
+  const box = document.getElementById('transaction-client-options');
+  const val = input.value.trim().toLowerCase();
+  document.getElementById('new-transaction-client-id').value = '';
+  if(val.length < 2){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = STATE.clients.filter(c=>c.name.toLowerCase().includes(val));
+  if(matches.length===0){
+    box.innerHTML = '<div class="autocomplete-item" style="cursor:default;color:var(--text-muted)">Nenhum cliente encontrado</div>';
+  } else {
+    box.innerHTML = matches.map(c=>`<div class="autocomplete-item" onmousedown="selectTransactionClientOption('${c.id}')">${c.name}</div>`).join('');
+  }
+  box.style.display='block';
+}
+function selectTransactionClientOption(id){
+  const cl = STATE.clients.find(c=>c.id===id);
+  if(!cl) return;
+  document.getElementById('new-transaction-client-id').value = id;
+  document.getElementById('new-transaction-client-search').value = cl.name;
+  const box = document.getElementById('transaction-client-options');
+  box.style.display='none'; box.innerHTML='';
+}
+async function marcarComoRecebido(id){
+  const {error} = await supabaseClient.from('transactions').update({type:'receita'}).eq('id', id);
+  if(error){ alert('Erro ao atualizar: '+error.message); return; }
+  const t = STATE.transactions.find(x=>x.id===id);
+  if(t) t.type = 'receita';
+  render();
+}
 async function addTransaction(){
   const type = document.getElementById('new-transaction-type').value;
   const category = document.getElementById('new-transaction-category').value.trim();
-  const clientId = document.getElementById('new-transaction-client').value || null;
+  const clientId = document.getElementById('new-transaction-client-id').value || null;
   const description = document.getElementById('new-transaction-desc').value.trim();
   const amount = parseFloat(document.getElementById('new-transaction-amount').value);
   const date = document.getElementById('new-transaction-date').value;
