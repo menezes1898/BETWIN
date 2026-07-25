@@ -979,16 +979,19 @@ function renderFinanceiroTab(){
 
   const rows = STATE.clients.map(cl=>{
     const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && mondayOf(ticketDate(t))===FINANCE_WEEK);
-    if(tickets.length===0) return null;
+    const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===cl.id);
+    const emAbertoAmount = openTransactions.reduce((s,x)=>s+x.amount,0);
+    if(tickets.length===0 && openTransactions.length===0) return null;
     const resultadoCliente = tickets.reduce((s,t)=>s+ticketProfit(t),0);
     const descontoPct = cl.discount||0;
     const desconto = resultadoCliente<0 ? Math.abs(resultadoCliente)*descontoPct/100 : 0;
-    const amount = -resultadoCliente - desconto;
+    const betAmount = -resultadoCliente - desconto;
+    const amount = betAmount + emAbertoAmount;
     const paidList = getSettlementsFor(cl.id, FINANCE_WEEK);
     const totalPaid = paidList.reduce((s,x)=>s+x.amount,0);
     const remaining = amount - totalPaid;
     const status = Math.abs(remaining)<0.01 ? 'pago' : (paidList.length>0 ? 'parcial' : 'pendente');
-    return {id:cl.id, name:cl.name, amount, totalPaid, remaining, status};
+    return {id:cl.id, name:cl.name, amount, totalPaid, remaining, status, emAbertoAmount};
   }).filter(Boolean);
 
   const pendentesReceber = rows.filter(r=>r.status!=='pago' && r.remaining>0).reduce((s,r)=>s+r.remaining,0);
@@ -1016,6 +1019,7 @@ function renderFinanceiroTab(){
             <span class="teams">${r.name}</span>
             <span class="meta">
               Total: ${r.amount>=0?'a receber':'a pagar'} ${fmtBRL(Math.abs(r.amount))}
+              ${r.emAbertoAmount ? ` (inclui saldo em aberto de ${fmtBRL(Math.abs(r.emAbertoAmount))})` : ''}
               ${r.status==='parcial' ? ` · já ${r.totalPaid>=0?'recebido':'pago'} ${fmtBRL(Math.abs(r.totalPaid))} · falta ${fmtBRL(Math.abs(r.remaining))}` : ''}
             </span>
           </div>
@@ -1023,8 +1027,8 @@ function renderFinanceiroTab(){
             ${r.status==='pago'
               ? `<span class="chip chip-green">PAGO</span><button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}','${FINANCE_WEEK}')">Desfazer última</button>`
               : r.status==='parcial'
-                ? `<span class="chip chip-pending">PARCIAL</span><button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining})">Dar baixa</button><button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}','${FINANCE_WEEK}')">Desfazer última</button>`
-                : `<span class="chip chip-pending">PENDENTE</span><button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining})">Dar baixa</button>`
+                ? `<span class="chip chip-pending">PARCIAL</span><button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining},${r.amount})">Dar baixa</button><button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}','${FINANCE_WEEK}')">Desfazer última</button>`
+                : `<span class="chip chip-pending">PENDENTE</span><button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining},${r.amount})">Dar baixa</button>`
             }
           </div>
         </div>
@@ -1034,7 +1038,7 @@ function renderFinanceiroTab(){
     ${renderLancamentosSection()}
   `;
 }
-async function darBaixa(clientId, weekStart, remaining){
+async function darBaixa(clientId, weekStart, remaining, fullAmount){
   const isReceber = remaining>=0;
   const label = isReceber ? 'Valor recebido agora' : 'Valor pago agora';
   const defaultVal = Math.abs(remaining).toFixed(2).replace('.',',');
@@ -1046,6 +1050,18 @@ async function darBaixa(clientId, weekStart, remaining){
   const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount}).select().single();
   if(error){ alert('Erro ao dar baixa: '+error.message); return; }
   STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at});
+  if(fullAmount!==undefined){
+    const totalPaidNow = getSettlementsFor(clientId, weekStart).reduce((s,x)=>s+x.amount,0);
+    const novoRestante = fullAmount - totalPaidNow;
+    if(Math.abs(novoRestante) < 0.01){
+      const openIds = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId).map(t=>t.id);
+      for(const id of openIds){
+        await supabaseClient.from('transactions').update({type:'receita'}).eq('id', id);
+        const t = STATE.transactions.find(x=>x.id===id);
+        if(t) t.type = 'receita';
+      }
+    }
+  }
   render();
 }
 async function desfazerUltimaBaixa(clientId, weekStart){
