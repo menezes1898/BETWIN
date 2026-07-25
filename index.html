@@ -1014,19 +1014,19 @@ function renderFinanceiroTab(){
     <div class="card">
       <h3>Situação por cliente</h3>
       ${rows.length===0 ? '<div class="empty">Nenhuma aposta nessa semana.</div>' : rows.map(r=>`
-        <div class="match-row">
-          <div class="match-desc">
-            <span class="teams">${r.name}</span>
-            <span class="meta">
+        <div class="match-row" style="flex-wrap:nowrap;gap:10px">
+          <div class="match-desc" style="flex:1;min-width:0;overflow:hidden">
+            <span class="teams" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
+            <span class="meta" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
               ${r.remaining>=0?'A receber':'A pagar'}
               ${r.emAbertoAmount ? ` (inclui saldo em aberto de ${fmtBRL(Math.abs(r.emAbertoAmount))})` : ''}
               ${r.status==='parcial' ? ` — já ${r.totalPaid>=0?'recebido':'pago'} ${fmtBRL(Math.abs(r.totalPaid))} de ${fmtBRL(Math.abs(r.amount))}` : ''}
             </span>
           </div>
-          <div class="match-actions">
+          <div class="match-actions" style="flex-shrink:0;flex-wrap:nowrap;white-space:nowrap">
             ${r.status==='pago'
               ? `<span class="chip chip-green">PAGO</span><button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}','${FINANCE_WEEK}')">Desfazer última</button>`
-              : `<span style="font-family:var(--font-mono);font-size:19px;font-weight:700" class="${r.remaining>=0?'profit-pos':'profit-neg'}">${fmtBRL(Math.abs(r.remaining))}</span>
+              : `<span style="font-family:var(--font-mono);font-size:15px;font-weight:700" class="${r.remaining>=0?'profit-pos':'profit-neg'}">${fmtBRL(Math.abs(r.remaining))}</span>
                  ${r.status==='parcial' ? `<span class="chip chip-pending">PARCIAL</span>` : `<span class="chip chip-pending">PENDENTE</span>`}
                  <button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining},${r.amount})">Dar baixa</button>
                  ${r.status==='parcial' ? `<button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}','${FINANCE_WEEK}')">Desfazer última</button>` : ''}`
