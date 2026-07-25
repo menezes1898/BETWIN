@@ -587,7 +587,10 @@ function renderWizard(){
             <strong>${teamsLabel}</strong> — ${marketLabel}: ${m.selection}
             <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:11.5px">${m.away ? fmtDate(m.date)+(m.time?' '+m.time:'')+' · ' : ''}odd ${m.odd.toFixed(2)}</div>
           </div>
-          <button class="btn-ghost btn-sm" onclick="removeDraftMatch('${m.id}')">Remover</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn-ghost btn-sm" onclick="editDraftMatch('${m.id}')">Editar</button>
+            <button class="btn-ghost btn-sm" onclick="removeDraftMatch('${m.id}')">Remover</button>
+          </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${resultChip(m.result)}
@@ -712,6 +715,26 @@ function addDraftMatch(){
 function removeDraftMatch(matchId){
   DRAFT.matches = DRAFT.matches.filter(m=>m.id!==matchId);
   render();
+}
+function editDraftMatch(matchId){
+  const idx = DRAFT.matches.findIndex(m=>m.id===matchId);
+  if(idx<0) return;
+  const m = DRAFT.matches[idx];
+  DRAFT.matches.splice(idx,1);
+  render();
+  const semEvento = !m.away;
+  document.getElementById('match-sem-evento').checked = semEvento;
+  toggleEventoFields();
+  if(semEvento){
+    document.getElementById('match-manual-desc').value = m.home;
+  } else {
+    document.getElementById('match-home').value = m.home;
+    document.getElementById('match-away').value = m.away;
+  }
+  document.getElementById('match-market').value = m.market;
+  document.getElementById('match-selection').value = m.selection;
+  document.getElementById('match-odd').value = m.odd;
+  (semEvento ? document.getElementById('match-manual-desc') : document.getElementById('match-home'))?.scrollIntoView({behavior:'smooth', block:'center'});
 }
 
 // ---------- CLIENTES TAB ----------
