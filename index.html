@@ -506,17 +506,19 @@ function editTicket(ticketId){
   ADMIN_SUBVIEW='wizard';
   render();
 }
-function duplicateTicket(ticketId){
+async function duplicateTicket(ticketId){
   const ticket = STATE.tickets.find(t=>t.id===ticketId);
   if(!ticket) return;
-  const cl = STATE.clients.find(c=>c.id===ticket.clientId);
-  DRAFT = {
-    clientId: ticket.clientId, clientName: cl?cl.name:'', date: new Date().toISOString().slice(0,10), time: ticket.time||'',
-    stake: String(ticket.stake), odds: ticket.odds!=null ? String(ticket.odds) : '',
-    matches: ticket.matches.map(m=>({...m, id:uid(), result:'pending'}))
-  };
-  EDITING_TICKET_ID = null;
-  ADMIN_SUBVIEW='wizard';
+  const newMatches = ticket.matches.map(m=>({...m, id:uid(), result:'pending'}));
+  const {data, error} = await supabaseClient.from('tickets').insert({
+    client_id: ticket.clientId, date: ticket.date, time: ticket.time, stake: ticket.stake, odds: ticket.odds, matches: newMatches
+  }).select().single();
+  if(error){ alert('Erro ao duplicar aposta: '+error.message); return; }
+  STATE.tickets.push({
+    id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
+    stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
+    createdAt: data.created_at, ticketNumber: data.ticket_number
+  });
   render();
 }
 function cancelWizard(){
