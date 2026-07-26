@@ -168,11 +168,14 @@ let SESSION = null;
 
 const MARKETS = [
   {v:'Resultado Final', l:'Resultado Final (1X2)'},
+  {v:'Resultado Final HT', l:'Resultado Final HT (1º Tempo)'},
   {v:'Dupla Chance', l:'Dupla Chance'},
   {v:'Ambas Marcam', l:'Ambas Marcam'},
   {v:'Total de Gols', l:'Total de Gols (Over/Under)'},
   {v:'Handicap Asiatico', l:'Handicap Asiático'},
+  {v:'Handicap Asiatico HT', l:'Handicap Asiático HT (1º Tempo)'},
   {v:'Total de Escanteios', l:'Total de Escanteios'},
+  {v:'Total de Escanteios HT', l:'Total de Escanteios HT (1º Tempo)'},
   {v:'Total de Cartoes', l:'Total de Cartões'},
   {v:'Resultado Exato', l:'Resultado Exato'},
   {v:'Outro', l:'—'},
@@ -683,6 +686,13 @@ function renderWizard(){
         <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico','Fora -1')">AH2</button>
         <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Ambas Marcam','Sim')">BTTS Sim</button>
         <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Ambas Marcam','Não')">BTTS Não</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final HT','Casa')">RF HT 1</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final HT','Empate')">RF HT X</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final HT','Fora')">RF HT 2</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Escanteios HT','Over')">ESC HT +</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Escanteios HT','Under')">ESC HT -</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico HT','Casa -1')">AH1 HT</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico HT','Fora -1')">AH2 HT</button>
       </div>
       <div class="row">
         <div><label>Mercado</label><select id="match-market">${marketOptions}</select></div>
@@ -713,6 +723,9 @@ function toggleEventoFields(){
 function quickMarket(market, selection){
   document.getElementById('match-market').value = market;
   document.getElementById('match-selection').value = selection;
+  const oddField = document.getElementById('match-odd');
+  oddField.focus();
+  oddField.select();
 }
 
 function addDraftMatch(){
