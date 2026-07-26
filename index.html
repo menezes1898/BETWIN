@@ -958,7 +958,7 @@ function renderDashboardTab(){
     const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
     const liquido = resultado + desconto;
     const perf = volume>0 ? (resultado/volume*100) : 0;
-    return {name:cl.name, tickets, volume, resultado, desconto, liquido, perf};
+    return {name:cl.name, code:cl.code, tickets, volume, resultado, desconto, liquido, perf};
   }).filter(Boolean);
 
   const totalVolume = rows.reduce((s,r)=>s+r.volume,0);
@@ -993,7 +993,7 @@ function renderDashboardTab(){
         <tr><th>Cliente</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Perf.</th><th>Líquido</th></tr>
         ${rows.map(r=>`
           <tr>
-            <td>${r.name}</td>
+            <td>${r.name} <a href="${window.location.href.split('#')[0]}#cliente=${r.code}" target="_blank" title="Abrir relatório do cliente" style="text-decoration:none;color:var(--gold);font-size:12px">↗</a></td>
             <td>${countBadges(r.tickets)}</td>
             <td class="num">${fmtBRL(r.volume)}</td>
             <td class="num ${r.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.resultado)}</td>
