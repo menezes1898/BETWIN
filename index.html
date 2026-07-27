@@ -353,6 +353,7 @@ function renderAdmin(){
       <div class="tab ${ADMIN_TAB==='pendentes'?'active':''}" onclick="setTab('pendentes')">Pendentes${pendentesCount?' ('+pendentesCount+')':''}</div>
       <div class="tab ${ADMIN_TAB==='clientes'?'active':''}" onclick="setTab('clientes')">Clientes</div>
       <div class="tab ${ADMIN_TAB==='financeiro'?'active':''}" onclick="setTab('financeiro')">Financeiro</div>
+      <div class="tab ${ADMIN_TAB==='config'?'active':''}" onclick="setTab('config')">Configurações</div>
     </div>
     <div id="tab-content"></div>
   `;
@@ -362,6 +363,7 @@ function renderAdmin(){
   if(ADMIN_TAB==='clientes') c.innerHTML = renderClientesTab();
   if(ADMIN_TAB==='dashboard') c.innerHTML = renderDashboardTab();
   if(ADMIN_TAB==='financeiro') c.innerHTML = renderFinanceiroTab();
+  if(ADMIN_TAB==='config') c.innerHTML = renderConfigTab();
 }
 function setTab(t){ ADMIN_TAB=t; ADMIN_SUBVIEW='list'; render(); }
 function renderPendentesTab(){
@@ -989,13 +991,7 @@ function renderDashboardTab(){
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <h3 style="margin:0">Resumo geral</h3>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="file" id="logo-file-input" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
-          <button class="btn-ghost btn-sm" onclick="document.getElementById('logo-file-input').click()">🖼️ Logo do fechamento</button>
-          <input type="file" id="bg-file-input" accept="image/*" style="display:none" onchange="handleBgUpload(event)">
-          <button class="btn-ghost btn-sm" onclick="document.getElementById('bg-file-input').click()">🏟️ Fundo do fechamento</button>
-          <select class="week-select" onchange="DASH_WEEK=this.value;render()">${options}</select>
-        </div>
+        <select class="week-select" onchange="DASH_WEEK=this.value;render()">${options}</select>
       </div>
       <div class="row" style="gap:22px">
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Apostas</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${allTickets.length} ${countBadges(allTickets)}</div></div>
@@ -1051,27 +1047,128 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.closePath();
 }
 const LOGO_STORAGE_KEY = 'boletim_logo_dataurl';
+const LOGO_SHAPE_KEY = 'boletim_logo_shape';
 const BG_STORAGE_KEY = 'boletim_bg_dataurl';
+let PENDING_LOGO_DATAURL = null;
+let PENDING_LOGO_SHAPE = 'round';
+let PENDING_BG_DATAURL = null;
+
 function handleLogoUpload(e){
   const file = e.target.files[0];
   if(!file) return;
   const reader = new FileReader();
   reader.onload = function(ev){
-    localStorage.setItem(LOGO_STORAGE_KEY, ev.target.result);
-    alert('Logo salva! Ela será usada nas próximas imagens de fechamento.');
+    PENDING_LOGO_DATAURL = ev.target.result;
+    PENDING_LOGO_SHAPE = localStorage.getItem(LOGO_SHAPE_KEY) || 'round';
+    renderLogoPreviewOverlay();
   };
   reader.readAsDataURL(file);
 }
+function renderLogoPreviewOverlay(){
+  let overlay = document.getElementById('logo-preview-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'logo-preview-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(overlay);
+  }
+  const shapeStyle = PENDING_LOGO_SHAPE==='round' ? 'border-radius:50%' : 'border-radius:10px';
+  overlay.innerHTML = `
+    <div class="card" style="max-width:340px;width:100%;text-align:center;margin:0">
+      <h3>Prévia da logo</h3>
+      <div style="width:150px;height:150px;margin:0 auto 16px;overflow:hidden;${shapeStyle};background:#0B2049;border:2px solid var(--line)">
+        <img src="${PENDING_LOGO_DATAURL}" style="width:100%;height:100%;object-fit:cover;display:block;">
+      </div>
+      <label>Como a logo deve ser recortada</label>
+      <div class="row" style="gap:8px">
+        <button class="btn-ghost btn-full" style="${PENDING_LOGO_SHAPE==='square'?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLogoPreviewShape('square')">◻ Quadrado</button>
+        <button class="btn-ghost btn-full" style="${PENDING_LOGO_SHAPE==='round'?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLogoPreviewShape('round')">◯ Redondo</button>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn-ghost btn-full" onclick="cancelLogoPreview()">Cancelar</button>
+        <button class="btn-primary btn-full" onclick="confirmLogoPreview()">Usar essa logo</button>
+      </div>
+    </div>
+  `;
+}
+function setLogoPreviewShape(shape){ PENDING_LOGO_SHAPE = shape; renderLogoPreviewOverlay(); }
+function cancelLogoPreview(){
+  PENDING_LOGO_DATAURL = null;
+  const overlay = document.getElementById('logo-preview-overlay');
+  if(overlay) document.body.removeChild(overlay);
+}
+function confirmLogoPreview(){
+  localStorage.setItem(LOGO_STORAGE_KEY, PENDING_LOGO_DATAURL);
+  localStorage.setItem(LOGO_SHAPE_KEY, PENDING_LOGO_SHAPE);
+  cancelLogoPreview();
+  render();
+}
+
 function handleBgUpload(e){
   const file = e.target.files[0];
   if(!file) return;
   const reader = new FileReader();
   reader.onload = function(ev){
-    localStorage.setItem(BG_STORAGE_KEY, ev.target.result);
-    alert('Imagem de fundo salva! Ela será usada nas próximas imagens de fechamento.');
+    PENDING_BG_DATAURL = ev.target.result;
+    renderBgPreviewOverlay();
   };
   reader.readAsDataURL(file);
 }
+function renderBgPreviewOverlay(){
+  let overlay = document.getElementById('bg-preview-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'bg-preview-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div class="card" style="max-width:420px;width:100%;text-align:center;margin:0">
+      <h3>Prévia do fundo</h3>
+      <div style="width:100%;aspect-ratio:720/650;border-radius:8px;overflow:hidden;border:2px solid var(--line);margin-bottom:14px">
+        <img src="${PENDING_BG_DATAURL}" style="width:100%;height:100%;object-fit:cover;display:block;">
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">A imagem preenche todo o retângulo do fechamento (formato acima), cortando as bordas se precisar.</p>
+      <div class="row">
+        <button class="btn-ghost btn-full" onclick="cancelBgPreview()">Cancelar</button>
+        <button class="btn-primary btn-full" onclick="confirmBgPreview()">Usar esse fundo</button>
+      </div>
+    </div>
+  `;
+}
+function cancelBgPreview(){
+  PENDING_BG_DATAURL = null;
+  const overlay = document.getElementById('bg-preview-overlay');
+  if(overlay) document.body.removeChild(overlay);
+}
+function confirmBgPreview(){
+  localStorage.setItem(BG_STORAGE_KEY, PENDING_BG_DATAURL);
+  cancelBgPreview();
+  render();
+}
+
+function renderConfigTab(){
+  const savedLogo = localStorage.getItem(LOGO_STORAGE_KEY);
+  const savedLogoShape = localStorage.getItem(LOGO_SHAPE_KEY) || 'round';
+  const savedBg = localStorage.getItem(BG_STORAGE_KEY);
+  return `
+    <div class="card">
+      <h3>Logo do fechamento</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:0">Aparece no canto superior da imagem de fechamento gerada na Dashboard.</p>
+      ${savedLogo ? `<div style="width:100px;height:100px;margin-bottom:14px;overflow:hidden;${savedLogoShape==='round'?'border-radius:50%':'border-radius:10px'};border:2px solid var(--line)"><img src="${savedLogo}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhuma logo configurada ainda — será usado o texto "BET WIN".</div>'}
+      <input type="file" id="logo-file-input" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
+      <button class="btn-ghost" onclick="document.getElementById('logo-file-input').click()">🖼️ ${savedLogo?'Trocar logo':'Enviar logo'}</button>
+    </div>
+    <div class="card">
+      <h3>Fundo do fechamento</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:0">Foto usada como fundo da imagem de fechamento (ex: um estádio, torcida, ou a arte da sua marca).</p>
+      ${savedBg ? `<div style="width:100%;max-width:320px;aspect-ratio:720/650;margin-bottom:14px;overflow:hidden;border-radius:8px;border:2px solid var(--line)"><img src="${savedBg}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhum fundo configurado ainda — será usado um fundo estilizado padrão.</div>'}
+      <input type="file" id="bg-file-input" accept="image/*" style="display:none" onchange="handleBgUpload(event)">
+      <button class="btn-ghost" onclick="document.getElementById('bg-file-input').click()">🏟️ ${savedBg?'Trocar fundo':'Enviar fundo'}</button>
+    </div>
+  `;
+}
+
 function drawStadiumFallback(ctx, w, h){
   const grad = ctx.createLinearGradient(0,0,0,h);
   grad.addColorStop(0,'#0B2049'); grad.addColorStop(0.55,'#071633'); grad.addColorStop(1,'#040A1C');
@@ -1132,10 +1229,25 @@ function drawLogo(ctx){
   return new Promise((resolve)=>{
     const saved = localStorage.getItem(LOGO_STORAGE_KEY);
     if(!saved){ drawTextLogo(ctx); resolve(); return; }
+    const shape = localStorage.getItem(LOGO_SHAPE_KEY) || 'round';
     const img = new Image();
     img.onload = ()=>{
-      const maxH = 100; const scale = maxH/img.height; const w = img.width*scale;
-      ctx.drawImage(img, 40, 18, w, maxH);
+      const size = 100, x = 40, y = 18;
+      const srcSize = Math.min(img.width, img.height);
+      const sx = (img.width-srcSize)/2, sy = (img.height-srcSize)/2;
+      if(shape==='round'){
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x+size/2, y+size/2, size/2, 0, Math.PI*2);
+        ctx.clip();
+        ctx.drawImage(img, sx, sy, srcSize, srcSize, x, y, size, size);
+        ctx.restore();
+      } else {
+        roundRect(ctx, x, y, size, size, 10);
+        ctx.save(); ctx.clip();
+        ctx.drawImage(img, sx, sy, srcSize, srcSize, x, y, size, size);
+        ctx.restore();
+      }
       resolve();
     };
     img.onerror = ()=>{ drawTextLogo(ctx); resolve(); };
