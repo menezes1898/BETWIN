@@ -971,7 +971,7 @@ function renderDashboardTab(){
     const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
     const liquido = resultado + desconto;
     const perf = volume>0 ? (resultado/volume*100) : 0;
-    return {name:cl.name, code:cl.code, tickets, volume, resultado, desconto, liquido, perf};
+    return {id:cl.id, name:cl.name, code:cl.code, tickets, volume, resultado, desconto, liquido, perf};
   }).filter(Boolean);
 
   const totalVolume = rows.reduce((s,r)=>s+r.volume,0);
