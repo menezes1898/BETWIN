@@ -1146,6 +1146,17 @@ function confirmBgPreview(){
   cancelBgPreview();
   render();
 }
+function removeLogo(){
+  if(!confirm('Remover a logo atual e voltar a usar o texto "BET WIN" padrão?')) return;
+  localStorage.removeItem(LOGO_STORAGE_KEY);
+  localStorage.removeItem(LOGO_SHAPE_KEY);
+  render();
+}
+function removeBg(){
+  if(!confirm('Remover o fundo atual e voltar a usar o fundo estilizado padrão?')) return;
+  localStorage.removeItem(BG_STORAGE_KEY);
+  render();
+}
 
 function renderConfigTab(){
   const savedLogo = localStorage.getItem(LOGO_STORAGE_KEY);
@@ -1157,14 +1168,20 @@ function renderConfigTab(){
       <p style="font-size:13px;color:var(--text-muted);margin-top:0">Aparece no canto superior da imagem de fechamento gerada na Dashboard.</p>
       ${savedLogo ? `<div style="width:100px;height:100px;margin-bottom:14px;overflow:hidden;${savedLogoShape==='round'?'border-radius:50%':'border-radius:10px'};border:2px solid var(--line)"><img src="${savedLogo}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhuma logo configurada ainda — será usado o texto "BET WIN".</div>'}
       <input type="file" id="logo-file-input" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
-      <button class="btn-ghost" onclick="document.getElementById('logo-file-input').click()">🖼️ ${savedLogo?'Trocar logo':'Enviar logo'}</button>
+      <div class="row" style="margin-top:0">
+        <div><button class="btn-ghost btn-full" onclick="document.getElementById('logo-file-input').click()">🖼️ ${savedLogo?'Trocar logo':'Enviar logo'}</button></div>
+        ${savedLogo ? `<div><button class="btn-danger-ghost btn-full" onclick="removeLogo()">Remover e usar padrão</button></div>` : ''}
+      </div>
     </div>
     <div class="card">
       <h3>Fundo do fechamento</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-top:0">Foto usada como fundo da imagem de fechamento (ex: um estádio, torcida, ou a arte da sua marca).</p>
       ${savedBg ? `<div style="width:100%;max-width:320px;aspect-ratio:720/650;margin-bottom:14px;overflow:hidden;border-radius:8px;border:2px solid var(--line)"><img src="${savedBg}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhum fundo configurado ainda — será usado um fundo estilizado padrão.</div>'}
       <input type="file" id="bg-file-input" accept="image/*" style="display:none" onchange="handleBgUpload(event)">
-      <button class="btn-ghost" onclick="document.getElementById('bg-file-input').click()">🏟️ ${savedBg?'Trocar fundo':'Enviar fundo'}</button>
+      <div class="row" style="margin-top:0">
+        <div><button class="btn-ghost btn-full" onclick="document.getElementById('bg-file-input').click()">🏟️ ${savedBg?'Trocar fundo':'Enviar fundo'}</button></div>
+        ${savedBg ? `<div><button class="btn-danger-ghost btn-full" onclick="removeBg()">Remover e usar padrão</button></div>` : ''}
+      </div>
     </div>
   `;
 }
@@ -1218,7 +1235,7 @@ function drawBackground(ctx, w, h){
 }
 function drawTextLogo(ctx){
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-  ctx.font = '700 40px Oswald, Arial, sans-serif';
+  ctx.font = '700 40px Montserrat, Arial, sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.fillText('BET', 40, 66);
   const w = ctx.measureText('BET').width;
@@ -1272,12 +1289,21 @@ async function gerarFechamento(clientId){
   const descontoPct = cl.discount||0;
   const temDesconto = descontoPct>0;
   const desconto = (temDesconto && subtotal<0) ? Math.abs(subtotal)*descontoPct/100 : 0;
-  const saldoSemana = subtotal + desconto;
 
-  // Saldo anterior: mesmo saldo "Em Aberto" pendente que já aparece na aba Financeiro (nunca recebe desconto)
+  // Saldo anterior: mesmo saldo "Em Aberto" pendente que aparece no Financeiro,
+  // já descontando qualquer pagamento (Dar baixa) feito para essa semana — pagamentos
+  // abatem primeiro o saldo anterior (mais antigo) e só depois a semana atual.
   const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId);
   const temSaldoAnterior = openTransactions.length>0;
-  const saldoAnterior = -openTransactions.reduce((s,x)=>s+x.amount,0);
+  const emAbertoAdmin = openTransactions.reduce((s,x)=>s+x.amount,0); // positivo = cliente deve
+  const betAdmin = -subtotal - desconto; // mesmo valor "a receber" usado no Financeiro
+  const totalPagoNaSemana = getSettlementsFor(clientId, weekMonday).reduce((s,x)=>s+x.amount,0);
+
+  const pagoNoAnterior = Math.max(0, Math.min(totalPagoNaSemana, emAbertoAdmin));
+  const pagoNaSemana = totalPagoNaSemana - pagoNoAnterior;
+
+  const saldoAnterior = -(emAbertoAdmin - pagoNoAnterior);
+  const saldoSemana = -(betAdmin - pagoNaSemana);
   const saldoTotal = saldoSemana + saldoAnterior;
 
   // Monta a lista de linhas a desenhar
@@ -1307,27 +1333,27 @@ async function gerarFechamento(clientId){
   await drawLogo(ctx);
 
   ctx.textBaseline = 'alphabetic';
-  // ícone de calendário ao lado de "PERÍODO"
-  const calX = canvas.width-40-Math.max(ctx.measureText('PERÍODO').width, 140)-26;
+  // ícone de calendário ao lado de "PERÍODO" (maior)
+  const calX = canvas.width-40-Math.max(ctx.measureText('PERÍODO').width, 140)-34;
   ctx.save();
-  ctx.strokeStyle = '#8FB3DC'; ctx.fillStyle = '#8FB3DC'; ctx.lineWidth = 1.6;
-  roundRect(ctx, calX, 16, 20, 18, 3); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(calX,22); ctx.lineTo(calX+20,22); ctx.stroke();
-  ctx.fillRect(calX+4,12,2,8); ctx.fillRect(calX+14,12,2,8);
+  ctx.strokeStyle = '#8FB3DC'; ctx.fillStyle = '#8FB3DC'; ctx.lineWidth = 2;
+  roundRect(ctx, calX, 14, 28, 24, 4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(calX,22); ctx.lineTo(calX+28,22); ctx.stroke();
+  ctx.fillRect(calX+5,10,3,10); ctx.fillRect(calX+20,10,3,10);
   ctx.restore();
 
   ctx.textAlign='right';
-  ctx.font = '600 13px Inter, Arial, sans-serif';
+  ctx.font = '600 13px Montserrat, Arial, sans-serif';
   ctx.fillStyle = '#8FB3DC';
   ctx.fillText('PERÍODO', canvas.width-40, 30);
-  ctx.font = '700 16px Inter, Arial, sans-serif';
+  ctx.font = '700 14px Inter, Arial, sans-serif';
   ctx.fillStyle = '#FFFFFF';
   const monday = new Date(weekMonday+'T00:00:00');
   const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
   const fmtLong = d => d.toLocaleDateString('pt-BR');
-  ctx.fillText(fmtLong(monday)+' a '+fmtLong(sunday), canvas.width-40, 52);
+  ctx.fillText(fmtLong(monday)+' a '+fmtLong(sunday), canvas.width-40, 51);
 
-  ctx.font = 'italic 700 28px Oswald, Arial, sans-serif';
+  ctx.font = '700 28px Montserrat, Arial, sans-serif';
   const titleA = 'FECHAMENTO: '; const titleB = cl.name.toUpperCase();
   const wA = ctx.measureText(titleA).width; const wB = ctx.measureText(titleB).width;
   const startX = canvas.width/2 - (wA+wB)/2;
@@ -1345,7 +1371,7 @@ async function gerarFechamento(clientId){
       roundRect(ctx, marginX, rowY, rowW, rowH, 10); ctx.fill();
     }
     ctx.textAlign='left';
-    ctx.font = `italic 700 ${big?20:17}px Oswald, Arial, sans-serif`;
+    ctx.font = `italic 700 ${big?20:17}px Montserrat, Arial, sans-serif`;
     ctx.fillStyle = '#FFFFFF';
     ctx.fillText(label, marginX+22, rowY+rowH/2+6);
     ctx.textAlign='right';
