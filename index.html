@@ -1036,6 +1036,33 @@ function renderDashboardTab(){
 function getSettlementsFor(clientId, weekStart){
   return STATE.settlements.filter(s=>s.clientId===clientId && s.weekStart===weekStart);
 }
+function getAllSettlementsForClient(clientId){
+  return STATE.settlements.filter(s=>s.clientId===clientId).reduce((s,x)=>s+x.amount,0);
+}
+// Saldo contínuo (perspectiva admin, positivo = cliente deve) de todas as apostas já
+// resolvidas + saldo em aberto, descontando tudo que já foi pago em qualquer semana.
+// excludeWeek (opcional) tira uma semana específica do cálculo das apostas — usado no
+// fechamento pra separar "saldo da semana" do "saldo anterior".
+function computeContinuousBalance(clientId, excludeWeek){
+  const cl = STATE.clients.find(c=>c.id===clientId);
+  const descontoPct = cl?.discount||0;
+  const resolvedTickets = STATE.tickets.filter(t=>t.clientId===clientId && ticketResult(t)!=='pending' && ticketResult(t)!=='void' && (!excludeWeek || mondayOf(ticketDate(t))!==excludeWeek));
+  const weekGroups = {};
+  resolvedTickets.forEach(t=>{
+    const wk = mondayOf(ticketDate(t));
+    (weekGroups[wk] = weekGroups[wk]||[]).push(t);
+  });
+  let totalBetAdmin = 0;
+  Object.values(weekGroups).forEach(list=>{
+    const resultadoW = list.reduce((s,t)=>s+ticketProfit(t),0);
+    const descontoW = resultadoW<0 ? Math.abs(resultadoW)*descontoPct/100 : 0;
+    totalBetAdmin += (-resultadoW - descontoW);
+  });
+  const emAbertoAmount = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId).reduce((s,x)=>s+x.amount,0);
+  const totalOwed = totalBetAdmin + emAbertoAmount;
+  const totalPaid = getAllSettlementsForClient(clientId);
+  return totalOwed - totalPaid;
+}
 // ---------- IMAGEM DE FECHAMENTO ----------
 function roundRect(ctx,x,y,w,h,r){
   ctx.beginPath();
@@ -1290,20 +1317,12 @@ async function gerarFechamento(clientId){
   const temDesconto = descontoPct>0;
   const desconto = (temDesconto && subtotal<0) ? Math.abs(subtotal)*descontoPct/100 : 0;
 
-  // Saldo anterior: mesmo saldo "Em Aberto" pendente que aparece no Financeiro,
-  // já descontando qualquer pagamento (Dar baixa) feito para essa semana — pagamentos
-  // abatem primeiro o saldo anterior (mais antigo) e só depois a semana atual.
+  // Saldo anterior: saldo contínuo (todas as semanas anteriores + saldo em aberto,
+  // já líquido de tudo que foi pago) — exatamente o mesmo cálculo usado no Financeiro.
   const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId);
-  const temSaldoAnterior = openTransactions.length>0;
-  const emAbertoAdmin = openTransactions.reduce((s,x)=>s+x.amount,0); // positivo = cliente deve
-  const betAdmin = -subtotal - desconto; // mesmo valor "a receber" usado no Financeiro
-  const totalPagoNaSemana = getSettlementsFor(clientId, weekMonday).reduce((s,x)=>s+x.amount,0);
-
-  const pagoNoAnterior = Math.max(0, Math.min(totalPagoNaSemana, emAbertoAdmin));
-  const pagoNaSemana = totalPagoNaSemana - pagoNoAnterior;
-
-  const saldoAnterior = -(emAbertoAdmin - pagoNoAnterior);
-  const saldoSemana = -(betAdmin - pagoNaSemana);
+  const temSaldoAnterior = Math.abs(computeContinuousBalance(clientId, weekMonday)) >= 0.01;
+  const saldoAnterior = -computeContinuousBalance(clientId, weekMonday);
+  const saldoSemana = subtotal + desconto;
   const saldoTotal = saldoSemana + saldoAnterior;
 
   // Monta a lista de linhas a desenhar
@@ -1430,41 +1449,34 @@ function renderFinanceiroTab(){
   const weeks = allWeeksSorted();
   const caixaTotal = caixaTotalCalc();
 
-  if(weeks.length===0){
-    return `
-      <div class="card">
-        <h3>Financeiro</h3>
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Caixa (total acumulado)</div>
-        <div style="font-family:var(--font-mono);font-size:22px;margin-top:4px" class="${caixaTotal>=0?'profit-pos':'profit-neg'}">${fmtBRL(caixaTotal)}</div>
-      </div>
-      <div class="card"><div class="empty">Cadastre apostas para ver o financeiro por semana.</div></div>
-      ${renderRetiradasSection()}
-      ${renderLancamentosSection()}
-    `;
-  }
-  if(!FINANCE_WEEK || !weeks.includes(FINANCE_WEEK)) FINANCE_WEEK = weeks[0];
+  if(!FINANCE_WEEK || (weeks.length && !weeks.includes(FINANCE_WEEK))) FINANCE_WEEK = weeks[0] || mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
 
+  // Situação por cliente: saldo CONTÍNUO (todas as semanas), some da lista só quando quitado
   const rows = STATE.clients.map(cl=>{
-    const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && mondayOf(ticketDate(t))===FINANCE_WEEK);
+    const remaining = computeContinuousBalance(cl.id, null);
+    if(Math.abs(remaining) < 0.01) return null;
+    const totalPaid = getAllSettlementsForClient(cl.id);
+    const status = totalPaid>0 ? 'parcial' : 'pendente';
     const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===cl.id);
     const emAbertoAmount = openTransactions.reduce((s,x)=>s+x.amount,0);
-    if(tickets.length===0 && openTransactions.length===0) return null;
-    const resultadoCliente = tickets.reduce((s,t)=>s+ticketProfit(t),0);
-    const descontoPct = cl.discount||0;
-    const desconto = resultadoCliente<0 ? Math.abs(resultadoCliente)*descontoPct/100 : 0;
-    const betAmount = -resultadoCliente - desconto;
-    const amount = betAmount + emAbertoAmount;
-    const paidList = getSettlementsFor(cl.id, FINANCE_WEEK);
-    const totalPaid = paidList.reduce((s,x)=>s+x.amount,0);
-    const remaining = amount - totalPaid;
-    const status = Math.abs(remaining)<0.01 ? 'pago' : (paidList.length>0 ? 'parcial' : 'pendente');
-    return {id:cl.id, name:cl.name, amount, totalPaid, remaining, status, emAbertoAmount, betAmount};
+    return {id:cl.id, name:cl.name, remaining, totalPaid, status, emAbertoAmount};
   }).filter(Boolean);
 
-  const pendentesReceber = rows.filter(r=>r.status!=='pago' && r.remaining>0).reduce((s,r)=>s+r.remaining,0);
-  const pendentesPagar = rows.filter(r=>r.status!=='pago' && r.remaining<0).reduce((s,r)=>s+Math.abs(r.remaining),0);
+  // Resumo da semana selecionada: só o retrato da atividade daquela semana (não é o saldo pendente)
+  const weekTicketsByClient = {};
+  STATE.tickets.filter(t=>mondayOf(ticketDate(t))===FINANCE_WEEK && ticketResult(t)!=='pending' && ticketResult(t)!=='void').forEach(t=>{
+    (weekTicketsByClient[t.clientId] = weekTicketsByClient[t.clientId]||[]).push(t);
+  });
+  let receberSemana = 0, pagarSemana = 0;
+  Object.entries(weekTicketsByClient).forEach(([clientId, tks])=>{
+    const cl = STATE.clients.find(c=>c.id===clientId);
+    const resultadoW = tks.reduce((s,t)=>s+ticketProfit(t),0);
+    const descontoW = resultadoW<0 ? Math.abs(resultadoW)*((cl?.discount)||0)/100 : 0;
+    const adminAmount = -resultadoW - descontoW;
+    if(adminAmount>=0) receberSemana += adminAmount; else pagarSemana += Math.abs(adminAmount);
+  });
 
-  const options = weeks.map(w=>`<option value="${w}" ${w===FINANCE_WEEK?'selected':''}>Semana de ${weekLabel(w)}</option>`).join('');
+  const options = weeks.length ? weeks.map(w=>`<option value="${w}" ${w===FINANCE_WEEK?'selected':''}>Semana de ${weekLabel(w)}</option>`).join('') : `<option value="${FINANCE_WEEK}">Semana de ${weekLabel(FINANCE_WEEK)}</option>`;
 
   return `
     <div class="card">
@@ -1474,30 +1486,27 @@ function renderFinanceiroTab(){
       </div>
       <div class="row" style="gap:22px">
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Caixa (total acumulado)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${caixaTotal>=0?'profit-pos':'profit-neg'}">${fmtBRL(caixaTotal)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A receber nessa semana</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-pos">${fmtBRL(pendentesReceber)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A pagar nessa semana</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-neg">${fmtBRL(pendentesPagar)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A receber nessa semana</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-pos">${fmtBRL(receberSemana)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A pagar nessa semana</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-neg">${fmtBRL(pagarSemana)}</div></div>
       </div>
     </div>
     <div class="card">
-      <h3>Situação por cliente</h3>
-      ${rows.length===0 ? '<div class="empty">Nenhuma aposta nessa semana.</div>' : rows.map(r=>`
+      <h3>Situação por cliente <span style="font-size:12px;color:var(--text-muted);font-weight:400">(saldo contínuo — some só quando quitado)</span></h3>
+      ${rows.length===0 ? '<div class="empty">Nenhum saldo pendente no momento.</div>' : rows.map(r=>`
         <div class="match-row" style="flex-wrap:nowrap;gap:10px">
           <div class="match-desc" style="flex:1;min-width:0;overflow:hidden">
             <span class="teams" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
             <span class="meta" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
               ${r.remaining>=0?'A receber':'A pagar'}
               ${r.emAbertoAmount ? ` (inclui saldo em aberto de ${fmtBRL(Math.abs(r.emAbertoAmount))})` : ''}
-              ${r.status==='parcial' ? ` — já ${r.totalPaid>=0?'recebido':'pago'} ${fmtBRL(Math.abs(r.totalPaid))} de ${fmtBRL(Math.abs(r.amount))}` : ''}
+              ${r.status==='parcial' ? ` — já ${r.totalPaid>=0?'recebido':'pago'} ${fmtBRL(Math.abs(r.totalPaid))} no total` : ''}
             </span>
           </div>
           <div class="match-actions" style="flex-shrink:0;flex-wrap:nowrap;white-space:nowrap">
-            ${r.status==='pago'
-              ? `<span class="chip chip-green">PAGO</span><button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}','${FINANCE_WEEK}')">Desfazer última</button>`
-              : `<span title="Saldo da semana de apostas: ${fmtBRL(r.betAmount)}${r.emAbertoAmount ? ' · Saldo anterior (em aberto): '+fmtBRL(r.emAbertoAmount) : ''}" style="font-family:var(--font-mono);font-size:15px;font-weight:700;cursor:help;border-bottom:1px dotted currentColor" class="${r.remaining>=0?'profit-pos':'profit-neg'}">${fmtBRL(Math.abs(r.remaining))}</span>
-                 ${r.status==='parcial' ? `<span class="chip chip-pending">PARCIAL</span>` : `<span class="chip chip-pending">PENDENTE</span>`}
-                 <button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining},${r.amount})">Dar baixa</button>
-                 ${r.status==='parcial' ? `<button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}','${FINANCE_WEEK}')">Desfazer última</button>` : ''}`
-            }
+            <span title="Saldo pendente acumulado, considerando todas as semanas e pagamentos já feitos" style="font-family:var(--font-mono);font-size:15px;font-weight:700;cursor:help;border-bottom:1px dotted currentColor" class="${r.remaining>=0?'profit-pos':'profit-neg'}">${fmtBRL(Math.abs(r.remaining))}</span>
+            ${r.status==='parcial' ? `<span class="chip chip-pending">PARCIAL</span>` : `<span class="chip chip-pending">PENDENTE</span>`}
+            <button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining})">Dar baixa</button>
+            ${r.status==='parcial' ? `<button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}')">Desfazer última</button>` : ''}
           </div>
         </div>
       `).join('')}
@@ -1506,7 +1515,7 @@ function renderFinanceiroTab(){
     ${renderLancamentosSection()}
   `;
 }
-async function darBaixa(clientId, weekStart, remaining, fullAmount){
+async function darBaixa(clientId, weekStart, remaining){
   const isReceber = remaining>=0;
   const label = isReceber ? 'Valor recebido agora' : 'Valor pago agora';
   const defaultVal = Math.abs(remaining).toFixed(2).replace('.',',');
@@ -1518,25 +1527,22 @@ async function darBaixa(clientId, weekStart, remaining, fullAmount){
   const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount}).select().single();
   if(error){ alert('Erro ao dar baixa: '+error.message); return; }
   STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at});
-  if(fullAmount!==undefined){
-    const totalPaidNow = getSettlementsFor(clientId, weekStart).reduce((s,x)=>s+x.amount,0);
-    const novoRestante = fullAmount - totalPaidNow;
-    if(Math.abs(novoRestante) < 0.01){
-      const openIds = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId).map(t=>t.id);
-      for(const id of openIds){
-        await supabaseClient.from('transactions').update({type:'receita'}).eq('id', id);
-        const t = STATE.transactions.find(x=>x.id===id);
-        if(t) t.type = 'receita';
-      }
+  const novoRestante = computeContinuousBalance(clientId, null);
+  if(Math.abs(novoRestante) < 0.01){
+    const openIds = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId).map(t=>t.id);
+    for(const id of openIds){
+      await supabaseClient.from('transactions').update({type:'receita'}).eq('id', id);
+      const t = STATE.transactions.find(x=>x.id===id);
+      if(t) t.type = 'receita';
     }
   }
   render();
 }
-async function desfazerUltimaBaixa(clientId, weekStart){
-  const list = getSettlementsFor(clientId, weekStart).sort((a,b)=>a.paidAt.localeCompare(b.paidAt));
+async function desfazerUltimaBaixa(clientId){
+  const list = STATE.settlements.filter(s=>s.clientId===clientId).sort((a,b)=>a.paidAt.localeCompare(b.paidAt));
   const last = list[list.length-1];
   if(!last) return;
-  if(!confirm('Desfazer a última baixa registrada para esse cliente nessa semana?')) return;
+  if(!confirm('Desfazer a última baixa registrada para esse cliente?')) return;
   const {error} = await supabaseClient.from('settlements').delete().eq('id', last.id);
   if(error){ alert('Erro ao desfazer baixa: '+error.message); return; }
   STATE.settlements = STATE.settlements.filter(s=>s.id!==last.id);
