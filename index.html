@@ -992,6 +992,8 @@ function renderDashboardTab(){
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input type="file" id="logo-file-input" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
           <button class="btn-ghost btn-sm" onclick="document.getElementById('logo-file-input').click()">🖼️ Logo do fechamento</button>
+          <input type="file" id="bg-file-input" accept="image/*" style="display:none" onchange="handleBgUpload(event)">
+          <button class="btn-ghost btn-sm" onclick="document.getElementById('bg-file-input').click()">🏟️ Fundo do fechamento</button>
           <select class="week-select" onchange="DASH_WEEK=this.value;render()">${options}</select>
         </div>
       </div>
@@ -1049,6 +1051,7 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.closePath();
 }
 const LOGO_STORAGE_KEY = 'boletim_logo_dataurl';
+const BG_STORAGE_KEY = 'boletim_bg_dataurl';
 function handleLogoUpload(e){
   const file = e.target.files[0];
   if(!file) return;
@@ -1059,18 +1062,26 @@ function handleLogoUpload(e){
   };
   reader.readAsDataURL(file);
 }
-function drawStadiumBackground(ctx, w, h){
+function handleBgUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    localStorage.setItem(BG_STORAGE_KEY, ev.target.result);
+    alert('Imagem de fundo salva! Ela será usada nas próximas imagens de fechamento.');
+  };
+  reader.readAsDataURL(file);
+}
+function drawStadiumFallback(ctx, w, h){
   const grad = ctx.createLinearGradient(0,0,0,h);
   grad.addColorStop(0,'#0B2049'); grad.addColorStop(0.55,'#071633'); grad.addColorStop(1,'#040A1C');
   ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
-
   [[50,30],[w-50,30]].forEach(([cx,cy])=>{
     const g = ctx.createRadialGradient(cx,cy,0,cx,cy,260);
     g.addColorStop(0,'rgba(62,193,243,0.22)');
     g.addColorStop(1,'rgba(62,193,243,0)');
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,260,0,Math.PI*2); ctx.fill();
   });
-
   ctx.save();
   ctx.globalAlpha = 0.09;
   ctx.strokeStyle = '#9FC3E8';
@@ -1081,7 +1092,6 @@ function drawStadiumBackground(ctx, w, h){
     ctx.stroke();
   }
   ctx.restore();
-
   ctx.save();
   ctx.globalAlpha = 0.12;
   ctx.strokeStyle = '#FFFFFF';
@@ -1092,14 +1102,31 @@ function drawStadiumBackground(ctx, w, h){
   ctx.beginPath(); ctx.moveTo(w/2,pitchY-44); ctx.lineTo(w/2,h); ctx.stroke();
   ctx.restore();
 }
+function drawBackground(ctx, w, h){
+  return new Promise((resolve)=>{
+    const saved = localStorage.getItem(BG_STORAGE_KEY);
+    if(!saved){ drawStadiumFallback(ctx,w,h); resolve(); return; }
+    const img = new Image();
+    img.onload = ()=>{
+      const scale = Math.max(w/img.width, h/img.height);
+      const dw = img.width*scale, dh = img.height*scale;
+      ctx.drawImage(img, (w-dw)/2, (h-dh)/2, dw, dh);
+      ctx.fillStyle = 'rgba(4,10,28,0.55)';
+      ctx.fillRect(0,0,w,h);
+      resolve();
+    };
+    img.onerror = ()=>{ drawStadiumFallback(ctx,w,h); resolve(); };
+    img.src = saved;
+  });
+}
 function drawTextLogo(ctx){
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-  ctx.font = '700 32px Oswald, sans-serif';
+  ctx.font = '700 40px Oswald, Arial, sans-serif';
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText('BET', 40, 58);
+  ctx.fillText('BET', 40, 66);
   const w = ctx.measureText('BET').width;
   ctx.fillStyle = '#3EC1F3';
-  ctx.fillText('WIN', 40+w, 58);
+  ctx.fillText('WIN', 40+w, 66);
 }
 function drawLogo(ctx){
   return new Promise((resolve)=>{
@@ -1107,8 +1134,8 @@ function drawLogo(ctx){
     if(!saved){ drawTextLogo(ctx); resolve(); return; }
     const img = new Image();
     img.onload = ()=>{
-      const maxH = 64; const scale = maxH/img.height; const w = img.width*scale;
-      ctx.drawImage(img, 40, 22, w, maxH);
+      const maxH = 100; const scale = maxH/img.height; const w = img.width*scale;
+      ctx.drawImage(img, 40, 18, w, maxH);
       resolve();
     };
     img.onerror = ()=>{ drawTextLogo(ctx); resolve(); };
@@ -1116,8 +1143,9 @@ function drawLogo(ctx){
   });
 }
 async function gerarFechamento(clientId){
+  try{
   const cl = STATE.clients.find(c=>c.id===clientId);
-  if(!cl) return;
+  if(!cl){ alert('Cliente não encontrado.'); return; }
   const todaySP = new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'});
   const weekMonday = mondayOf(todaySP);
   const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='void');
@@ -1136,78 +1164,78 @@ async function gerarFechamento(clientId){
 
   // Saldo anterior: mesmo saldo "Em Aberto" pendente que já aparece na aba Financeiro (nunca recebe desconto)
   const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId);
+  const temSaldoAnterior = openTransactions.length>0;
   const saldoAnterior = -openTransactions.reduce((s,x)=>s+x.amount,0);
-
   const saldoTotal = saldoSemana + saldoAnterior;
 
+  // Monta a lista de linhas a desenhar
+  const linhas = [];
+  linhas.push(['VALOR JOGADO:', 'R$ - '+fmtBRL(valorJogado).replace('R$','').trim(), '#E0575A', false]);
+  linhas.push(['ACERTOS:', 'R$ + '+fmtBRL(acertos).replace('R$','').trim(), '#3FB68B', false]);
+  linhas.push(['SUBTOTAL:', (subtotal>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(subtotal)).replace('R$','').trim(), subtotal>=0?'#3FB68B':'#E0575A', false]);
+  if(temDesconto){
+    linhas.push(['DESCONTO:', 'R$ + '+fmtBRL(desconto).replace('R$','').trim(), '#3EC1F3', false]);
+  }
+  if(temSaldoAnterior){
+    linhas.push(['SALDO DA SEMANA:', (saldoSemana>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoSemana)).replace('R$','').trim(), saldoSemana>=0?'#3FB68B':'#E0575A', false]);
+    linhas.push(['SALDO ANTERIOR:', (saldoAnterior>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoAnterior)).replace('R$','').trim(), saldoAnterior>=0?'#3FB68B':'#E0575A', false]);
+    linhas.push(['SALDO TOTAL:', (saldoTotal>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoTotal)).replace('R$','').trim(), saldoTotal>=0?'#3FB68B':'#E0575A', true]);
+  } else {
+    linhas.push(['SALDO DA SEMANA:', (saldoSemana>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoSemana)).replace('R$','').trim(), saldoSemana>=0?'#3FB68B':'#E0575A', true]);
+  }
+
+  const rowH = 50, rowGap = 10, marginX = 55;
+  const headerH = 180;
+  const canvasHeight = headerH + linhas.length*(rowH+rowGap) + 30;
   const canvas = document.createElement('canvas');
-  canvas.width = 720; canvas.height = openTransactions.length ? (temDesconto?680:650) : (temDesconto?610:580);
+  canvas.width = 720; canvas.height = canvasHeight;
   const ctx = canvas.getContext('2d');
 
-  drawStadiumBackground(ctx, canvas.width, canvas.height);
-
-  try{
-    await document.fonts.load('700 32px Oswald');
-    await document.fonts.load('700 20px Oswald');
-    await document.fonts.load('700 22px "JetBrains Mono"');
-  }catch(e){}
-
+  await drawBackground(ctx, canvas.width, canvas.height);
   await drawLogo(ctx);
 
+  ctx.textBaseline = 'alphabetic';
   ctx.textAlign='right';
-  ctx.font = '600 13px Inter, sans-serif';
+  ctx.font = '600 13px Inter, Arial, sans-serif';
   ctx.fillStyle = '#8FB3DC';
   ctx.fillText('PERÍODO', canvas.width-40, 34);
-  ctx.font = '700 16px Inter, sans-serif';
+  ctx.font = '700 16px Inter, Arial, sans-serif';
   ctx.fillStyle = '#FFFFFF';
   const monday = new Date(weekMonday+'T00:00:00');
   const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
   const fmtLong = d => d.toLocaleDateString('pt-BR');
-  ctx.fillText(`${fmtLong(monday)} a ${fmtLong(sunday)}`, canvas.width-40, 56);
+  ctx.fillText(fmtLong(monday)+' a '+fmtLong(sunday), canvas.width-40, 56);
 
-  ctx.font = '700 28px Oswald, sans-serif';
+  ctx.font = '700 28px Oswald, Arial, sans-serif';
   const titleA = 'FECHAMENTO: '; const titleB = cl.name.toUpperCase();
   const wA = ctx.measureText(titleA).width; const wB = ctx.measureText(titleB).width;
-  const totalW = wA+wB; const startX = canvas.width/2 - totalW/2;
+  const startX = canvas.width/2 - (wA+wB)/2;
   ctx.textAlign='left';
-  ctx.fillStyle = '#FFFFFF'; ctx.fillText(titleA, startX, 128);
-  ctx.fillStyle = '#3EC1F3'; ctx.fillText(titleB, startX+wA, 128);
+  ctx.fillStyle = '#FFFFFF'; ctx.fillText(titleA, startX, 140);
+  ctx.fillStyle = '#3EC1F3'; ctx.fillText(titleB, startX+wA, 140);
 
-  let rowY = 172;
-  const rowH = 52, rowGap = 12, marginX = 55;
+  let rowY = headerH;
   const rowW = canvas.width - marginX*2;
 
-  function drawRow(label, value, color, y, big){
-    ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    roundRect(ctx, marginX, y, rowW, rowH, 10); ctx.fill();
+  linhas.forEach(([label, value, color, big])=>{
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    roundRect(ctx, marginX, rowY, rowW, rowH, 10); ctx.fill();
     ctx.textAlign='left';
-    ctx.font = `700 ${big?21:18}px Oswald, sans-serif`;
+    ctx.font = (big?'700 20px ':'700 17px ')+'Oswald, Arial, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(label, marginX+22, y+rowH/2+7);
+    ctx.fillText(label, marginX+22, rowY+rowH/2+6);
     ctx.textAlign='right';
-    ctx.font = `700 ${big?22:19}px 'JetBrains Mono', monospace`;
+    ctx.font = (big?'700 21px ':'700 18px ')+"'JetBrains Mono', monospace";
     ctx.fillStyle = color;
-    ctx.fillText(value, marginX+rowW-22, y+rowH/2+7);
-  }
-
-  drawRow('VALOR JOGADO:', 'R$ - '+fmtBRL(valorJogado).replace('R$','').trim(), '#E0575A', rowY); rowY += rowH+rowGap;
-  drawRow('ACERTOS:', 'R$ + '+fmtBRL(acertos).replace('R$','').trim(), '#3FB68B', rowY); rowY += rowH+rowGap;
-  drawRow('SUBTOTAL:', (subtotal>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(subtotal)).replace('R$','').trim(), subtotal>=0?'#3FB68B':'#E0575A', rowY); rowY += rowH+rowGap;
-  if(temDesconto){
-    drawRow('DESCONTO:', 'R$ + '+fmtBRL(desconto).replace('R$','').trim(), '#3EC1F3', rowY); rowY += rowH+rowGap;
-  }
-  if(openTransactions.length){
-    drawRow('SALDO ANTERIOR:', (saldoAnterior>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoAnterior)).replace('R$','').trim(), saldoAnterior>=0?'#3FB68B':'#E0575A', rowY);
+    ctx.fillText(value, marginX+rowW-22, rowY+rowH/2+6);
     rowY += rowH+rowGap;
-  }
-
-  rowY += 20;
-  const finalLabel = openTransactions.length ? 'SALDO TOTAL:' : 'SALDO DA SEMANA:';
-  const finalValue = openTransactions.length ? saldoTotal : saldoSemana;
-  drawRow(finalLabel, (finalValue>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(finalValue)).replace('R$','').trim(), finalValue>=0?'#3FB68B':'#E0575A', rowY, true);
+  });
 
   const dataUrl = canvas.toDataURL('image/png');
   showFechamentoPreview(dataUrl, cl.name, weekMonday);
+  }catch(err){
+    alert('Erro ao gerar a imagem de fechamento: '+err.message);
+  }
 }
 function showFechamentoPreview(dataUrl, clientName, weekMonday){
   const overlay = document.createElement('div');
