@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Boletim — Consultoria</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Montserrat:wght@300;400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Montserrat:wght@300;400;700&family=Oswald:wght@500;600;700&display=swap');
 
   :root{
     --bg: #070B14;
@@ -989,7 +989,11 @@ function renderDashboardTab(){
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <h3 style="margin:0">Resumo geral</h3>
-        <select class="week-select" onchange="DASH_WEEK=this.value;render()">${options}</select>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="logo-file-input" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
+          <button class="btn-ghost btn-sm" onclick="document.getElementById('logo-file-input').click()">🖼️ Logo do fechamento</button>
+          <select class="week-select" onchange="DASH_WEEK=this.value;render()">${options}</select>
+        </div>
       </div>
       <div class="row" style="gap:22px">
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Apostas</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${allTickets.length} ${countBadges(allTickets)}</div></div>
@@ -1044,81 +1048,154 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.arcTo(x,y,x+w,y,r);
   ctx.closePath();
 }
-function gerarFechamento(clientId){
+const LOGO_STORAGE_KEY = 'boletim_logo_dataurl';
+function handleLogoUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    localStorage.setItem(LOGO_STORAGE_KEY, ev.target.result);
+    alert('Logo salva! Ela será usada nas próximas imagens de fechamento.');
+  };
+  reader.readAsDataURL(file);
+}
+function drawStadiumBackground(ctx, w, h){
+  const grad = ctx.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0,'#0B2049'); grad.addColorStop(0.55,'#071633'); grad.addColorStop(1,'#040A1C');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+
+  [[50,30],[w-50,30]].forEach(([cx,cy])=>{
+    const g = ctx.createRadialGradient(cx,cy,0,cx,cy,260);
+    g.addColorStop(0,'rgba(62,193,243,0.22)');
+    g.addColorStop(1,'rgba(62,193,243,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,260,0,Math.PI*2); ctx.fill();
+  });
+
+  ctx.save();
+  ctx.globalAlpha = 0.09;
+  ctx.strokeStyle = '#9FC3E8';
+  for(let i=0;i<6;i++){
+    ctx.beginPath();
+    ctx.ellipse(w/2, -220-i*12, w*0.72+i*26, 150+i*16, 0, 0, Math.PI);
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 2;
+  const pitchY = h-60;
+  ctx.beginPath(); ctx.moveTo(0,pitchY); ctx.lineTo(w,pitchY); ctx.stroke();
+  ctx.beginPath(); ctx.arc(w/2,pitchY,44,Math.PI,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w/2,pitchY-44); ctx.lineTo(w/2,h); ctx.stroke();
+  ctx.restore();
+}
+function drawTextLogo(ctx){
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.font = '700 32px Oswald, sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('BET', 40, 58);
+  const w = ctx.measureText('BET').width;
+  ctx.fillStyle = '#3EC1F3';
+  ctx.fillText('WIN', 40+w, 58);
+}
+function drawLogo(ctx){
+  return new Promise((resolve)=>{
+    const saved = localStorage.getItem(LOGO_STORAGE_KEY);
+    if(!saved){ drawTextLogo(ctx); resolve(); return; }
+    const img = new Image();
+    img.onload = ()=>{
+      const maxH = 64; const scale = maxH/img.height; const w = img.width*scale;
+      ctx.drawImage(img, 40, 22, w, maxH);
+      resolve();
+    };
+    img.onerror = ()=>{ drawTextLogo(ctx); resolve(); };
+    img.src = saved;
+  });
+}
+async function gerarFechamento(clientId){
   const cl = STATE.clients.find(c=>c.id===clientId);
   if(!cl) return;
   const todaySP = new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'});
   const weekMonday = mondayOf(todaySP);
   const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='void');
 
+  // Valor Jogado: total de todas as apostas da semana
   const valorJogado = tickets.reduce((s,t)=>s+t.stake,0);
+  // Acertos: valor apostado + lucro das apostas Green (retorno total)
   const acertos = tickets.filter(t=>ticketResult(t)==='green').reduce((s,t)=>s+(t.odds!=null?t.stake*t.odds:t.stake),0);
+  // Subtotal: somente o lucro ou prejuízo da semana
   const subtotal = acertos - valorJogado;
+  // Desconto: só existe se o cliente tem desconto cadastrado, e incide só sobre o saldo da semana
   const descontoPct = cl.discount||0;
-  const desconto = subtotal<0 ? Math.abs(subtotal)*descontoPct/100 : 0;
+  const temDesconto = descontoPct>0;
+  const desconto = (temDesconto && subtotal<0) ? Math.abs(subtotal)*descontoPct/100 : 0;
+  const saldoSemana = subtotal + desconto;
 
+  // Saldo anterior: mesmo saldo "Em Aberto" pendente que já aparece na aba Financeiro (nunca recebe desconto)
   const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId);
   const saldoAnterior = -openTransactions.reduce((s,x)=>s+x.amount,0);
 
-  const saldoSemana = subtotal + desconto;
   const saldoTotal = saldoSemana + saldoAnterior;
 
   const canvas = document.createElement('canvas');
-  canvas.width = 720; canvas.height = openTransactions.length ? 660 : 590;
+  canvas.width = 720; canvas.height = openTransactions.length ? (temDesconto?680:650) : (temDesconto?610:580);
   const ctx = canvas.getContext('2d');
 
-  const grad = ctx.createLinearGradient(0,0,0,canvas.height);
-  grad.addColorStop(0,'#0A1E42'); grad.addColorStop(1,'#050D22');
-  ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+  drawStadiumBackground(ctx, canvas.width, canvas.height);
 
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = '700 34px Montserrat, sans-serif';
-  ctx.fillStyle = '#FFFFFF'; ctx.textAlign='left';
-  ctx.fillText('BET', 40, 60);
-  const betWidth = ctx.measureText('BET').width;
-  ctx.fillStyle = '#3EC1F3';
-  ctx.fillText('WIN', 40+betWidth, 60);
+  try{
+    await document.fonts.load('700 32px Oswald');
+    await document.fonts.load('700 20px Oswald');
+    await document.fonts.load('700 22px "JetBrains Mono"');
+  }catch(e){}
+
+  await drawLogo(ctx);
 
   ctx.textAlign='right';
   ctx.font = '600 13px Inter, sans-serif';
   ctx.fillStyle = '#8FB3DC';
-  ctx.fillText('PERÍODO', canvas.width-40, 40);
+  ctx.fillText('PERÍODO', canvas.width-40, 34);
   ctx.font = '700 16px Inter, sans-serif';
   ctx.fillStyle = '#FFFFFF';
   const monday = new Date(weekMonday+'T00:00:00');
   const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
   const fmtLong = d => d.toLocaleDateString('pt-BR');
-  ctx.fillText(`${fmtLong(monday)} a ${fmtLong(sunday)}`, canvas.width-40, 62);
+  ctx.fillText(`${fmtLong(monday)} a ${fmtLong(sunday)}`, canvas.width-40, 56);
 
-  ctx.font = '700 26px Montserrat, sans-serif';
+  ctx.font = '700 28px Oswald, sans-serif';
   const titleA = 'FECHAMENTO: '; const titleB = cl.name.toUpperCase();
   const wA = ctx.measureText(titleA).width; const wB = ctx.measureText(titleB).width;
   const totalW = wA+wB; const startX = canvas.width/2 - totalW/2;
   ctx.textAlign='left';
-  ctx.fillStyle = '#FFFFFF'; ctx.fillText(titleA, startX, 130);
-  ctx.fillStyle = '#3EC1F3'; ctx.fillText(titleB, startX+wA, 130);
+  ctx.fillStyle = '#FFFFFF'; ctx.fillText(titleA, startX, 128);
+  ctx.fillStyle = '#3EC1F3'; ctx.fillText(titleB, startX+wA, 128);
 
-  let rowY = 175;
+  let rowY = 172;
   const rowH = 52, rowGap = 12, marginX = 55;
   const rowW = canvas.width - marginX*2;
 
   function drawRow(label, value, color, y, big){
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
     roundRect(ctx, marginX, y, rowW, rowH, 10); ctx.fill();
     ctx.textAlign='left';
-    ctx.font = `italic 700 ${big?20:17}px Inter, sans-serif`;
+    ctx.font = `700 ${big?21:18}px Oswald, sans-serif`;
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(label, marginX+22, y+rowH/2+6);
+    ctx.fillText(label, marginX+22, y+rowH/2+7);
     ctx.textAlign='right';
     ctx.font = `700 ${big?22:19}px 'JetBrains Mono', monospace`;
     ctx.fillStyle = color;
-    ctx.fillText(value, marginX+rowW-22, y+rowH/2+6);
+    ctx.fillText(value, marginX+rowW-22, y+rowH/2+7);
   }
 
   drawRow('VALOR JOGADO:', 'R$ - '+fmtBRL(valorJogado).replace('R$','').trim(), '#E0575A', rowY); rowY += rowH+rowGap;
   drawRow('ACERTOS:', 'R$ + '+fmtBRL(acertos).replace('R$','').trim(), '#3FB68B', rowY); rowY += rowH+rowGap;
   drawRow('SUBTOTAL:', (subtotal>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(subtotal)).replace('R$','').trim(), subtotal>=0?'#3FB68B':'#E0575A', rowY); rowY += rowH+rowGap;
-  drawRow('DESCONTO:', 'R$ + '+fmtBRL(desconto).replace('R$','').trim(), '#3EC1F3', rowY); rowY += rowH+rowGap;
+  if(temDesconto){
+    drawRow('DESCONTO:', 'R$ + '+fmtBRL(desconto).replace('R$','').trim(), '#3EC1F3', rowY); rowY += rowH+rowGap;
+  }
   if(openTransactions.length){
     drawRow('SALDO ANTERIOR:', (saldoAnterior>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoAnterior)).replace('R$','').trim(), saldoAnterior>=0?'#3FB68B':'#E0575A', rowY);
     rowY += rowH+rowGap;
