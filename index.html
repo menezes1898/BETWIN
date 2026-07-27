@@ -1322,9 +1322,9 @@ async function gerarFechamento(clientId){
     linhas.push(['SALDO DA SEMANA:', (saldoSemana>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoSemana)).replace('R$','').trim(), saldoSemana>=0?'#3FB68B':'#E0575A', true]);
   }
 
-  const rowH = 50, rowGap = 10, marginX = 55;
-  const headerH = 180;
-  const canvasHeight = headerH + linhas.length*(rowH+rowGap) + 24 + 30;
+  const rowH = 44, rowGap = 9, marginX = 55;
+  const headerH = 178;
+  const canvasHeight = headerH + linhas.length*(rowH+rowGap) + 20 + 30;
   const canvas = document.createElement('canvas');
   canvas.width = 720; canvas.height = canvasHeight;
   const ctx = canvas.getContext('2d');
@@ -1332,52 +1332,63 @@ async function gerarFechamento(clientId){
   await drawBackground(ctx, canvas.width, canvas.height);
   await drawLogo(ctx);
 
+  // ---- bloco "PERÍODO" (ícone + rótulo + data), alinhado e espaçado ----
   ctx.textBaseline = 'alphabetic';
-  // ícone de calendário ao lado de "PERÍODO" (maior)
-  const calX = canvas.width-40-Math.max(ctx.measureText('PERÍODO').width, 140)-34;
-  ctx.save();
-  ctx.strokeStyle = '#8FB3DC'; ctx.fillStyle = '#8FB3DC'; ctx.lineWidth = 2;
-  roundRect(ctx, calX, 14, 28, 24, 4); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(calX,22); ctx.lineTo(calX+28,22); ctx.stroke();
-  ctx.fillRect(calX+5,10,3,10); ctx.fillRect(calX+20,10,3,10);
-  ctx.restore();
-
-  ctx.textAlign='right';
-  ctx.font = '600 13px Montserrat, Arial, sans-serif';
-  ctx.fillStyle = '#8FB3DC';
-  ctx.fillText('PERÍODO', canvas.width-40, 30);
-  ctx.font = '700 14px Inter, Arial, sans-serif';
-  ctx.fillStyle = '#FFFFFF';
+  const rightEdge = canvas.width-40;
+  ctx.font = '600 10.5px Montserrat, Arial, sans-serif';
+  const labelW = ctx.measureText('PERÍODO').width;
   const monday = new Date(weekMonday+'T00:00:00');
   const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
   const fmtLong = d => d.toLocaleDateString('pt-BR');
-  ctx.fillText(fmtLong(monday)+' a '+fmtLong(sunday), canvas.width-40, 51);
+  const periodoStr = fmtLong(monday)+' a '+fmtLong(sunday);
+  ctx.font = '700 13px Inter, Arial, sans-serif';
+  const dateW = ctx.measureText(periodoStr).width;
+  const textBlockW = Math.max(labelW, dateW);
+  const iconSize = 18, iconGap = 10;
+  const iconX = rightEdge - textBlockW - iconGap - iconSize;
+  const iconY = 19;
 
-  ctx.font = '700 28px Montserrat, Arial, sans-serif';
+  ctx.save();
+  ctx.strokeStyle = '#8FB3DC'; ctx.fillStyle = '#8FB3DC'; ctx.lineWidth = 1.6;
+  roundRect(ctx, iconX, iconY, iconSize, iconSize, 3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(iconX,iconY+7); ctx.lineTo(iconX+iconSize,iconY+7); ctx.stroke();
+  ctx.fillRect(iconX+4,iconY-3,2,7); ctx.fillRect(iconX+iconSize-6,iconY-3,2,7);
+  ctx.restore();
+
+  ctx.textAlign='right';
+  ctx.font = '600 10.5px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#8FB3DC';
+  ctx.fillText('PERÍODO', rightEdge, 25);
+  ctx.font = '700 13px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(periodoStr, rightEdge, 42);
+
+  // ---- título ----
+  ctx.font = '700 24px Montserrat, Arial, sans-serif';
   const titleA = 'FECHAMENTO: '; const titleB = cl.name.toUpperCase();
   const wA = ctx.measureText(titleA).width; const wB = ctx.measureText(titleB).width;
   const startX = canvas.width/2 - (wA+wB)/2;
   ctx.textAlign='left';
-  ctx.fillStyle = '#FFFFFF'; ctx.fillText(titleA, startX, 140);
-  ctx.fillStyle = '#3EC1F3'; ctx.fillText(titleB, startX+wA, 140);
+  ctx.fillStyle = '#FFFFFF'; ctx.fillText(titleA, startX, 142);
+  ctx.fillStyle = '#3EC1F3'; ctx.fillText(titleB, startX+wA, 142);
 
   let rowY = headerH;
   const rowW = canvas.width - marginX*2;
 
   linhas.forEach(([label, value, color, big], idx)=>{
-    if(big) rowY += 24;
+    if(big) rowY += 18;
     if(!big){
       ctx.fillStyle = 'rgba(255,255,255,0.10)';
-      roundRect(ctx, marginX, rowY, rowW, rowH, 10); ctx.fill();
+      roundRect(ctx, marginX, rowY, rowW, rowH, 9); ctx.fill();
     }
     ctx.textAlign='left';
-    ctx.font = `italic 700 ${big?20:17}px Montserrat, Arial, sans-serif`;
+    ctx.font = `italic 700 ${big?17:14.5}px Montserrat, Arial, sans-serif`;
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(label, marginX+22, rowY+rowH/2+6);
+    ctx.fillText(label, marginX+20, rowY+rowH/2+5);
     ctx.textAlign='right';
-    ctx.font = (big?'700 22px ':'700 18px ')+"'JetBrains Mono', monospace";
+    ctx.font = (big?'700 19px ':'700 16px ')+"'JetBrains Mono', monospace";
     ctx.fillStyle = color;
-    ctx.fillText(value, marginX+rowW-22, rowY+rowH/2+6);
+    ctx.fillText(value, marginX+rowW-20, rowY+rowH/2+5);
     rowY += rowH+rowGap;
   });
 
