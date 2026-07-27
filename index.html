@@ -155,6 +155,7 @@ let DASH_WEEK = null;
 let FINANCE_WEEK = null;
 let SHOW_LANCAMENTOS = false;
 let SHOW_RETIRADAS = false;
+let SHOW_BAIXAS_HISTORICO = false;
 let DRAFT = null;
 let EDITING_TICKET_ID = null;
 let TEAM_RESULTS = {};
@@ -1529,6 +1530,7 @@ function renderFinanceiroTab(){
         </div>
       `).join('')}
     </div>
+    ${renderBaixasHistoricoSection()}
     ${renderRetiradasSection()}
     ${renderLancamentosSection()}
   `;
@@ -1564,6 +1566,47 @@ async function desfazerUltimaBaixa(clientId){
   const {error} = await supabaseClient.from('settlements').delete().eq('id', last.id);
   if(error){ alert('Erro ao desfazer baixa: '+error.message); return; }
   STATE.settlements = STATE.settlements.filter(s=>s.id!==last.id);
+  render();
+}
+
+// ---------- HISTÓRICO DE BAIXAS ----------
+function renderBaixasHistoricoSection(){
+  const list = [...STATE.settlements].sort((a,b)=>(b.paidAt||'').localeCompare(a.paidAt||''));
+  const totalBaixas = list.reduce((s,x)=>s+x.amount,0);
+  return `
+    <div class="card" style="cursor:pointer" onclick="SHOW_BAIXAS_HISTORICO=!SHOW_BAIXAS_HISTORICO;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">HISTÓRICO DE BAIXAS</span>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${list.length} registro(s)</span>
+      </div>
+    </div>
+    ${SHOW_BAIXAS_HISTORICO ? `
+    <div class="card">
+      ${list.length===0 ? '<div class="empty">Nenhuma baixa registrada ainda.</div>' : list.map(s=>{
+        const cl = STATE.clients.find(c=>c.id===s.clientId);
+        const data = s.paidAt ? new Date(s.paidAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        return `
+          <div class="match-row">
+            <div class="match-desc">
+              <span class="teams">${cl?cl.name:'Cliente removido'}</span>
+              <span class="meta">${data} · semana de ${weekLabel(s.weekStart)} · ${s.amount>=0?'recebido':'pago ao cliente'}</span>
+            </div>
+            <div class="match-actions">
+              <span style="font-family:var(--font-mono);font-size:13px" class="${s.amount>=0?'profit-pos':'profit-neg'}">${s.amount>=0?'+':'-'}${fmtBRL(Math.abs(s.amount))}</span>
+              <button class="btn-danger-ghost btn-sm" onclick="excluirBaixa('${s.id}')">Excluir</button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    ` : ''}
+  `;
+}
+async function excluirBaixa(settlementId){
+  if(!confirm('Excluir esse registro de baixa? Isso reabre o valor correspondente como pendente.')) return;
+  const {error} = await supabaseClient.from('settlements').delete().eq('id', settlementId);
+  if(error){ alert('Erro ao excluir baixa: '+error.message); return; }
+  STATE.settlements = STATE.settlements.filter(s=>s.id!==settlementId);
   render();
 }
 
