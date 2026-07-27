@@ -1147,7 +1147,7 @@ async function gerarFechamento(clientId){
   const cl = STATE.clients.find(c=>c.id===clientId);
   if(!cl){ alert('Cliente não encontrado.'); return; }
   const todaySP = new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'});
-  const weekMonday = mondayOf(todaySP);
+  const weekMonday = DASH_WEEK || mondayOf(todaySP);
   const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='void');
 
   // Valor Jogado: total de todas as apostas da semana
