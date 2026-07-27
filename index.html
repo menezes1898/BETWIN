@@ -1378,7 +1378,17 @@ function renderClientView(code){
   }
   const myTickets = STATE.tickets.filter(t=>t.clientId===client.id);
 
-  if(CLIENT_WEEK===null) CLIENT_WEEK = mondayOf(new Date().toISOString().slice(0,10));
+  if(CLIENT_WEEK===null){
+    const todaySP = new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'});
+    const currentWeekMonday = mondayOf(todaySP);
+    const hasPendingThisWeek = myTickets.some(t=>mondayOf(ticketDate(t))===currentWeekMonday && ticketResult(t)==='pending');
+    if(hasPendingThisWeek){
+      CLIENT_WEEK = currentWeekMonday;
+    } else {
+      const weeksWithData = Array.from(new Set(myTickets.map(t=>mondayOf(ticketDate(t))))).sort();
+      CLIENT_WEEK = weeksWithData.length ? weeksWithData[weeksWithData.length-1] : currentWeekMonday;
+    }
+  }
 
   const weekTickets = myTickets.filter(t=>mondayOf(ticketDate(t))===CLIENT_WEEK).sort((a,b)=>ticketDate(b).localeCompare(ticketDate(a)));
   const resultado = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
