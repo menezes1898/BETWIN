@@ -366,6 +366,16 @@ function renderAdmin(){
   if(ADMIN_TAB==='config') c.innerHTML = renderConfigTab();
 }
 function setTab(t){ ADMIN_TAB=t; ADMIN_SUBVIEW='list'; render(); }
+function changeDashWeek(dir){
+  if(!DASH_WEEK) DASH_WEEK = mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
+  DASH_WEEK = shiftWeek(DASH_WEEK, dir*7);
+  render();
+}
+function changeFinanceWeek(dir){
+  if(!FINANCE_WEEK) FINANCE_WEEK = mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
+  FINANCE_WEEK = shiftWeek(FINANCE_WEEK, dir*7);
+  render();
+}
 function renderPendentesTab(){
   const pendentes = STATE.tickets.filter(t=>ticketResult(t)==='pending').sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
@@ -962,7 +972,7 @@ function countBadges(tickets){
 function renderDashboardTab(){
   const weeks = allWeeksSorted();
   if(weeks.length===0) return '<div class="card"><div class="empty">Cadastre apostas para ver a dashboard.</div></div>';
-  if(!DASH_WEEK || !weeks.includes(DASH_WEEK)) DASH_WEEK = weeks[0];
+  if(!DASH_WEEK) DASH_WEEK = weeks[0];
 
   const rows = STATE.clients.map(cl=>{
     const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && mondayOf(ticketDate(t))===DASH_WEEK);
@@ -985,13 +995,15 @@ function renderDashboardTab(){
   const resumoResultado = -totalResultado;
   const resumoLiquido = resumoResultado - totalDesconto;
 
-  const options = weeks.map(w=>`<option value="${w}" ${w===DASH_WEEK?'selected':''}>Semana de ${weekLabel(w)}</option>`).join('');
-
   return `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <h3 style="margin:0">Resumo geral</h3>
-        <select class="week-select" onchange="DASH_WEEK=this.value;render()">${options}</select>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="btn-ghost btn-sm" onclick="changeDashWeek(-1)">‹</button>
+          <span style="font-family:var(--font-mono);font-size:13px;font-weight:600">${weekLabel(DASH_WEEK)}</span>
+          <button class="btn-ghost btn-sm" onclick="changeDashWeek(1)">›</button>
+        </div>
       </div>
       <div class="row" style="gap:22px">
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Apostas</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${allTickets.length} ${countBadges(allTickets)}</div></div>
@@ -1449,7 +1461,7 @@ function renderFinanceiroTab(){
   const weeks = allWeeksSorted();
   const caixaTotal = caixaTotalCalc();
 
-  if(!FINANCE_WEEK || (weeks.length && !weeks.includes(FINANCE_WEEK))) FINANCE_WEEK = weeks[0] || mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
+  if(!FINANCE_WEEK) FINANCE_WEEK = weeks[0] || mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
 
   // Situação por cliente: saldo CONTÍNUO (todas as semanas), some da lista só quando quitado
   const rows = STATE.clients.map(cl=>{
@@ -1462,31 +1474,37 @@ function renderFinanceiroTab(){
     return {id:cl.id, name:cl.name, remaining, totalPaid, status, emAbertoAmount};
   }).filter(Boolean);
 
-  // Resumo da semana selecionada: só o retrato da atividade daquela semana (não é o saldo pendente)
+  // Resumo: "A receber" é contínuo (soma de tudo que está pendente, de qualquer semana),
+  // já que clientes às vezes atrasam. "A pagar" é só da semana selecionada, pois pagamentos
+  // pra quem ganha são sempre feitos em dia.
+  const receberContinuo = rows.filter(r=>r.remaining>0).reduce((s,r)=>s+r.remaining,0);
+
   const weekTicketsByClient = {};
   STATE.tickets.filter(t=>mondayOf(ticketDate(t))===FINANCE_WEEK && ticketResult(t)!=='pending' && ticketResult(t)!=='void').forEach(t=>{
     (weekTicketsByClient[t.clientId] = weekTicketsByClient[t.clientId]||[]).push(t);
   });
-  let receberSemana = 0, pagarSemana = 0;
+  let pagarSemana = 0;
   Object.entries(weekTicketsByClient).forEach(([clientId, tks])=>{
     const cl = STATE.clients.find(c=>c.id===clientId);
     const resultadoW = tks.reduce((s,t)=>s+ticketProfit(t),0);
     const descontoW = resultadoW<0 ? Math.abs(resultadoW)*((cl?.discount)||0)/100 : 0;
     const adminAmount = -resultadoW - descontoW;
-    if(adminAmount>=0) receberSemana += adminAmount; else pagarSemana += Math.abs(adminAmount);
+    if(adminAmount<0) pagarSemana += Math.abs(adminAmount);
   });
-
-  const options = weeks.length ? weeks.map(w=>`<option value="${w}" ${w===FINANCE_WEEK?'selected':''}>Semana de ${weekLabel(w)}</option>`).join('') : `<option value="${FINANCE_WEEK}">Semana de ${weekLabel(FINANCE_WEEK)}</option>`;
 
   return `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <h3 style="margin:0">Financeiro</h3>
-        <select class="week-select" onchange="FINANCE_WEEK=this.value;render()">${options}</select>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="btn-ghost btn-sm" onclick="changeFinanceWeek(-1)">‹</button>
+          <span style="font-family:var(--font-mono);font-size:13px;font-weight:600">${weekLabel(FINANCE_WEEK)}</span>
+          <button class="btn-ghost btn-sm" onclick="changeFinanceWeek(1)">›</button>
+        </div>
       </div>
       <div class="row" style="gap:22px">
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Caixa (total acumulado)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${caixaTotal>=0?'profit-pos':'profit-neg'}">${fmtBRL(caixaTotal)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A receber nessa semana</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-pos">${fmtBRL(receberSemana)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A receber (total pendente)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-pos">${fmtBRL(receberContinuo)}</div></div>
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A pagar nessa semana</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-neg">${fmtBRL(pagarSemana)}</div></div>
       </div>
     </div>
