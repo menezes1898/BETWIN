@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Boletim — Consultoria</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Montserrat:wght@300;400;700&family=Oswald:wght@500;600;700&display=swap');
+
+  :root{
+    --bg: #070B14;
+    --surface: #10141F;
+    --surface-2: #151B29;
+    --line: #222B3E;
+    --text: #F5F7FA;
+    --text-muted: #B8BEC7;
+    --gold: #3EC1F3;
+    --gold-dim: #1B5E86;
+    --green: #3FB68B;
+    --green-dim: rgba(63,182,139,0.14);
+    --red: #E0575A;
+    --red-dim: rgba(224,87,90,0.14);
+    --font-display: 'Montserrat', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--font-body); -webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:960px;margin:0 auto;padding:24px 18px 60px;}
+
+  .brand{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:16px;}
+  .brand .mark{font-family:var(--font-display);font-weight:300;font-size:28px;letter-spacing:0.5px;color:var(--gold);}
+  .brand .sub{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;}
+
+  .tabs{display:flex;gap:4px;margin-bottom:22px;border-bottom:1px solid var(--line);}
+  .tab{
+    font-family:var(--font-display);font-size:17px;font-weight:300;letter-spacing:0.3px;
+    padding:9px 16px;cursor:pointer;color:var(--text-muted);border-bottom:2px solid transparent;
+  }
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:16px;}
+  .card h3{font-family:var(--font-display);font-size:20px;font-weight:300;margin:0 0 14px;letter-spacing:0.2px;}
+  label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px;margin-top:12px;text-transform:uppercase;letter-spacing:0.6px;}
+  input[type=text],input[type=date],input[type=time],input[type=number],select{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    padding:9px 10px;border-radius:4px;font-family:var(--font-body);font-size:14px;
+  }
+  input:focus,select:focus{outline:none;border-color:var(--gold-dim);}
+  input:disabled{color:var(--gold);opacity:0.9;cursor:not-allowed;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .row > div{flex:1;min-width:120px;}
+
+  button{
+    font-family:var(--font-body);font-weight:600;font-size:13px;letter-spacing:0.2px;
+    border:none;border-radius:4px;padding:9px 16px;cursor:pointer;transition:opacity .15s;
+  }
+  button:hover{opacity:0.85;}
+  .btn-primary{background:var(--gold);color:#052034;}
+  .btn-ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--line);}
+  .btn-sm{padding:5px 10px;font-size:11px;}
+  .btn-full{width:100%;padding:12px;font-size:14px;}
+  .btn-danger-ghost{background:var(--surface-2);color:var(--red);border:1px solid var(--line);}
+
+  .chip{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--font-mono);letter-spacing:0.3px;white-space:nowrap;}
+  .chip-green{background:var(--green-dim);color:var(--green);}
+  .chip-red{background:var(--red-dim);color:var(--red);}
+  .chip-pending{background:var(--surface-2);color:var(--text-muted);}
+  .chip-void{background:var(--surface-2);color:var(--text-muted);text-decoration:line-through;}
+
+  .ticket{border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:12px;background:var(--surface);}
+  .ticket.ticket-compact{padding:9px 12px;margin-bottom:7px;}
+  .ticket-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .ticket-compact .ticket-top{gap:6px;}
+  .ticket-client{font-size:16px;font-weight:700;color:var(--gold);}
+  .ticket-compact .ticket-client{font-size:14.5px;}
+  .ticket-meta{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .ticket-compact .ticket-meta{font-size:11px;margin-top:1px;}
+  .match-list{margin-top:10px;border-top:1px solid var(--line);}
+  .ticket-compact .match-list{margin-top:6px;}
+  .match-row{padding:9px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ticket-compact .match-row{padding:5px 0;gap:6px;}
+  .match-row:last-child{border-bottom:none;}
+  .match-desc{font-size:13.5px;}
+  .ticket-compact .match-desc{font-size:12px;}
+  .match-desc .teams{font-weight:600;}
+  .match-desc .meta{font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted);display:block;margin-top:2px;}
+  .ticket-compact .match-desc .meta{font-size:10.5px;margin-top:0;}
+  .match-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+  .ticket-compact .match-actions .btn-sm{padding:3px 7px;font-size:10px;}
+  .ticket-footer{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-family:var(--font-mono);font-size:13px;}
+  .ticket-compact .ticket-footer{margin-top:6px;padding-top:6px;font-size:12px;}
+  .ticket-actions{margin-top:10px;display:flex;gap:6px;}
+  .ticket-compact .ticket-actions{margin-top:6px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:9px 8px;text-align:left;border-bottom:1px solid var(--line);}
+  th{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px;font-weight:600;}
+  td.num{font-family:var(--font-mono);text-align:right;}
+  tr.total td{font-weight:700;border-top:2px solid var(--line);border-bottom:none;}
+  .profit-pos{color:var(--green);}
+  .profit-neg{color:var(--red);}
+
+  .link-box{display:flex;gap:8px;align-items:center;margin-top:8px;}
+  .link-box code{flex:1;background:var(--surface-2);padding:8px 10px;border-radius:4px;font-family:var(--font-mono);font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  .empty{color:var(--text-muted);font-size:13px;padding:20px 0;text-align:center;}
+  .week-select{background:var(--surface-2);border:1px solid var(--line);color:var(--text);padding:7px 10px;border-radius:4px;font-family:var(--font-mono);font-size:12px;width:auto;}
+
+  .autocomplete-wrap{position:relative;}
+  .autocomplete-list{
+    position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--surface-2);
+    border:1px solid var(--line);border-radius:4px;max-height:190px;overflow-y:auto;z-index:20;display:none;
+  }
+  .autocomplete-item{padding:9px 10px;cursor:pointer;font-size:13.5px;border-bottom:1px solid var(--line);}
+  .autocomplete-item:last-child{border-bottom:none;}
+  .autocomplete-item:hover, .autocomplete-item.autocomplete-active{background:var(--surface);color:var(--gold);}
+
+  .draft-card{background:var(--surface-2);border:1px dashed var(--line);}
+  .draft-match{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;gap:8px;}
+  .draft-match:last-child{border-bottom:none;}
+  .odd-total{font-family:var(--font-mono);color:var(--gold);font-size:14px;}
+
+  .client-header{margin-bottom:20px;text-align:center;}
+  .client-header .name{font-family:'Montserrat', sans-serif;font-size:clamp(30px,9vw,38px);font-weight:400;letter-spacing:0.2px;color:var(--gold);line-height:1.15;}
+  .client-header .balance-now{font-family:var(--font-mono);font-size:13px;color:var(--text-muted);margin-top:4px;}
+
+  @media (max-width:600px){
+    .tab{font-size:15px;padding:8px 10px;}
+    th,td{font-size:12px;padding:7px 5px;}
+    #app{padding:16px 12px 50px;}
+    .card{padding:14px;}
+    .card h3{font-size:18px;}
+    .row{gap:14px;}
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="empty">Carregando…</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ======= CONFIGURAÇÃO DO SUPABASE =======
+// Pegue esses dois valores em: Supabase > seu projeto > Settings > API
+const SUPABASE_URL = 'https://tymcwpyypvzjdzumlfkp.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Tf4F0bAvZsHyevsy0JUa0g_q8G4_-dW';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ==========================================
+
+let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [] };
+let ADMIN_TAB = 'dashboard';
+let ADMIN_SUBVIEW = 'list'; // 'list' | 'wizard'
+let DASH_WEEK = null;
+let FINANCE_WEEK = null;
+let SHOW_LANCAMENTOS = false;
+let SHOW_RETIRADAS = false;
+let SHOW_BAIXAS_HISTORICO = false;
+let DRAFT = null;
+let EDITING_TICKET_ID = null;
+let TEAM_RESULTS = {};
+let SEARCH_TIMERS = {};
+let SHOW_PENDENTES = false;
+let CLIENT_WEEK = null;
+let CLIENT_DETAIL_ID = null;
+let CONFIRM_DELETE_CLIENT = false;
+let CLIENT_SHOW_PENDENTES = false;
+let SESSION = null;
+
+const MARKETS = [
+  {v:'Resultado Final', l:'Resultado Final (1X2)'},
+  {v:'Resultado Final HT', l:'Resultado Final HT (1º Tempo)'},
+  {v:'Dupla Chance', l:'Dupla Chance'},
+  {v:'Ambas Marcam', l:'Ambas Marcam'},
+  {v:'Total de Gols', l:'Total de Gols (Over/Under)'},
+  {v:'Handicap Asiatico', l:'Handicap Asiático'},
+  {v:'Handicap Asiatico HT', l:'Handicap Asiático HT (1º Tempo)'},
+  {v:'Total de Escanteios', l:'Total de Escanteios'},
+  {v:'Total de Escanteios HT', l:'Total de Escanteios HT (1º Tempo)'},
+  {v:'Total de Cartoes', l:'Total de Cartões'},
+  {v:'Resultado Exato', l:'Resultado Exato'},
+  {v:'Outro', l:'—'},
+];
+
+async function loadState(){
+  try{
+    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}] = await Promise.all([
+      supabaseClient.from('clients').select('*').order('created_at'),
+      supabaseClient.from('tickets').select('*').order('created_at'),
+      supabaseClient.from('settlements').select('*').order('paid_at'),
+      supabaseClient.from('withdrawals').select('*').order('created_at'),
+      supabaseClient.from('transactions').select('*').order('date')
+    ]);
+    if(err1 || err2 || err3 || err4 || err5){
+      alert('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
+      return;
+    }
+    STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||''}));
+    STATE.tickets = (tickets||[]).map(t=>({
+      id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,
+      stake: parseFloat(t.stake), odds: t.odds!=null ? parseFloat(t.odds) : null, matches: t.matches||[],
+      createdAt: t.created_at, ticketNumber: t.ticket_number
+    }));
+    STATE.settlements = (settlements||[]).map(s=>({
+      id:s.id, clientId:s.client_id, weekStart:s.week_start, amount:parseFloat(s.amount), paidAt:s.paid_at
+    }));
+    STATE.withdrawals = (withdrawals||[]).map(w=>({
+      id:w.id, amount:parseFloat(w.amount), description:w.description||'', createdAt:w.created_at
+    }));
+    STATE.transactions = (transactions||[]).map(t=>({
+      id:t.id, type:t.type, category:t.category||'', description:t.description||'', amount:parseFloat(t.amount), date:t.date, createdAt:t.created_at, clientId:t.client_id||null
+    }));
+  }catch(e){
+    alert('Erro ao conectar no Supabase: '+e.message);
+  }
+}
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function handleAutocompleteKeydown(e, listId){
+  const box = document.getElementById(listId);
+  if(!box || box.style.display==='none' || !box.innerHTML.trim()) return;
+  const items = Array.from(box.querySelectorAll('.autocomplete-item'));
+  if(items.length===0) return;
+  let idx = items.findIndex(it=>it.classList.contains('autocomplete-active'));
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    idx = (idx+1) % items.length;
+    items.forEach(it=>it.classList.remove('autocomplete-active'));
+    items[idx].classList.add('autocomplete-active');
+    items[idx].scrollIntoView({block:'nearest'});
+  } else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    idx = idx<=0 ? items.length-1 : idx-1;
+    items.forEach(it=>it.classList.remove('autocomplete-active'));
+    items[idx].classList.add('autocomplete-active');
+    items[idx].scrollIntoView({block:'nearest'});
+  } else if(e.key==='Enter'){
+    e.preventDefault();
+    const active = items[idx>=0?idx:0];
+    if(active) active.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));
+  } else if(e.key==='Escape'){
+    box.style.display='none';
+  }
+}
+function fmtBRL(v){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v); }
+function fmtDate(d){ if(!d) return ''; const [y,m,day]=d.split('-'); return `${day}/${m}`; }
+
+function mondayOf(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const day = d.getDay();
+  const diff = (day===0?-6:1-day);
+  d.setDate(d.getDate()+diff);
+  return d.toISOString().slice(0,10);
+}
+function weekLabel(mondayStr){
+  const d = new Date(mondayStr+'T00:00:00');
+  const sun = new Date(d); sun.setDate(d.getDate()+6);
+  const f = x=>x.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  return `${f(d)} – ${f(sun)}`;
+}
+
+// ---------- TICKET (bilhete) HELPERS ----------
+function ticketDate(ticket){
+  return ticket.date || new Date().toISOString().slice(0,10);
+}
+function ticketResult(ticket){
+  if(!ticket.matches.length) return 'pending';
+  if(ticket.matches.some(m=>m.result==='red')) return 'red';
+  if(ticket.matches.every(m=>m.result==='void')) return 'void';
+  if(ticket.matches.some(m=>m.result==='pending')) return 'pending';
+  return 'green';
+}
+function ticketOddTotal(ticket){
+  return ticket.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
+}
+function ticketProfit(ticket){
+  const r = ticketResult(ticket);
+  if(r==='red') return -ticket.stake;
+  if(r==='green') return ticket.odds ? (ticket.stake*ticket.odds) - ticket.stake : 0;
+  return 0;
+}
+function resultChip(r){
+  const map = {green:['chip-green','GREEN'], red:['chip-red','RED'], void:['chip-void','ANULADA'], pending:['chip-pending','PENDENTE']};
+  const [cls,label] = map[r]||map.pending;
+  return `<span class="chip ${cls}">${label}</span>`;
+}
+function resultIconSmall(r){
+  if(r==='green') return '<span style="color:var(--green);font-weight:700">✓</span>';
+  if(r==='red') return '<span style="color:var(--red);font-weight:700">✗</span>';
+  if(r==='void') return '<span style="color:var(--text-muted);font-weight:700">⊘</span>';
+  return '<span style="color:var(--gold);font-weight:700">⏱</span>';
+}
+function allWeeksSorted(){
+  const set = new Set();
+  STATE.tickets.forEach(t=>set.add(mondayOf(ticketDate(t))));
+  return Array.from(set).sort().reverse();
+}
+
+// ---------- ROOT RENDER ----------
+function render(){
+  const hash = window.location.hash;
+  const m = hash.match(/cliente=([a-zA-Z0-9]+)/);
+  if(m){ renderClientView(m[1]); return; }
+  if(!SESSION){ renderLogin(); return; }
+  renderAdmin();
+}
+
+// ---------- LOGIN ----------
+function renderLogin(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="brand"><span class="mark" style="color:var(--gold)">BET WIN</span><span class="sub">Painel da Consultoria</span></div>
+    <div class="card" style="max-width:340px;margin:60px auto 0">
+      <h3>Entrar</h3>
+      <label>E-mail</label>
+      <input type="email" id="login-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()">
+      <label>Senha</label>
+      <input type="password" id="login-password" placeholder="Sua senha" onkeydown="if(event.key==='Enter') doLogin()">
+      <div id="login-error" style="color:var(--red);font-size:12px;margin-top:8px;display:none"></div>
+      <div style="margin-top:14px"><button class="btn-primary btn-full" onclick="doLogin()">Entrar</button></div>
+    </div>
+  `;
+  document.getElementById('login-email').focus();
+}
+async function doLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display='none';
+  if(!email || !password){ errEl.textContent='Preencha e-mail e senha.'; errEl.style.display='block'; return; }
+  const {data, error} = await supabaseClient.auth.signInWithPassword({email, password});
+  if(error){ errEl.textContent='E-mail ou senha incorretos.'; errEl.style.display='block'; return; }
+  SESSION = data.session;
+  render();
+}
+async function doLogout(){
+  await supabaseClient.auth.signOut();
+  SESSION = null;
+  render();
+}
+
+// ---------- ADMIN ----------
+function renderAdmin(){
+  const app = document.getElementById('app');
+  const pendentesCount = STATE.tickets.filter(t=>ticketResult(t)==='pending').length;
+  app.innerHTML = `
+    <div class="brand">
+      <div><span class="mark">BET WIN</span></div>
+      <button class="btn-ghost btn-sm" onclick="doLogout()">Sair</button>
+    </div>
+    <div class="tabs">
+      <div class="tab ${ADMIN_TAB==='dashboard'?'active':''}" onclick="setTab('dashboard')">Dashboard</div>
+      <div class="tab ${ADMIN_TAB==='apostas'?'active':''}" onclick="setTab('apostas')">Apostas</div>
+      <div class="tab ${ADMIN_TAB==='pendentes'?'active':''}" onclick="setTab('pendentes')">Pendentes${pendentesCount?' ('+pendentesCount+')':''}</div>
+      <div class="tab ${ADMIN_TAB==='clientes'?'active':''}" onclick="setTab('clientes')">Clientes</div>
+      <div class="tab ${ADMIN_TAB==='financeiro'?'active':''}" onclick="setTab('financeiro')">Financeiro</div>
+      <div class="tab ${ADMIN_TAB==='config'?'active':''}" onclick="setTab('config')">Configurações</div>
+    </div>
+    <div id="tab-content"></div>
+  `;
+  const c = document.getElementById('tab-content');
+  if(ADMIN_TAB==='apostas') c.innerHTML = renderApostasTab();
+  if(ADMIN_TAB==='pendentes') c.innerHTML = renderPendentesTab();
+  if(ADMIN_TAB==='clientes') c.innerHTML = renderClientesTab();
+  if(ADMIN_TAB==='dashboard') c.innerHTML = renderDashboardTab();
+  if(ADMIN_TAB==='financeiro') c.innerHTML = renderFinanceiroTab();
+  if(ADMIN_TAB==='config') c.innerHTML = renderConfigTab();
+}
+function setTab(t){ ADMIN_TAB=t; ADMIN_SUBVIEW='list'; render(); }
+function changeDashWeek(dir){
+  if(!DASH_WEEK) DASH_WEEK = mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
+  DASH_WEEK = shiftWeek(DASH_WEEK, dir*7);
+  render();
+}
+function changeFinanceWeek(dir){
+  if(!FINANCE_WEEK) FINANCE_WEEK = mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
+  FINANCE_WEEK = shiftWeek(FINANCE_WEEK, dir*7);
+  render();
+}
+function renderPendentesTab(){
+  const pendentes = STATE.tickets.filter(t=>ticketResult(t)==='pending').sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Apostas pendentes</h3>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span>
+      </div>
+    </div>
+    <div class="card">
+      ${pendentes.length===0 ? '<div class="empty">Nenhuma aposta pendente no momento.</div>' : pendentes.map(renderTicketCard).join('')}
+    </div>
+  `;
+}
+
+// ---------- APOSTAS TAB ----------
+function renderApostasTab(){
+  if(ADMIN_SUBVIEW==='wizard') return renderWizard();
+
+  const ticketsSorted = [...STATE.tickets].sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  const pendentes = STATE.tickets.filter(t=>ticketResult(t)==='pending');
+  const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
+
+  return `
+    <button class="btn-primary btn-full" onclick="startNewTicket()">+ Nova Aposta</button>
+    <div style="height:16px"></div>
+    <div class="card" style="cursor:pointer" onclick="SHOW_PENDENTES=!SHOW_PENDENTES;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">PENDENTES (${pendentes.length})</span>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span>
+      </div>
+      ${SHOW_PENDENTES ? (pendentes.length===0 ? '<div class="empty">Nenhuma aposta pendente.</div>' : `
+        <div style="margin-top:12px;border-top:1px solid var(--line)">
+          ${pendentes.map(t=>{
+            const cl = STATE.clients.find(c=>c.id===t.clientId);
+            return `
+              <div class="match-row">
+                <div class="match-desc">
+                  <span class="teams">${cl?cl.name:'Cliente removido'}</span>
+                  <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · ${ticketDetailsShort(t)}</span>
+                </div>
+                <span style="font-family:var(--font-mono);font-size:13px">${fmtBRL(t.stake)}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `) : ''}
+    </div>
+    <div style="height:16px"></div>
+    <div class="card">
+      <label>Buscar aposta (nº ou nome do cliente)</label>
+      <input type="text" id="ticket-search-input" placeholder="Ex: 42 ou nome do cliente" oninput="updateTicketSearch()">
+    </div>
+    <div class="card">
+      <h3>Apostas cadastradas</h3>
+      <div id="ticket-list-container">${renderTicketListItems(ticketsSorted)}</div>
+    </div>
+  `;
+}
+function renderTicketListItems(list){
+  return list.length===0 ? '<div class="empty">Nenhuma aposta encontrada.</div>' : list.map(renderTicketCard).join('');
+}
+function updateTicketSearch(){
+  const val = document.getElementById('ticket-search-input').value.trim().toLowerCase();
+  const ticketsSorted = [...STATE.tickets].sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  const filtered = !val ? ticketsSorted : ticketsSorted.filter(t=>{
+    const cl = STATE.clients.find(c=>c.id===t.clientId);
+    const clientName = cl ? cl.name.toLowerCase() : '';
+    const num = String(t.ticketNumber||'');
+    return num.includes(val) || clientName.includes(val);
+  });
+  document.getElementById('ticket-list-container').innerHTML = renderTicketListItems(filtered);
+}
+function ticketDetailsShort(ticket){
+  return ticket.matches.map(m=>{
+    const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+    const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+    return `${teamsLabel} — ${marketLabel}: ${m.selection}`;
+  }).join('; ');
+}
+
+function renderTicketCard(ticket){
+  const cl = STATE.clients.find(c=>c.id===ticket.clientId);
+  const r = ticketResult(ticket);
+  const profit = ticketProfit(ticket);
+  const matchesHtml = ticket.matches.map(m=>{
+    const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+    const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+    return `
+      <div class="match-row">
+        <div class="match-desc">
+          <span class="teams">${teamsLabel}</span>
+          <span class="meta">${marketLabel}: ${m.selection} · odd ${m.odd.toFixed(2)}</span>
+        </div>
+        <div class="match-actions">
+          ${resultChip(m.result)}
+          ${m.result==='pending' ? `
+            <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','green')">Green</button>
+            <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','red')">Red</button>
+            <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','void')">Anular</button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="ticket ticket-compact">
+      <div class="ticket-top">
+        <div>
+          <div class="ticket-client"><span style="font-family:var(--font-mono);font-weight:400;font-size:11px;color:var(--text-muted)">#${ticket.ticketNumber||'—'}</span> ${cl?cl.name:'Cliente removido'}</div>
+          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · odd ${ticket.odds!=null?ticket.odds.toFixed(2):'—'}</div>
+        </div>
+        ${resultChip(r)}
+      </div>
+      <div class="match-list">${matchesHtml}</div>
+      <div class="ticket-footer">
+        <span>Resultado</span>
+        <span class="${profit>=0?'profit-pos':'profit-neg'}">${r==='pending'?'—':(profit>=0?'+':'')+fmtBRL(profit)}</span>
+      </div>
+      <div class="ticket-actions">
+        <button class="btn-ghost btn-sm" onclick="editTicket('${ticket.id}')">Editar</button>
+        <button class="btn-ghost btn-sm" onclick="duplicateTicket('${ticket.id}')">Duplicar</button>
+        <button class="btn-danger-ghost btn-sm" onclick="deleteTicket('${ticket.id}')">Excluir</button>
+      </div>
+    </div>
+  `;
+}
+
+async function setMatchResult(ticketId, matchId, result){
+  const ticket = STATE.tickets.find(t=>t.id===ticketId);
+  const match = ticket.matches.find(m=>m.id===matchId);
+  if(!match || match.result!=='pending'){ alert('Esse resultado já foi definido. Para alterar, use Editar aposta.'); render(); return; }
+  match.result = result;
+  const {error} = await supabaseClient.from('tickets').update({matches: ticket.matches}).eq('id', ticketId);
+  if(error){ alert('Erro ao salvar resultado: '+error.message); match.result='pending'; return; }
+  render();
+}
+function setDraftMatchResult(matchId, result){
+  const m = DRAFT.matches.find(x=>x.id===matchId);
+  if(m){ m.result = result; render(); }
+}
+async function deleteTicket(ticketId){
+  if(!confirm('Excluir esta aposta?')) return;
+  const {error} = await supabaseClient.from('tickets').delete().eq('id', ticketId);
+  if(error){ alert('Erro ao excluir aposta: '+error.message); return; }
+  STATE.tickets = STATE.tickets.filter(t=>t.id!==ticketId);
+  render();
+}
+
+// ---------- WIZARD (Nova Aposta) ----------
+function startNewTicket(){
+  DRAFT = {clientId:'', clientName:'', date:new Date().toISOString().slice(0,10), time:'', stake:'', matches:[]};
+  EDITING_TICKET_ID = null;
+  ADMIN_SUBVIEW='wizard';
+  render();
+}
+function editTicket(ticketId){
+  const ticket = STATE.tickets.find(t=>t.id===ticketId);
+  if(!ticket) return;
+  const cl = STATE.clients.find(c=>c.id===ticket.clientId);
+  DRAFT = {
+    clientId: ticket.clientId, clientName: cl?cl.name:'', date: ticket.date, time: ticket.time||'',
+    stake: String(ticket.stake), odds: ticket.odds!=null ? String(ticket.odds) : '',
+    matches: ticket.matches.map(m=>({...m}))
+  };
+  EDITING_TICKET_ID = ticketId;
+  ADMIN_SUBVIEW='wizard';
+  render();
+}
+async function duplicateTicket(ticketId){
+  const ticket = STATE.tickets.find(t=>t.id===ticketId);
+  if(!ticket) return;
+  const newMatches = ticket.matches.map(m=>({...m, id:uid(), result:'pending'}));
+  const {data, error} = await supabaseClient.from('tickets').insert({
+    client_id: ticket.clientId, date: ticket.date, time: ticket.time, stake: ticket.stake, odds: ticket.odds, matches: newMatches
+  }).select().single();
+  if(error){ alert('Erro ao duplicar aposta: '+error.message); return; }
+  STATE.tickets.push({
+    id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
+    stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
+    createdAt: data.created_at, ticketNumber: data.ticket_number
+  });
+  render();
+}
+function cancelWizard(){
+  if(DRAFT.matches.length && !confirm('Descartar esta aposta em edição?')) return;
+  DRAFT=null; EDITING_TICKET_ID=null; ADMIN_SUBVIEW='list'; render();
+}
+function updateWizardTotals(){
+  const stake = parseFloat(DRAFT.stake) || 0;
+  const odds = parseFloat(DRAFT.odds) || 0;
+  const display = document.getElementById('ticket-retorno-display');
+  if(display) display.value = (stake>0 && odds>0) ? fmtBRL(stake*odds - stake) : '';
+}
+
+async function saveTicket(){
+  const clientId = document.getElementById('new-client-id').value;
+  const date = document.getElementById('ticket-date').value;
+  const time = document.getElementById('ticket-time').value;
+  const stake = parseFloat(document.getElementById('ticket-stake').value);
+  const oddsRaw = document.getElementById('ticket-odds').value;
+  const odds = oddsRaw ? parseFloat(oddsRaw) : null;
+  if(!clientId){ alert('Digite e selecione o cliente na lista.'); return; }
+  if(!date || !time){ alert('Informe a data e o horário do bilhete.'); return; }
+  if(!stake || stake<=0){ alert('Informe o valor da aposta.'); return; }
+  if(odds!==null && isNaN(odds)){ alert('Odd inválida.'); return; }
+  if(!DRAFT.matches.length){ alert('Adicione ao menos uma partida.'); return; }
+
+  if(EDITING_TICKET_ID){
+    const {data, error} = await supabaseClient.from('tickets').update({
+      client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
+    }).eq('id', EDITING_TICKET_ID).select().single();
+    if(error){ alert('Erro ao salvar aposta: '+error.message); return; }
+    const idx = STATE.tickets.findIndex(t=>t.id===EDITING_TICKET_ID);
+    const updated = {
+      id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
+      stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
+      createdAt: data.created_at, ticketNumber: data.ticket_number
+    };
+    if(idx>=0) STATE.tickets[idx] = updated; else STATE.tickets.push(updated);
+  } else {
+    const {data, error} = await supabaseClient.from('tickets').insert({
+      client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
+    }).select().single();
+    if(error){ alert('Erro ao salvar aposta: '+error.message); return; }
+    STATE.tickets.push({
+      id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
+      stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
+      createdAt: data.created_at, ticketNumber: data.ticket_number
+    });
+  }
+  DRAFT=null; EDITING_TICKET_ID=null; ADMIN_SUBVIEW='list';
+  render();
+}
+
+function renderWizard(){
+  const oddTotal = DRAFT.matches.reduce((p,m)=>p*m.odd,1);
+  const stakeNum = parseFloat(DRAFT.stake)||0;
+  const marketOptions = MARKETS.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
+
+  const draftList = DRAFT.matches.map(m=>{
+    const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+    const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+    return `
+      <div class="draft-match" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <strong>${teamsLabel}</strong> — ${marketLabel}: ${m.selection}
+            <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:11.5px">${m.away ? fmtDate(m.date)+(m.time?' '+m.time:'')+' · ' : ''}odd ${m.odd.toFixed(2)}</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-ghost btn-sm" onclick="editDraftMatch('${m.id}')">Editar</button>
+            <button class="btn-ghost btn-sm" onclick="removeDraftMatch('${m.id}')">Remover</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          ${resultChip(m.result)}
+          <button class="btn-ghost btn-sm" onclick="setDraftMatchResult('${m.id}','pending')">Pendente</button>
+          <button class="btn-ghost btn-sm" onclick="setDraftMatchResult('${m.id}','green')">Green</button>
+          <button class="btn-ghost btn-sm" onclick="setDraftMatchResult('${m.id}','red')">Red</button>
+          <button class="btn-ghost btn-sm" onclick="setDraftMatchResult('${m.id}','void')">Anular</button>
+        </div>
+      </div>
+    `;
+  }).join('') || '<div class="empty">Nenhuma partida adicionada ainda.</div>';
+
+  return `
+    <div class="card">
+      <h3>${EDITING_TICKET_ID ? 'Editar Aposta' : 'Nova Aposta'} — dados do bilhete</h3>
+      <label>Cliente</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="new-client-search" value="${DRAFT.clientName||''}" placeholder="Buscar cliente…" autocomplete="off"
+          oninput="filterClientOptions()" onfocus="filterClientOptions()" onkeydown="handleAutocompleteKeydown(event,'client-options')"
+          onblur="setTimeout(()=>{const b=document.getElementById('client-options'); if(b) b.style.display='none';},150)">
+        <input type="hidden" id="new-client-id" value="${DRAFT.clientId||''}">
+        <div id="client-options" class="autocomplete-list"></div>
+      </div>
+      <div class="row">
+        <div><label>Data</label><input type="date" id="ticket-date" value="${DRAFT.date||''}" onchange="DRAFT.date=this.value"></div>
+        <div><label>Hora</label><input type="time" id="ticket-time" value="${DRAFT.time||''}" onchange="DRAFT.time=this.value"></div>
+      </div>
+      <label>Valor</label>
+      <input type="number" id="ticket-stake" step="0.01" value="${DRAFT.stake||''}" oninput="DRAFT.stake=this.value;updateWizardTotals()" placeholder="Valor (ex: 100,00 ou 100.00)">
+      <div class="row">
+        <div><label>Odds (opcional)</label><input type="number" id="ticket-odds" step="0.01" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" placeholder="Pode preencher depois"></div>
+        <div><label>Retorno (lucro)</label><input type="text" id="ticket-retorno-display" value="${(parseFloat(DRAFT.stake)>0 && parseFloat(DRAFT.odds)>0) ? fmtBRL(parseFloat(DRAFT.stake)*parseFloat(DRAFT.odds)-parseFloat(DRAFT.stake)) : ''}" placeholder="Calculado automaticamente" disabled></div>
+      </div>
+    </div>
+
+    <div class="card draft-card">
+      <h3>Adicionar partida</h3>
+      <div class="row" style="align-items:center;gap:10px;margin-top:0">
+        <span style="font-size:13px;font-weight:600">Com Evento</span>
+        <input type="checkbox" id="match-sem-evento" onchange="toggleEventoFields()" style="width:auto">
+        <span style="font-size:13px;font-weight:600">Sem Evento (Longo Prazo)</span>
+      </div>
+      <div id="evento-fields">
+        <div class="row">
+          <div><label>Time da casa</label><input type="text" id="match-home" placeholder="Ex: Flamengo"></div>
+          <div><label>Time visitante</label><input type="text" id="match-away" placeholder="Ex: Palmeiras"></div>
+        </div>
+      </div>
+      <div id="sem-evento-fields" style="display:none">
+        <label>Descrição (longo prazo)</label>
+        <input type="text" id="match-manual-desc" placeholder="Ex: Campeão Brasileiro 2026 — Flamengo">
+      </div>
+      <label>Mercados rápidos</label>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:0">
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final','Casa')">RF 1</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final','Empate')">RF X</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final','Fora')">RF 2</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Dupla Chance','Casa ou Empate')">DP 1X</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Dupla Chance','Empate ou Fora')">DP X2</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Dupla Chance','Casa ou Fora')">DP 12</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Gols','Over 2.5')">GOL +</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Gols','Under 2.5')">GOL -</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico','Casa -1')">AH1</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico','Fora -1')">AH2</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Ambas Marcam','Sim')">BTTS Sim</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Ambas Marcam','Não')">BTTS Não</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final HT','Casa')">RF HT 1</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final HT','Empate')">RF HT X</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final HT','Fora')">RF HT 2</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Escanteios HT','Over')">ESC HT +</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Escanteios HT','Under')">ESC HT -</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico HT','Casa -1')">AH1 HT</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico HT','Fora -1')">AH2 HT</button>
+      </div>
+      <div class="row">
+        <div><label>Mercado</label><select id="match-market">${marketOptions}</select></div>
+        <div><label>Seleção</label><input type="text" id="match-selection" placeholder="Ex: Casa, Over 2.5, Sim"></div>
+        <div><label>Odds da seleção</label><input type="number" id="match-odd" step="0.01" placeholder="1.85"></div>
+      </div>
+      <div style="margin-top:14px"><button class="btn-ghost" onclick="addDraftMatch()">Adicionar partida ao bilhete</button></div>
+    </div>
+
+    <div class="card">
+      <h3>Partidas do bilhete</h3>
+      ${draftList}
+      ${DRAFT.matches.length>0 ? `<div style="margin-top:10px" class="odd-total">Soma das odds das partidas (informativo): ${oddTotal.toFixed(2)}</div>` : ''}
+    </div>
+
+    <div class="row">
+      <div><button class="btn-ghost btn-full" onclick="cancelWizard()">Cancelar</button></div>
+      <div><button class="btn-primary btn-full" onclick="saveTicket()">${EDITING_TICKET_ID ? 'Salvar alterações' : 'Salvar aposta'}</button></div>
+    </div>
+  `;
+}
+
+function toggleEventoFields(){
+  const semEvento = document.getElementById('match-sem-evento').checked;
+  document.getElementById('evento-fields').style.display = semEvento ? 'none' : 'block';
+  document.getElementById('sem-evento-fields').style.display = semEvento ? 'block' : 'none';
+}
+function quickMarket(market, selection){
+  document.getElementById('match-market').value = market;
+  document.getElementById('match-selection').value = selection;
+  const oddField = document.getElementById('match-odd');
+  oddField.focus();
+  oddField.select();
+}
+
+function addDraftMatch(){
+  const semEvento = document.getElementById('match-sem-evento').checked;
+  const market = document.getElementById('match-market').value;
+  const selection = document.getElementById('match-selection').value.trim();
+  const odd = parseFloat(document.getElementById('match-odd').value);
+  if(!selection){ alert('Informe a seleção (ex: Casa, Over 2.5, Sim).'); return; }
+  if(!odd && odd!==0 || isNaN(odd)){ alert('Informe a odd da seleção.'); return; }
+
+  let home, away, date, time;
+  if(semEvento){
+    const desc = document.getElementById('match-manual-desc').value.trim();
+    if(!desc){ alert('Informe a descrição da aposta de longo prazo.'); return; }
+    home = desc; away = '';
+  } else {
+    home = document.getElementById('match-home').value.trim();
+    away = document.getElementById('match-away').value.trim();
+    if(!home || !away){ alert('Informe os dois times.'); return; }
+  }
+  date = DRAFT.date || new Date().toISOString().slice(0,10);
+  time = DRAFT.time || null;
+  DRAFT.matches.push({id:uid(), home, away, date, time, market, selection, odd, result:'pending'});
+  render();
+}
+function removeDraftMatch(matchId){
+  DRAFT.matches = DRAFT.matches.filter(m=>m.id!==matchId);
+  render();
+}
+function editDraftMatch(matchId){
+  const idx = DRAFT.matches.findIndex(m=>m.id===matchId);
+  if(idx<0) return;
+  const m = DRAFT.matches[idx];
+  DRAFT.matches.splice(idx,1);
+  render();
+  const semEvento = !m.away;
+  document.getElementById('match-sem-evento').checked = semEvento;
+  toggleEventoFields();
+  if(semEvento){
+    document.getElementById('match-manual-desc').value = m.home;
+  } else {
+    document.getElementById('match-home').value = m.home;
+    document.getElementById('match-away').value = m.away;
+  }
+  document.getElementById('match-market').value = m.market;
+  document.getElementById('match-selection').value = m.selection;
+  document.getElementById('match-odd').value = m.odd;
+  (semEvento ? document.getElementById('match-manual-desc') : document.getElementById('match-home'))?.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+// ---------- CLIENTES TAB ----------
+function renderClientesTab(){
+  if(CLIENT_DETAIL_ID) return renderClientDetail(CLIENT_DETAIL_ID);
+  return `
+    <div class="card">
+      <h3>Novo cliente</h3>
+      <label>Nome do cliente</label>
+      <input type="text" id="new-client-name" placeholder="Ex: João Silva">
+      <label>Telefone (opcional)</label>
+      <input type="text" id="new-client-phone" placeholder="Ex: (11) 91234-5678">
+      <label>Desconto em caso de perda (%)</label>
+      <input type="number" id="new-client-discount" min="0" max="100" step="1" value="0" placeholder="Ex: 15">
+      <div style="margin-top:14px"><button class="btn-primary" onclick="addClient()">Cadastrar</button></div>
+    </div>
+    <div class="card">
+      <label>Buscar cliente</label>
+      <input type="text" id="client-search-input" placeholder="Digite o nome do cliente…" oninput="updateClientSearch()">
+    </div>
+    <div id="client-list-container">${renderClientListItems(STATE.clients)}</div>
+  `;
+}
+function renderClientListItems(list){
+  if(list.length===0) return '<div class="card"><div class="empty">Nenhum cliente encontrado.</div></div>';
+  return list.map(cl=>`
+    <div class="card" style="cursor:pointer" onclick="openClientDetail('${cl.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:600;font-size:15px">${cl.name}</div>
+          ${cl.phone ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${cl.phone}</div>` : ''}
+        </div>
+        <span style="color:var(--text-muted);font-size:18px">›</span>
+      </div>
+    </div>
+  `).join('');
+}
+function updateClientSearch(){
+  const val = document.getElementById('client-search-input').value.trim().toLowerCase();
+  const filtered = val ? STATE.clients.filter(c=>c.name.toLowerCase().includes(val)) : STATE.clients;
+  document.getElementById('client-list-container').innerHTML = renderClientListItems(filtered);
+}
+function openClientDetail(id){
+  CLIENT_DETAIL_ID = id;
+  CONFIRM_DELETE_CLIENT = false;
+  render();
+}
+function renderClientDetail(id){
+  const cl = STATE.clients.find(c=>c.id===id);
+  if(!cl){ CLIENT_DETAIL_ID=null; return renderClientesTab(); }
+  const baseUrl = window.location.href.split('#')[0];
+  const clientTickets = STATE.tickets.filter(t=>t.clientId===cl.id);
+  const volumeGeral = clientTickets.reduce((s,t)=>s+t.stake,0);
+  const resultadoGeral = clientTickets.reduce((s,t)=>s+ticketProfit(t),0);
+  return `
+    <button class="btn-ghost btn-sm" onclick="CLIENT_DETAIL_ID=null;render()">‹ Voltar</button>
+    <div style="height:12px"></div>
+    <div class="card" style="display:flex;padding:0">
+      <div style="flex:1;text-align:center;padding:1rem 0.5rem">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume total (interno)</div>
+        <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px">${fmtBRL(volumeGeral)}</div>
+      </div>
+      <div style="width:1px;background:var(--line)"></div>
+      <div style="flex:1;text-align:center;padding:1rem 0.5rem">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado geral (interno)</div>
+        <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${resultadoGeral>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultadoGeral)}</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Editar cliente</h3>
+      <label>Nome do cliente</label>
+      <input type="text" id="detail-client-name" value="${cl.name}">
+      <label>Telefone (opcional)</label>
+      <input type="text" id="detail-client-phone" value="${cl.phone||''}" placeholder="Ex: (11) 91234-5678">
+      <label>Desconto em caso de perda (%)</label>
+      <input type="number" id="detail-client-discount" min="0" max="100" step="1" value="${cl.discount||0}">
+      <label>Link de acesso do cliente</label>
+      <div class="link-box">
+        <code id="link-${cl.id}">${baseUrl}#cliente=${cl.code}</code>
+        <button class="btn-ghost btn-sm" onclick="copyLink('${cl.id}')">Copiar link</button>
+      </div>
+      <div style="margin-top:14px"><button class="btn-primary btn-full" onclick="saveClientDetail('${cl.id}')">Salvar alterações</button></div>
+    </div>
+    ${CONFIRM_DELETE_CLIENT ? `
+      <div class="card" style="border-color:var(--red)">
+        <p style="margin:0 0 12px;font-size:14px">Tem certeza que quer excluir <strong>${cl.name}</strong>? Essa ação não pode ser desfeita.</p>
+        <div class="row">
+          <div><button class="btn-ghost btn-full" onclick="CONFIRM_DELETE_CLIENT=false;render()">Cancelar</button></div>
+          <div><button class="btn-danger-ghost btn-full" onclick="deleteClient('${cl.id}')">Sim, excluir definitivamente</button></div>
+        </div>
+      </div>
+    ` : `
+      <div class="card">
+        <button class="btn-danger-ghost btn-full" onclick="CONFIRM_DELETE_CLIENT=true;render()">Excluir cliente</button>
+      </div>
+    `}
+  `;
+}
+async function saveClientDetail(id){
+  const name = document.getElementById('detail-client-name').value.trim();
+  const phone = document.getElementById('detail-client-phone').value.trim();
+  const discount = Math.max(0, Math.min(100, parseFloat(document.getElementById('detail-client-discount').value)||0));
+  if(!name){ alert('Informe o nome do cliente.'); return; }
+  const {error} = await supabaseClient.from('clients').update({name, phone, discount}).eq('id', id);
+  if(error){ alert('Erro ao salvar cliente: '+error.message); return; }
+  const cl = STATE.clients.find(c=>c.id===id);
+  if(cl){ cl.name=name; cl.phone=phone; cl.discount=discount; }
+  CLIENT_DETAIL_ID = null;
+  render();
+}
+async function addClient(){
+  const name = document.getElementById('new-client-name').value.trim();
+  const phone = document.getElementById('new-client-phone').value.trim();
+  const discount = parseFloat(document.getElementById('new-client-discount').value) || 0;
+  if(!name) return;
+  const code = uid()+uid();
+  const {data, error} = await supabaseClient.from('clients').insert({name, code, discount, phone}).select().single();
+  if(error){ alert('Erro ao salvar cliente: '+error.message); return; }
+  STATE.clients.push({id:data.id, name:data.name, code:data.code, discount:data.discount||0, phone:data.phone||''});
+  render();
+}
+async function setClientDiscount(id, value){
+  const discount = Math.max(0, Math.min(100, parseFloat(value)||0));
+  const {error} = await supabaseClient.from('clients').update({discount}).eq('id', id);
+  if(error){ alert('Erro ao salvar desconto: '+error.message); return; }
+  const cl = STATE.clients.find(c=>c.id===id);
+  if(cl) cl.discount = discount;
+}
+async function deleteClient(id){
+  const {error} = await supabaseClient.from('clients').delete().eq('id', id);
+  if(error){ alert('Erro ao remover cliente: '+error.message); return; }
+  STATE.clients = STATE.clients.filter(c=>c.id!==id);
+  CLIENT_DETAIL_ID = null;
+  CONFIRM_DELETE_CLIENT = false;
+  render();
+}
+function copyLink(id){
+  const text = document.getElementById(`link-${id}`).textContent;
+  navigator.clipboard?.writeText(text);
+}
+function filterClientOptions(){
+  const input = document.getElementById('new-client-search');
+  const box = document.getElementById('client-options');
+  const val = input.value.trim().toLowerCase();
+  document.getElementById('new-client-id').value = '';
+  if(DRAFT) DRAFT.clientId='';
+  if(val.length < 2){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = STATE.clients.filter(c=>c.name.toLowerCase().includes(val));
+  if(matches.length===0){
+    box.innerHTML = '<div class="autocomplete-item" style="cursor:default;color:var(--text-muted)">Nenhum cliente encontrado</div>';
+  } else {
+    box.innerHTML = matches.map(c=>`<div class="autocomplete-item" onmousedown="selectClientOption('${c.id}')">${c.name}</div>`).join('');
+  }
+  box.style.display='block';
+}
+function selectClientOption(id){
+  const cl = STATE.clients.find(c=>c.id===id);
+  if(!cl) return;
+  if(DRAFT){ DRAFT.clientId = id; DRAFT.clientName = cl.name; }
+  document.getElementById('new-client-id').value = id;
+  document.getElementById('new-client-search').value = cl.name;
+  const box = document.getElementById('client-options');
+  box.style.display='none'; box.innerHTML='';
+}
+
+// ---------- DASHBOARD TAB ----------
+function countBadges(tickets){
+  let green=0, red=0, pending=0, voidCount=0;
+  tickets.forEach(t=>{
+    const r = ticketResult(t);
+    if(r==='green') green++;
+    else if(r==='red') red++;
+    else if(r==='pending') pending++;
+    else if(r==='void') voidCount++;
+  });
+  let html='';
+  if(green) html += `<span class="chip chip-green" style="margin-right:4px">✓ ${green}</span>`;
+  if(red) html += `<span class="chip chip-red" style="margin-right:4px">✗ ${red}</span>`;
+  if(pending) html += `<span class="chip chip-pending" style="margin-right:4px">⏱ ${pending}</span>`;
+  if(voidCount) html += `<span class="chip chip-void" style="margin-right:4px">⊘ ${voidCount}</span>`;
+  return html || '—';
+}
+
+function renderDashboardTab(){
+  const weeks = allWeeksSorted();
+  if(weeks.length===0) return '<div class="card"><div class="empty">Cadastre apostas para ver a dashboard.</div></div>';
+  if(!DASH_WEEK) DASH_WEEK = weeks[0];
+
+  const rows = STATE.clients.map(cl=>{
+    const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && mondayOf(ticketDate(t))===DASH_WEEK);
+    if(tickets.length===0) return null;
+    const volume = tickets.reduce((s,t)=>s+t.stake,0);
+    const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
+    const descontoPct = cl.discount||0;
+    const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
+    const liquido = resultado + desconto;
+    const perf = volume>0 ? (resultado/volume*100) : 0;
+    return {id:cl.id, name:cl.name, code:cl.code, tickets, volume, resultado, desconto, liquido, perf};
+  }).filter(Boolean);
+
+  const totalVolume = rows.reduce((s,r)=>s+r.volume,0);
+  const totalResultado = rows.reduce((s,r)=>s+r.resultado,0);
+  const totalDesconto = rows.reduce((s,r)=>s+r.desconto,0);
+  const totalLiquido = rows.reduce((s,r)=>s+r.liquido,0);
+  const allTickets = rows.flatMap(r=>r.tickets);
+
+  const resumoResultado = -totalResultado;
+  const resumoLiquido = resumoResultado - totalDesconto;
+
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Resumo geral</h3>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="btn-ghost btn-sm" onclick="changeDashWeek(-1)">‹</button>
+          <span style="font-family:var(--font-mono);font-size:13px;font-weight:600">${weekLabel(DASH_WEEK)}</span>
+          <button class="btn-ghost btn-sm" onclick="changeDashWeek(1)">›</button>
+        </div>
+      </div>
+      <div class="row" style="gap:22px">
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Apostas</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${allTickets.length} ${countBadges(allTickets)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${fmtBRL(totalVolume)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${resumoResultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resumoResultado)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Desconto</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${fmtBRL(totalDesconto)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${resumoLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(resumoLiquido)}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Por cliente</h3>
+      ${rows.length===0 ? '<div class="empty">Nenhuma aposta nessa semana.</div>' : `
+      <table>
+        <tr><th>Cliente</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Perf.</th><th>Líquido</th></tr>
+        ${rows.map(r=>`
+          <tr>
+            <td>${r.name} <a href="${window.location.href.split('#')[0]}#cliente=${r.code}" target="_blank" title="Abrir relatório do cliente" style="text-decoration:none;color:var(--gold);font-size:12px">↗</a> <button class="btn-ghost btn-sm" style="padding:2px 6px;font-size:10px" onclick="gerarFechamento('${r.id}')" title="Gerar imagem de fechamento">🧾</button></td>
+            <td>${countBadges(r.tickets)}</td>
+            <td class="num">${fmtBRL(r.volume)}</td>
+            <td class="num ${r.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.resultado)}</td>
+            <td class="num">${r.desconto>0 ? fmtBRL(r.desconto) : '—'}</td>
+            <td class="num">${r.perf.toFixed(1)}%</td>
+            <td class="num ${r.liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.liquido)}</td>
+          </tr>
+        `).join('')}
+        <tr class="total">
+          <td>Total</td>
+          <td>${countBadges(allTickets)}</td>
+          <td class="num">${fmtBRL(totalVolume)}</td>
+          <td class="num ${totalResultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalResultado)}</td>
+          <td class="num">${totalDesconto>0 ? fmtBRL(totalDesconto) : '—'}</td>
+          <td class="num">${totalVolume>0 ? ((totalResultado/totalVolume)*100).toFixed(1) : '0.0'}%</td>
+          <td class="num ${totalLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalLiquido)}</td>
+        </tr>
+      </table>
+      `}
+    </div>
+  `;
+}
+
+// ---------- FINANCEIRO ----------
+function getSettlementsFor(clientId, weekStart){
+  return STATE.settlements.filter(s=>s.clientId===clientId && s.weekStart===weekStart);
+}
+function getAllSettlementsForClient(clientId){
+  return STATE.settlements.filter(s=>s.clientId===clientId).reduce((s,x)=>s+x.amount,0);
+}
+// Saldo contínuo (perspectiva admin, positivo = cliente deve) de todas as apostas já
+// resolvidas + saldo em aberto, descontando tudo que já foi pago em qualquer semana.
+// excludeWeek (opcional) tira uma semana específica do cálculo das apostas — usado no
+// fechamento pra separar "saldo da semana" do "saldo anterior".
+function computeContinuousBalance(clientId, excludeWeek){
+  const cl = STATE.clients.find(c=>c.id===clientId);
+  const descontoPct = cl?.discount||0;
+  const resolvedTickets = STATE.tickets.filter(t=>t.clientId===clientId && ticketResult(t)!=='pending' && ticketResult(t)!=='void' && (!excludeWeek || mondayOf(ticketDate(t))!==excludeWeek));
+  const weekGroups = {};
+  resolvedTickets.forEach(t=>{
+    const wk = mondayOf(ticketDate(t));
+    (weekGroups[wk] = weekGroups[wk]||[]).push(t);
+  });
+  let totalBetAdmin = 0;
+  Object.values(weekGroups).forEach(list=>{
+    const resultadoW = list.reduce((s,t)=>s+ticketProfit(t),0);
+    const descontoW = resultadoW<0 ? Math.abs(resultadoW)*descontoPct/100 : 0;
+    totalBetAdmin += (-resultadoW - descontoW);
+  });
+  const emAbertoAmount = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId).reduce((s,x)=>s+x.amount,0);
+  const totalOwed = totalBetAdmin + emAbertoAmount;
+  const totalPaid = getAllSettlementsForClient(clientId);
+  return totalOwed - totalPaid;
+}
+// ---------- IMAGEM DE FECHAMENTO ----------
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+const LOGO_STORAGE_KEY = 'boletim_logo_dataurl';
+const LOGO_SHAPE_KEY = 'boletim_logo_shape';
+const BG_STORAGE_KEY = 'boletim_bg_dataurl';
+let PENDING_LOGO_DATAURL = null;
+let PENDING_LOGO_SHAPE = 'round';
+let PENDING_BG_DATAURL = null;
+
+function handleLogoUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    PENDING_LOGO_DATAURL = ev.target.result;
+    PENDING_LOGO_SHAPE = localStorage.getItem(LOGO_SHAPE_KEY) || 'round';
+    renderLogoPreviewOverlay();
+  };
+  reader.readAsDataURL(file);
+}
+function renderLogoPreviewOverlay(){
+  let overlay = document.getElementById('logo-preview-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'logo-preview-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(overlay);
+  }
+  const shapeStyle = PENDING_LOGO_SHAPE==='round' ? 'border-radius:50%' : 'border-radius:10px';
+  overlay.innerHTML = `
+    <div class="card" style="max-width:340px;width:100%;text-align:center;margin:0">
+      <h3>Prévia da logo</h3>
+      <div style="width:150px;height:150px;margin:0 auto 16px;overflow:hidden;${shapeStyle};background:#0B2049;border:2px solid var(--line)">
+        <img src="${PENDING_LOGO_DATAURL}" style="width:100%;height:100%;object-fit:cover;display:block;">
+      </div>
+      <label>Como a logo deve ser recortada</label>
+      <div class="row" style="gap:8px">
+        <button class="btn-ghost btn-full" style="${PENDING_LOGO_SHAPE==='square'?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLogoPreviewShape('square')">◻ Quadrado</button>
+        <button class="btn-ghost btn-full" style="${PENDING_LOGO_SHAPE==='round'?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLogoPreviewShape('round')">◯ Redondo</button>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn-ghost btn-full" onclick="cancelLogoPreview()">Cancelar</button>
+        <button class="btn-primary btn-full" onclick="confirmLogoPreview()">Usar essa logo</button>
+      </div>
+    </div>
+  `;
+}
+function setLogoPreviewShape(shape){ PENDING_LOGO_SHAPE = shape; renderLogoPreviewOverlay(); }
+function cancelLogoPreview(){
+  PENDING_LOGO_DATAURL = null;
+  const overlay = document.getElementById('logo-preview-overlay');
+  if(overlay) document.body.removeChild(overlay);
+}
+function confirmLogoPreview(){
+  localStorage.setItem(LOGO_STORAGE_KEY, PENDING_LOGO_DATAURL);
+  localStorage.setItem(LOGO_SHAPE_KEY, PENDING_LOGO_SHAPE);
+  cancelLogoPreview();
+  render();
+}
+
+function handleBgUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    PENDING_BG_DATAURL = ev.target.result;
+    renderBgPreviewOverlay();
+  };
+  reader.readAsDataURL(file);
+}
+function renderBgPreviewOverlay(){
+  let overlay = document.getElementById('bg-preview-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'bg-preview-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div class="card" style="max-width:420px;width:100%;text-align:center;margin:0">
+      <h3>Prévia do fundo</h3>
+      <div style="width:100%;aspect-ratio:720/650;border-radius:8px;overflow:hidden;border:2px solid var(--line);margin-bottom:14px">
+        <img src="${PENDING_BG_DATAURL}" style="width:100%;height:100%;object-fit:cover;display:block;">
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">A imagem preenche todo o retângulo do fechamento (formato acima), cortando as bordas se precisar.</p>
+      <div class="row">
+        <button class="btn-ghost btn-full" onclick="cancelBgPreview()">Cancelar</button>
+        <button class="btn-primary btn-full" onclick="confirmBgPreview()">Usar esse fundo</button>
+      </div>
+    </div>
+  `;
+}
+function cancelBgPreview(){
+  PENDING_BG_DATAURL = null;
+  const overlay = document.getElementById('bg-preview-overlay');
+  if(overlay) document.body.removeChild(overlay);
+}
+function confirmBgPreview(){
+  localStorage.setItem(BG_STORAGE_KEY, PENDING_BG_DATAURL);
+  cancelBgPreview();
+  render();
+}
+function removeLogo(){
+  if(!confirm('Remover a logo atual e voltar a usar o texto "BET WIN" padrão?')) return;
+  localStorage.removeItem(LOGO_STORAGE_KEY);
+  localStorage.removeItem(LOGO_SHAPE_KEY);
+  render();
+}
+function removeBg(){
+  if(!confirm('Remover o fundo atual e voltar a usar o fundo estilizado padrão?')) return;
+  localStorage.removeItem(BG_STORAGE_KEY);
+  render();
+}
+
+function renderConfigTab(){
+  const savedLogo = localStorage.getItem(LOGO_STORAGE_KEY);
+  const savedLogoShape = localStorage.getItem(LOGO_SHAPE_KEY) || 'round';
+  const savedBg = localStorage.getItem(BG_STORAGE_KEY);
+  return `
+    <div class="card">
+      <h3>Logo do fechamento</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:0">Aparece no canto superior da imagem de fechamento gerada na Dashboard.</p>
+      ${savedLogo ? `<div style="width:100px;height:100px;margin-bottom:14px;overflow:hidden;${savedLogoShape==='round'?'border-radius:50%':'border-radius:10px'};border:2px solid var(--line)"><img src="${savedLogo}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhuma logo configurada ainda — será usado o texto "BET WIN".</div>'}
+      <input type="file" id="logo-file-input" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
+      <div class="row" style="margin-top:0">
+        <div><button class="btn-ghost btn-full" onclick="document.getElementById('logo-file-input').click()">🖼️ ${savedLogo?'Trocar logo':'Enviar logo'}</button></div>
+        ${savedLogo ? `<div><button class="btn-danger-ghost btn-full" onclick="removeLogo()">Remover e usar padrão</button></div>` : ''}
+      </div>
+    </div>
+    <div class="card">
+      <h3>Fundo do fechamento</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:0">Foto usada como fundo da imagem de fechamento (ex: um estádio, torcida, ou a arte da sua marca).</p>
+      ${savedBg ? `<div style="width:100%;max-width:320px;aspect-ratio:720/650;margin-bottom:14px;overflow:hidden;border-radius:8px;border:2px solid var(--line)"><img src="${savedBg}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhum fundo configurado ainda — será usado um fundo estilizado padrão.</div>'}
+      <input type="file" id="bg-file-input" accept="image/*" style="display:none" onchange="handleBgUpload(event)">
+      <div class="row" style="margin-top:0">
+        <div><button class="btn-ghost btn-full" onclick="document.getElementById('bg-file-input').click()">🏟️ ${savedBg?'Trocar fundo':'Enviar fundo'}</button></div>
+        ${savedBg ? `<div><button class="btn-danger-ghost btn-full" onclick="removeBg()">Remover e usar padrão</button></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function drawStadiumFallback(ctx, w, h){
+  const grad = ctx.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0,'#0B2049'); grad.addColorStop(0.55,'#071633'); grad.addColorStop(1,'#040A1C');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+  [[50,30],[w-50,30]].forEach(([cx,cy])=>{
+    const g = ctx.createRadialGradient(cx,cy,0,cx,cy,260);
+    g.addColorStop(0,'rgba(62,193,243,0.22)');
+    g.addColorStop(1,'rgba(62,193,243,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,260,0,Math.PI*2); ctx.fill();
+  });
+  ctx.save();
+  ctx.globalAlpha = 0.09;
+  ctx.strokeStyle = '#9FC3E8';
+  for(let i=0;i<6;i++){
+    ctx.beginPath();
+    ctx.ellipse(w/2, -220-i*12, w*0.72+i*26, 150+i*16, 0, 0, Math.PI);
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 2;
+  const pitchY = h-60;
+  ctx.beginPath(); ctx.moveTo(0,pitchY); ctx.lineTo(w,pitchY); ctx.stroke();
+  ctx.beginPath(); ctx.arc(w/2,pitchY,44,Math.PI,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w/2,pitchY-44); ctx.lineTo(w/2,h); ctx.stroke();
+  ctx.restore();
+}
+function drawBackground(ctx, w, h){
+  return new Promise((resolve)=>{
+    const saved = localStorage.getItem(BG_STORAGE_KEY);
+    if(!saved){ drawStadiumFallback(ctx,w,h); resolve(); return; }
+    const img = new Image();
+    img.onload = ()=>{
+      const scale = Math.max(w/img.width, h/img.height);
+      const dw = img.width*scale, dh = img.height*scale;
+      ctx.drawImage(img, (w-dw)/2, (h-dh)/2, dw, dh);
+      ctx.fillStyle = 'rgba(4,10,28,0.55)';
+      ctx.fillRect(0,0,w,h);
+      resolve();
+    };
+    img.onerror = ()=>{ drawStadiumFallback(ctx,w,h); resolve(); };
+    img.src = saved;
+  });
+}
+function drawTextLogo(ctx){
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.font = '700 40px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('BET', 40, 66);
+  const w = ctx.measureText('BET').width;
+  ctx.fillStyle = '#3EC1F3';
+  ctx.fillText('WIN', 40+w, 66);
+}
+function drawLogo(ctx){
+  return new Promise((resolve)=>{
+    const saved = localStorage.getItem(LOGO_STORAGE_KEY);
+    if(!saved){ drawTextLogo(ctx); resolve(); return; }
+    const shape = localStorage.getItem(LOGO_SHAPE_KEY) || 'round';
+    const img = new Image();
+    img.onload = ()=>{
+      const size = 100, x = 40, y = 18;
+      const srcSize = Math.min(img.width, img.height);
+      const sx = (img.width-srcSize)/2, sy = (img.height-srcSize)/2;
+      if(shape==='round'){
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x+size/2, y+size/2, size/2, 0, Math.PI*2);
+        ctx.clip();
+        ctx.drawImage(img, sx, sy, srcSize, srcSize, x, y, size, size);
+        ctx.restore();
+      } else {
+        roundRect(ctx, x, y, size, size, 10);
+        ctx.save(); ctx.clip();
+        ctx.drawImage(img, sx, sy, srcSize, srcSize, x, y, size, size);
+        ctx.restore();
+      }
+      resolve();
+    };
+    img.onerror = ()=>{ drawTextLogo(ctx); resolve(); };
+    img.src = saved;
+  });
+}
+async function gerarFechamento(clientId){
+  try{
+  const cl = STATE.clients.find(c=>c.id===clientId);
+  if(!cl){ alert('Cliente não encontrado.'); return; }
+  const todaySP = new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'});
+  const weekMonday = DASH_WEEK || mondayOf(todaySP);
+  const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='void');
+
+  // Valor Jogado: total de todas as apostas da semana
+  const valorJogado = tickets.reduce((s,t)=>s+t.stake,0);
+  // Acertos: valor apostado + lucro das apostas Green (retorno total)
+  const acertos = tickets.filter(t=>ticketResult(t)==='green').reduce((s,t)=>s+(t.odds!=null?t.stake*t.odds:t.stake),0);
+  // Subtotal: somente o lucro ou prejuízo da semana
+  const subtotal = acertos - valorJogado;
+  // Desconto: só existe se o cliente tem desconto cadastrado, e incide só sobre o saldo da semana
+  const descontoPct = cl.discount||0;
+  const temDesconto = descontoPct>0;
+  const desconto = (temDesconto && subtotal<0) ? Math.abs(subtotal)*descontoPct/100 : 0;
+
+  // Saldo anterior: saldo contínuo (todas as semanas anteriores + saldo em aberto,
+  // já líquido de tudo que foi pago) — exatamente o mesmo cálculo usado no Financeiro.
+  const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId);
+  const temSaldoAnterior = Math.abs(computeContinuousBalance(clientId, weekMonday)) >= 0.01;
+  const saldoAnterior = -computeContinuousBalance(clientId, weekMonday);
+  const saldoSemana = subtotal + desconto;
+  const saldoTotal = saldoSemana + saldoAnterior;
+
+  // Monta a lista de linhas a desenhar
+  const linhas = [];
+  linhas.push(['VALOR JOGADO:', 'R$ - '+fmtBRL(valorJogado).replace('R$','').trim(), '#E0575A', false]);
+  linhas.push(['ACERTOS:', 'R$ + '+fmtBRL(acertos).replace('R$','').trim(), '#3FB68B', false]);
+  linhas.push(['SUBTOTAL:', (subtotal>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(subtotal)).replace('R$','').trim(), subtotal>=0?'#3FB68B':'#E0575A', false]);
+  if(temDesconto){
+    linhas.push(['DESCONTO:', 'R$ + '+fmtBRL(desconto).replace('R$','').trim(), '#3EC1F3', false]);
+  }
+  if(temSaldoAnterior){
+    linhas.push(['SALDO DA SEMANA:', (saldoSemana>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoSemana)).replace('R$','').trim(), saldoSemana>=0?'#3FB68B':'#E0575A', false]);
+    linhas.push(['SALDO ANTERIOR:', (saldoAnterior>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoAnterior)).replace('R$','').trim(), saldoAnterior>=0?'#3FB68B':'#E0575A', false]);
+    linhas.push(['SALDO TOTAL:', (saldoTotal>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoTotal)).replace('R$','').trim(), saldoTotal>=0?'#3FB68B':'#E0575A', true]);
+  } else {
+    linhas.push(['SALDO DA SEMANA:', (saldoSemana>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoSemana)).replace('R$','').trim(), saldoSemana>=0?'#3FB68B':'#E0575A', true]);
+  }
+
+  const rowH = 44, rowGap = 9, marginX = 55;
+  const headerH = 178;
+  const canvasHeight = headerH + linhas.length*(rowH+rowGap) + 20 + 30;
+  const canvas = document.createElement('canvas');
+  canvas.width = 720; canvas.height = canvasHeight;
+  const ctx = canvas.getContext('2d');
+
+  await drawBackground(ctx, canvas.width, canvas.height);
+  await drawLogo(ctx);
+
+  // ---- bloco "PERÍODO" (ícone ao lado do rótulo, data embaixo) ----
+  ctx.textBaseline = 'alphabetic';
+  const rightEdge = canvas.width-40;
+  ctx.font = '600 10.5px Montserrat, Arial, sans-serif';
+  const labelW = ctx.measureText('PERÍODO').width;
+  const monday = new Date(weekMonday+'T00:00:00');
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  const fmtLong = d => d.toLocaleDateString('pt-BR');
+  const periodoStr = fmtLong(monday)+' a '+fmtLong(sunday);
+
+  const iconSize = 13, iconGap = 6;
+  const iconX = rightEdge - labelW - iconGap - iconSize;
+  const iconY = 12;
+
+  ctx.save();
+  ctx.strokeStyle = '#8FB3DC'; ctx.fillStyle = '#8FB3DC'; ctx.lineWidth = 1.3;
+  roundRect(ctx, iconX, iconY, iconSize, iconSize, 2.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(iconX,iconY+5); ctx.lineTo(iconX+iconSize,iconY+5); ctx.stroke();
+  ctx.fillRect(iconX+2.5,iconY-2,1.6,5); ctx.fillRect(iconX+iconSize-4.1,iconY-2,1.6,5);
+  ctx.restore();
+
+  ctx.textAlign='right';
+  ctx.font = '600 10.5px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#8FB3DC';
+  ctx.fillText('PERÍODO', rightEdge, 25);
+  ctx.font = '700 13px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(periodoStr, rightEdge, 42);
+
+  // ---- título ----
+  ctx.font = '700 24px Montserrat, Arial, sans-serif';
+  const titleA = 'FECHAMENTO: '; const titleB = cl.name.toUpperCase();
+  const wA = ctx.measureText(titleA).width; const wB = ctx.measureText(titleB).width;
+  const startX = canvas.width/2 - (wA+wB)/2;
+  ctx.textAlign='left';
+  ctx.fillStyle = '#FFFFFF'; ctx.fillText(titleA, startX, 142);
+  ctx.fillStyle = '#3EC1F3'; ctx.fillText(titleB, startX+wA, 142);
+
+  let rowY = headerH;
+  const rowW = canvas.width - marginX*2;
+
+  linhas.forEach(([label, value, color, big], idx)=>{
+    if(big) rowY += 10;
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    roundRect(ctx, marginX, rowY, rowW, rowH, 9); ctx.fill();
+    ctx.textAlign='left';
+    ctx.font = `italic 700 ${big?17:14.5}px Montserrat, Arial, sans-serif`;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(label, marginX+20, rowY+rowH/2+5);
+    ctx.textAlign='right';
+    ctx.font = (big?'700 19px ':'700 16px ')+"'JetBrains Mono', monospace";
+    ctx.fillStyle = color;
+    ctx.fillText(value, marginX+rowW-20, rowY+rowH/2+5);
+    rowY += rowH+rowGap;
+  });
+
+  const dataUrl = canvas.toDataURL('image/png');
+  showFechamentoPreview(dataUrl, cl.name, weekMonday);
+  }catch(err){
+    alert('Erro ao gerar a imagem de fechamento: '+err.message);
+  }
+}
+function showFechamentoPreview(dataUrl, clientName, weekMonday){
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:14px;';
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.style.cssText = 'max-width:100%;max-height:75vh;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,0.5);';
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:10px;';
+  const downloadBtn = document.createElement('a');
+  downloadBtn.href = dataUrl;
+  downloadBtn.download = `fechamento-${clientName.replace(/\s+/g,'-').toLowerCase()}-${weekMonday}.png`;
+  downloadBtn.textContent = 'Baixar imagem';
+  downloadBtn.className = 'btn-primary';
+  downloadBtn.style.cssText = 'padding:10px 18px;border-radius:4px;text-decoration:none;font-weight:600;';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Fechar';
+  closeBtn.className = 'btn-ghost';
+  closeBtn.style.cssText = 'padding:10px 18px;border-radius:4px;';
+  closeBtn.onclick = ()=>document.body.removeChild(overlay);
+  btnRow.appendChild(downloadBtn); btnRow.appendChild(closeBtn);
+  overlay.appendChild(img); overlay.appendChild(btnRow);
+  overlay.onclick = (e)=>{ if(e.target===overlay) document.body.removeChild(overlay); };
+  document.body.appendChild(overlay);
+}
+
+function caixaTotalCalc(){
+  const entradasClientes = STATE.settlements.reduce((s,x)=>s+x.amount,0);
+  const retiradas = STATE.withdrawals.reduce((s,x)=>s+x.amount,0);
+  const receitas = STATE.transactions.filter(t=>t.type==='receita').reduce((s,x)=>s+x.amount,0);
+  const despesas = STATE.transactions.filter(t=>t.type==='despesa').reduce((s,x)=>s+x.amount,0);
+  return entradasClientes - retiradas + receitas - despesas;
+}
+function renderFinanceiroTab(){
+  const weeks = allWeeksSorted();
+  const caixaTotal = caixaTotalCalc();
+
+  if(!FINANCE_WEEK) FINANCE_WEEK = weeks[0] || mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
+
+  // Situação por cliente: saldo CONTÍNUO (todas as semanas), some da lista só quando quitado
+  const rows = STATE.clients.map(cl=>{
+    const remaining = computeContinuousBalance(cl.id, null);
+    if(Math.abs(remaining) < 0.01) return null;
+    const totalPaid = getAllSettlementsForClient(cl.id);
+    const status = totalPaid>0 ? 'parcial' : 'pendente';
+    const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===cl.id);
+    const emAbertoAmount = openTransactions.reduce((s,x)=>s+x.amount,0);
+    return {id:cl.id, name:cl.name, remaining, totalPaid, status, emAbertoAmount};
+  }).filter(Boolean);
+
+  // Resumo: "A receber" é contínuo (soma de tudo que está pendente, de qualquer semana),
+  // já que clientes às vezes atrasam. "A pagar" é só da semana selecionada, pois pagamentos
+  // pra quem ganha são sempre feitos em dia.
+  const receberContinuo = rows.filter(r=>r.remaining>0).reduce((s,r)=>s+r.remaining,0);
+
+  const weekTicketsByClient = {};
+  STATE.tickets.filter(t=>mondayOf(ticketDate(t))===FINANCE_WEEK && ticketResult(t)!=='pending' && ticketResult(t)!=='void').forEach(t=>{
+    (weekTicketsByClient[t.clientId] = weekTicketsByClient[t.clientId]||[]).push(t);
+  });
+  let pagarSemana = 0;
+  Object.entries(weekTicketsByClient).forEach(([clientId, tks])=>{
+    const cl = STATE.clients.find(c=>c.id===clientId);
+    const resultadoW = tks.reduce((s,t)=>s+ticketProfit(t),0);
+    const descontoW = resultadoW<0 ? Math.abs(resultadoW)*((cl?.discount)||0)/100 : 0;
+    const adminAmount = -resultadoW - descontoW;
+    if(adminAmount<0) pagarSemana += Math.abs(adminAmount);
+  });
+
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Financeiro</h3>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="btn-ghost btn-sm" onclick="changeFinanceWeek(-1)">‹</button>
+          <span style="font-family:var(--font-mono);font-size:13px;font-weight:600">${weekLabel(FINANCE_WEEK)}</span>
+          <button class="btn-ghost btn-sm" onclick="changeFinanceWeek(1)">›</button>
+        </div>
+      </div>
+      <div class="row" style="gap:22px">
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Caixa (total acumulado)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${caixaTotal>=0?'profit-pos':'profit-neg'}">${fmtBRL(caixaTotal)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A receber (total pendente)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-pos">${fmtBRL(receberContinuo)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A pagar nessa semana</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-neg">${fmtBRL(pagarSemana)}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Situação por cliente <span style="font-size:12px;color:var(--text-muted);font-weight:400">(saldo contínuo — some só quando quitado)</span></h3>
+      ${rows.length===0 ? '<div class="empty">Nenhum saldo pendente no momento.</div>' : rows.map(r=>`
+        <div class="match-row" style="flex-wrap:nowrap;gap:10px">
+          <div class="match-desc" style="flex:1;min-width:0;overflow:hidden">
+            <span class="teams" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
+            <span class="meta" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              ${r.remaining>=0?'A receber':'A pagar'}
+              ${r.emAbertoAmount ? ` (inclui saldo em aberto de ${fmtBRL(Math.abs(r.emAbertoAmount))})` : ''}
+              ${r.status==='parcial' ? ` — já ${r.totalPaid>=0?'recebido':'pago'} ${fmtBRL(Math.abs(r.totalPaid))} no total` : ''}
+            </span>
+          </div>
+          <div class="match-actions" style="flex-shrink:0;flex-wrap:nowrap;white-space:nowrap">
+            <span title="Saldo pendente acumulado, considerando todas as semanas e pagamentos já feitos" style="font-family:var(--font-mono);font-size:15px;font-weight:700;cursor:help;border-bottom:1px dotted currentColor" class="${r.remaining>=0?'profit-pos':'profit-neg'}">${fmtBRL(Math.abs(r.remaining))}</span>
+            ${r.status==='parcial' ? `<span class="chip chip-pending">PARCIAL</span>` : `<span class="chip chip-pending">PENDENTE</span>`}
+            <button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining})">Dar baixa</button>
+            ${r.status==='parcial' ? `<button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}')">Desfazer última</button>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    ${renderBaixasHistoricoSection()}
+    ${renderRetiradasSection()}
+    ${renderLancamentosSection()}
+  `;
+}
+async function darBaixa(clientId, weekStart, remaining){
+  const isReceber = remaining>=0;
+  const label = isReceber ? 'Valor recebido agora' : 'Valor pago agora';
+  const defaultVal = Math.abs(remaining).toFixed(2).replace('.',',');
+  const input = prompt(`${label} (falta ${fmtBRL(Math.abs(remaining))}):`, defaultVal);
+  if(input===null) return;
+  const val = parseFloat(String(input).replace(',','.'));
+  if(isNaN(val) || val<=0){ alert('Valor inválido.'); return; }
+  const amount = isReceber ? val : -val;
+  const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount}).select().single();
+  if(error){ alert('Erro ao dar baixa: '+error.message); return; }
+  STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at});
+  render();
+}
+async function desfazerUltimaBaixa(clientId){
+  const list = STATE.settlements.filter(s=>s.clientId===clientId).sort((a,b)=>a.paidAt.localeCompare(b.paidAt));
+  const last = list[list.length-1];
+  if(!last) return;
+  if(!confirm('Desfazer a última baixa registrada para esse cliente?')) return;
+  const {error} = await supabaseClient.from('settlements').delete().eq('id', last.id);
+  if(error){ alert('Erro ao desfazer baixa: '+error.message); return; }
+  STATE.settlements = STATE.settlements.filter(s=>s.id!==last.id);
+  render();
+}
+
+// ---------- HISTÓRICO DE BAIXAS ----------
+function renderBaixasHistoricoSection(){
+  const list = [...STATE.settlements].sort((a,b)=>(b.paidAt||'').localeCompare(a.paidAt||''));
+  const totalBaixas = list.reduce((s,x)=>s+x.amount,0);
+  return `
+    <div class="card" style="cursor:pointer" onclick="SHOW_BAIXAS_HISTORICO=!SHOW_BAIXAS_HISTORICO;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">HISTÓRICO DE BAIXAS</span>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${list.length} registro(s)</span>
+      </div>
+    </div>
+    ${SHOW_BAIXAS_HISTORICO ? `
+    <div class="card">
+      ${list.length===0 ? '<div class="empty">Nenhuma baixa registrada ainda.</div>' : list.map(s=>{
+        const cl = STATE.clients.find(c=>c.id===s.clientId);
+        const data = s.paidAt ? new Date(s.paidAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        return `
+          <div class="match-row">
+            <div class="match-desc">
+              <span class="teams">${cl?cl.name:'Cliente removido'}</span>
+              <span class="meta">${data} · semana de ${weekLabel(s.weekStart)} · ${s.amount>=0?'recebido':'pago ao cliente'}</span>
+            </div>
+            <div class="match-actions">
+              <span style="font-family:var(--font-mono);font-size:13px" class="${s.amount>=0?'profit-pos':'profit-neg'}">${s.amount>=0?'+':'-'}${fmtBRL(Math.abs(s.amount))}</span>
+              <button class="btn-danger-ghost btn-sm" onclick="excluirBaixa('${s.id}')">Excluir</button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    ` : ''}
+  `;
+}
+async function excluirBaixa(settlementId){
+  if(!confirm('Excluir esse registro de baixa? Isso reabre o valor correspondente como pendente.')) return;
+  const {error} = await supabaseClient.from('settlements').delete().eq('id', settlementId);
+  if(error){ alert('Erro ao excluir baixa: '+error.message); return; }
+  STATE.settlements = STATE.settlements.filter(s=>s.id!==settlementId);
+  render();
+}
+
+// ---------- RETIRADAS ----------
+function renderRetiradasSection(){
+  const caixaTotal = caixaTotalCalc();
+  const list = [...STATE.withdrawals].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const totalRetiradas = STATE.withdrawals.reduce((s,x)=>s+x.amount,0);
+  return `
+    <div class="card" style="cursor:pointer" onclick="SHOW_RETIRADAS=!SHOW_RETIRADAS;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">RETIRADAS</span>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(totalRetiradas)}</span>
+      </div>
+    </div>
+    ${SHOW_RETIRADAS ? `
+    <div class="card">
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Caixa disponível</div>
+      <div style="font-family:var(--font-mono);font-size:22px;margin-top:4px" class="${caixaTotal>=0?'profit-pos':'profit-neg'}">${fmtBRL(caixaTotal)}</div>
+    </div>
+    <div class="card">
+      <h3>Nova retirada</h3>
+      <label>Valor</label>
+      <input type="number" id="new-withdrawal-amount" step="0.01" placeholder="Valor (ex: 500,00)">
+      <label>Descrição (opcional)</label>
+      <input type="text" id="new-withdrawal-desc" placeholder="Ex: Retirada pessoal">
+      <div style="margin-top:14px"><button class="btn-primary" onclick="addWithdrawal()">Registrar retirada</button></div>
+    </div>
+    <div class="card">
+      <h3>Histórico de retiradas</h3>
+      ${list.length===0 ? '<div class="empty">Nenhuma retirada registrada ainda.</div>' : list.map(w=>`
+        <div class="match-row">
+          <div class="match-desc">
+            <span class="teams">${fmtBRL(w.amount)}</span>
+            <span class="meta">${w.createdAt ? new Date(w.createdAt).toLocaleDateString('pt-BR') : ''}${w.description?' · '+w.description:''}</span>
+          </div>
+          <button class="btn-danger-ghost btn-sm" onclick="deleteWithdrawal('${w.id}')">Excluir</button>
+        </div>
+      `).join('')}
+    </div>
+    ` : ''}
+  `;
+}
+async function addWithdrawal(){
+  const amount = parseFloat(document.getElementById('new-withdrawal-amount').value);
+  const description = document.getElementById('new-withdrawal-desc').value.trim();
+  if(!amount || amount<=0){ alert('Informe o valor da retirada.'); return; }
+  const {data, error} = await supabaseClient.from('withdrawals').insert({amount, description}).select().single();
+  if(error){ alert('Erro ao registrar retirada: '+error.message); return; }
+  STATE.withdrawals.push({id:data.id, amount:parseFloat(data.amount), description:data.description||'', createdAt:data.created_at});
+  render();
+}
+async function deleteWithdrawal(id){
+  if(!confirm('Excluir esse registro de retirada?')) return;
+  const {error} = await supabaseClient.from('withdrawals').delete().eq('id', id);
+  if(error){ alert('Erro ao excluir retirada: '+error.message); return; }
+  STATE.withdrawals = STATE.withdrawals.filter(w=>w.id!==id);
+  render();
+}
+
+// ---------- DESPESAS E RECEITAS ----------
+function renderLancamentosSection(){
+  const receitas = STATE.transactions.filter(t=>t.type==='receita');
+  const despesas = STATE.transactions.filter(t=>t.type==='despesa');
+  const emAberto = STATE.transactions.filter(t=>t.type==='em_aberto');
+  const totalReceitas = receitas.reduce((s,x)=>s+x.amount,0);
+  const totalDespesas = despesas.reduce((s,x)=>s+x.amount,0);
+  const totalEmAberto = emAberto.reduce((s,x)=>s+x.amount,0);
+  const saldo = totalReceitas - totalDespesas;
+  const list = [...STATE.transactions].sort((a,b)=> (b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
+
+  return `
+    <div class="card" style="cursor:pointer" onclick="SHOW_LANCAMENTOS=!SHOW_LANCAMENTOS;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">DESPESAS E RECEITAS</span>
+        <span style="font-family:var(--font-mono);font-size:14px" class="${saldo>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldo)}</span>
+      </div>
+    </div>
+    ${SHOW_LANCAMENTOS ? `
+    <div class="card">
+      <div class="row" style="gap:22px">
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Receitas</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-pos">${fmtBRL(totalReceitas)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Despesas</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-neg">${fmtBRL(totalDespesas)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Em aberto</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px;color:var(--gold)">${fmtBRL(totalEmAberto)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Saldo (recebido)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${saldo>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldo)}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Novo lançamento</h3>
+      <div class="row">
+        <div><label>Tipo</label>
+          <select id="new-transaction-type">
+            <option value="receita">Receita</option>
+            <option value="despesa">Despesa</option>
+            <option value="em_aberto">Em Aberto (saldo pendente do cliente)</option>
+          </select>
+        </div>
+        <div><label>Data</label><input type="date" id="new-transaction-date" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <label>Categoria (opcional)</label>
+      <input type="text" id="new-transaction-category" placeholder="Ex: Sistema, Funcionário, Comissão, Marketing…">
+      <label>Vincular a um cliente (opcional)</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="new-transaction-client-search" placeholder="Buscar cliente…" autocomplete="off"
+          oninput="filterTransactionClientOptions()" onfocus="filterTransactionClientOptions()" onkeydown="handleAutocompleteKeydown(event,'transaction-client-options')"
+          onblur="setTimeout(()=>{const b=document.getElementById('transaction-client-options'); if(b) b.style.display='none';},150)">
+        <input type="hidden" id="new-transaction-client-id" value="">
+        <div id="transaction-client-options" class="autocomplete-list"></div>
+      </div>
+      <label>Descrição</label>
+      <input type="text" id="new-transaction-desc" placeholder="Ex: Saldo antigo, serviço adquirido…">
+      <label>Valor</label>
+      <input type="number" id="new-transaction-amount" step="0.01" placeholder="Valor (ex: 150,00)">
+      <div style="margin-top:14px"><button class="btn-primary" onclick="addTransaction()">Registrar lançamento</button></div>
+    </div>
+    <div class="card">
+      <h3>Histórico <span style="font-size:12px;color:var(--text-muted);font-weight:400">(últimos ${Math.min(list.length,100)} de no máximo 100)</span></h3>
+      ${list.length===0 ? '<div class="empty">Nenhum lançamento registrado ainda.</div>' : list.map(t=>{
+        const linkedClient = t.clientId ? STATE.clients.find(c=>c.id===t.clientId) : null;
+        const registradoEm = t.createdAt ? new Date(t.createdAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        const typeLabel = t.type==='receita' ? 'Receita' : t.type==='despesa' ? 'Despesa' : 'Em Aberto';
+        const valueColor = t.type==='receita' ? 'profit-pos' : t.type==='despesa' ? 'profit-neg' : '';
+        const valueSign = t.type==='despesa' ? '-' : '+';
+        return `
+        <div class="match-row">
+          <div class="match-desc">
+            <span class="teams">${t.description || typeLabel}${linkedClient?' — '+linkedClient.name:''}${t.type==='em_aberto'?' <span class="chip chip-pending" style="margin-left:4px">EM ABERTO</span>':''}</span>
+            <span class="meta">${fmtDate(t.date)}${t.category?' · '+t.category:''} · registrado em ${registradoEm}</span>
+          </div>
+          <div class="match-actions">
+            <span style="font-family:var(--font-mono);font-size:13px" class="${valueColor}" ${t.type==='em_aberto'?'style="color:var(--gold)"':''}>${valueSign}${fmtBRL(t.amount)}</span>
+            ${t.type==='em_aberto' ? `<button class="btn-ghost btn-sm" onclick="marcarComoRecebido('${t.id}')">Marcar recebido</button>` : ''}
+            <button class="btn-danger-ghost btn-sm" onclick="deleteTransaction('${t.id}')">Excluir</button>
+          </div>
+        </div>
+      `;}).join('')}
+    </div>
+    ` : ''}
+  `;
+}
+function filterTransactionClientOptions(){
+  const input = document.getElementById('new-transaction-client-search');
+  const box = document.getElementById('transaction-client-options');
+  const val = input.value.trim().toLowerCase();
+  document.getElementById('new-transaction-client-id').value = '';
+  if(val.length < 2){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = STATE.clients.filter(c=>c.name.toLowerCase().includes(val));
+  if(matches.length===0){
+    box.innerHTML = '<div class="autocomplete-item" style="cursor:default;color:var(--text-muted)">Nenhum cliente encontrado</div>';
+  } else {
+    box.innerHTML = matches.map(c=>`<div class="autocomplete-item" onmousedown="selectTransactionClientOption('${c.id}')">${c.name}</div>`).join('');
+  }
+  box.style.display='block';
+}
+function selectTransactionClientOption(id){
+  const cl = STATE.clients.find(c=>c.id===id);
+  if(!cl) return;
+  document.getElementById('new-transaction-client-id').value = id;
+  document.getElementById('new-transaction-client-search').value = cl.name;
+  const box = document.getElementById('transaction-client-options');
+  box.style.display='none'; box.innerHTML='';
+}
+async function marcarComoRecebido(id){
+  const {error} = await supabaseClient.from('transactions').update({type:'receita'}).eq('id', id);
+  if(error){ alert('Erro ao atualizar: '+error.message); return; }
+  const t = STATE.transactions.find(x=>x.id===id);
+  if(t) t.type = 'receita';
+  render();
+}
+async function addTransaction(){
+  const type = document.getElementById('new-transaction-type').value;
+  const category = document.getElementById('new-transaction-category').value.trim();
+  const clientId = document.getElementById('new-transaction-client-id').value || null;
+  const description = document.getElementById('new-transaction-desc').value.trim();
+  const amount = parseFloat(document.getElementById('new-transaction-amount').value);
+  const date = document.getElementById('new-transaction-date').value;
+  if(!date){ alert('Informe a data.'); return; }
+  if(!amount || amount<=0){ alert('Informe o valor.'); return; }
+  const {data, error} = await supabaseClient.from('transactions').insert({type, category, description, amount, date, client_id: clientId}).select().single();
+  if(error){ alert('Erro ao registrar lançamento: '+error.message); return; }
+  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null});
+  await pruneTransactions();
+  render();
+}
+async function pruneTransactions(){
+  const LIMIT = 100;
+  if(STATE.transactions.length <= LIMIT) return;
+  const sorted = [...STATE.transactions].sort((a,b)=> (a.createdAt||'').localeCompare(b.createdAt||''));
+  const toRemove = sorted.slice(0, STATE.transactions.length - LIMIT);
+  for(const t of toRemove){
+    await supabaseClient.from('transactions').delete().eq('id', t.id);
+  }
+  const removeIds = new Set(toRemove.map(t=>t.id));
+  STATE.transactions = STATE.transactions.filter(t=>!removeIds.has(t.id));
+}
+async function deleteTransaction(id){
+  if(!confirm('Excluir esse lançamento?')) return;
+  const {error} = await supabaseClient.from('transactions').delete().eq('id', id);
+  if(error){ alert('Erro ao excluir lançamento: '+error.message); return; }
+  STATE.transactions = STATE.transactions.filter(t=>t.id!==id);
+  render();
+}
+
+// ---------- CLIENT VIEW ----------
+function shiftWeek(dateStr, days){
+  const d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
+}
+function changeClientWeek(dir){
+  CLIENT_WEEK = shiftWeek(CLIENT_WEEK, dir*7);
+  render();
+}
+
+function renderClientView(code){
+  const app = document.getElementById('app');
+  const client = STATE.clients.find(c=>c.code===code);
+  if(!client){
+    app.innerHTML = `<div class="client-theme" style="--gold:#3EC1F3; background:#070B14; margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;"><div class="empty">Link inválido ou cliente não encontrado.</div></div>`;
+    return;
+  }
+  const myTickets = STATE.tickets.filter(t=>t.clientId===client.id);
+
+  if(CLIENT_WEEK===null){
+    const todaySP = new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'});
+    const currentWeekMonday = mondayOf(todaySP);
+    const hasPendingThisWeek = myTickets.some(t=>mondayOf(ticketDate(t))===currentWeekMonday && ticketResult(t)==='pending');
+    if(hasPendingThisWeek){
+      CLIENT_WEEK = currentWeekMonday;
+    } else {
+      const weeksWithData = Array.from(new Set(myTickets.map(t=>mondayOf(ticketDate(t))))).sort();
+      CLIENT_WEEK = weeksWithData.length ? weeksWithData[weeksWithData.length-1] : currentWeekMonday;
+    }
+  }
+
+  const weekTickets = myTickets.filter(t=>mondayOf(ticketDate(t))===CLIENT_WEEK).sort((a,b)=>ticketDate(b).localeCompare(ticketDate(a)));
+  const resultado = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
+  const descontoPct = client.discount||0;
+  const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
+  const liquido = resultado + desconto;
+  const pendentes = weekTickets.filter(t=>ticketResult(t)==='pending');
+  const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
+
+  function ticketMatchesBlock(t){
+    return t.matches.map(m=>{
+      const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+      const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+      return `
+        <p style="margin:0;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${teamsLabel}</p>
+        <p style="margin:1px 0 6px;font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${marketLabel}: ${m.selection}</p>
+      `;
+    }).join('');
+  }
+  const dayGroups = {};
+  weekTickets.forEach(t=>{
+    if(!dayGroups[t.date]) dayGroups[t.date] = [];
+    dayGroups[t.date].push(t);
+  });
+  const dayKeys = Object.keys(dayGroups).sort((a,b)=>b.localeCompare(a));
+  dayKeys.forEach(k=> dayGroups[k].sort((a,b)=>(a.time||'').localeCompare(b.time||'')));
+
+  const ticketRows = dayKeys.map(day=>{
+    const rows = dayGroups[day].map(t=>{
+      const r = ticketResult(t);
+      const profit = ticketProfit(t);
+      return `
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+          <div style="min-width:40px"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${t.time||'—'}</span><br><span style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted);opacity:0.7">#${t.ticketNumber||'—'}</span></div>
+          <div style="flex:1;min-width:0">
+            ${ticketMatchesBlock(t)}
+            <p style="margin:0;font-size:11px;color:var(--text-muted)">Valor: ${fmtBRL(t.stake)}</p>
+          </div>
+          <div style="text-align:right;white-space:nowrap">
+            <p style="margin:0;font-size:12px;font-family:var(--font-mono);color:var(--text-muted)">${t.odds!=null?'@'+t.odds.toFixed(2):'—'}</p>
+            <p style="margin:2px 0 0;font-size:14px;font-weight:600" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+    return `<div style="margin-bottom:14px"><p style="margin:0 0 6px;font-size:13px;font-weight:500;color:var(--text-muted)">${fmtDate(day)}</p>${rows}</div>`;
+  }).join('');
+
+  app.innerHTML = `
+    <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#070B14; --surface:#10141F; --surface-2:#151B29; --line:#222B3E; --text:#F5F7FA; --text-muted:#B8BEC7; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
+    <div class="client-header"><div class="name" style="color:var(--text)">${client.name}</div></div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:center;align-items:center;gap:16px">
+        <button class="btn-ghost" style="padding:10px 16px;font-size:16px" onclick="changeClientWeek(-1)">‹</button>
+        <span style="font-family:var(--font-mono);font-size:clamp(15px,4.5vw,17px);font-weight:600">${weekLabel(CLIENT_WEEK)}</span>
+        <button class="btn-ghost" style="padding:10px 16px;font-size:16px" onclick="changeClientWeek(1)">›</button>
+      </div>
+    </div>
+
+    <div class="card" style="display:flex;padding:0">
+      <div style="flex:1;text-align:center;padding:0.85rem 0.5rem">
+        <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Resultado</div>
+        <div style="font-family:var(--font-mono);font-size:clamp(17px,5.5vw,21px);font-weight:700;margin-top:3px" class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
+      </div>
+      ${resultado<0 ? `
+      <div style="width:1px;background:var(--line)"></div>
+      <div style="flex:1;text-align:center;padding:0.85rem 0.5rem">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Desconto</div>
+        <div style="font-family:var(--font-mono);font-size:16px;margin-top:3px">${fmtBRL(desconto)}</div>
+      </div>
+      <div style="width:1px;background:var(--line)"></div>
+      <div style="flex:1;text-align:center;padding:0.85rem 0.5rem">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido</div>
+        <div style="font-family:var(--font-mono);font-size:16px;margin-top:3px" class="${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
+      </div>
+      ` : ''}
+    </div>
+
+    ${pendentes.length>0 ? `
+    <div class="card" style="cursor:pointer" onclick="CLIENT_SHOW_PENDENTES=!CLIENT_SHOW_PENDENTES;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">PENDENTES (${pendentes.length})</span>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span>
+      </div>
+      ${CLIENT_SHOW_PENDENTES ? `
+        <div style="margin-top:12px;border-top:1px solid var(--line)">
+          ${pendentes.map(t=>`
+            <div class="match-row">
+              <div class="match-desc">
+                <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · ${ticketDetailsShort(t)}</span>
+              </div>
+              <span style="font-family:var(--font-mono);font-size:13px">${fmtBRL(t.stake)}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+    ` : ''}
+
+    <div class="card">
+      <h3>Apostas da semana</h3>
+      ${ticketRows || '<div class="empty">Nenhuma aposta nessa semana.</div>'}
+    </div>
+    </div>
+  `;
+}
+
+window.addEventListener('hashchange', render);
+supabaseClient.auth.onAuthStateChange((event, session)=>{ SESSION = session; });
+(async ()=>{
+  const { data } = await supabaseClient.auth.getSession();
+  SESSION = data.session;
+  await loadState();
+  render();
+})();
+</script>
+</body>
+</html>
