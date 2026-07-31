@@ -1857,7 +1857,7 @@ function renderClientView(code){
     dayGroups[t.date].push(t);
   });
   const dayKeys = Object.keys(dayGroups).sort((a,b)=>b.localeCompare(a));
-  dayKeys.forEach(k=> dayGroups[k].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')));
+  dayKeys.forEach(k=> dayGroups[k].sort((a,b)=>(b.time||'').localeCompare(a.time||'')));
 
   const ticketRows = dayKeys.map(day=>{
     const rows = dayGroups[day].map(t=>{
