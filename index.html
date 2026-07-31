@@ -1321,8 +1321,8 @@ async function gerarFechamento(clientId){
   try{
   const cl = STATE.clients.find(c=>c.id===clientId);
   if(!cl){ alert('Cliente não encontrado.'); return; }
-  const todaySP = todaySP();
-  const weekMonday = DASH_WEEK || mondayOf(todaySP);
+  const todaySPStr = todaySP();
+  const weekMonday = DASH_WEEK || mondayOf(todaySPStr);
   const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='void');
 
   // Valor Jogado: total de todas as apostas da semana
@@ -1828,8 +1828,8 @@ function renderClientView(code){
   const myTickets = STATE.tickets.filter(t=>t.clientId===client.id);
 
   if(CLIENT_WEEK===null){
-    const todaySP = todaySP();
-    const currentWeekMonday = mondayOf(todaySP);
+    const todaySPStr = todaySP();
+    const currentWeekMonday = mondayOf(todaySPStr);
     const hasPendingThisWeek = myTickets.some(t=>mondayOf(ticketDate(t))===currentWeekMonday && ticketResult(t)==='pending');
     if(hasPendingThisWeek){
       CLIENT_WEEK = currentWeekMonday;
