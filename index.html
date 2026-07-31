@@ -1547,15 +1547,6 @@ async function darBaixa(clientId, weekStart, remaining){
   const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount}).select().single();
   if(error){ alert('Erro ao dar baixa: '+error.message); return; }
   STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at});
-  const novoRestante = computeContinuousBalance(clientId, null);
-  if(Math.abs(novoRestante) < 0.01){
-    const openIds = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId).map(t=>t.id);
-    for(const id of openIds){
-      await supabaseClient.from('transactions').update({type:'receita'}).eq('id', id);
-      const t = STATE.transactions.find(x=>x.id===id);
-      if(t) t.type = 'receita';
-    }
-  }
   render();
 }
 async function desfazerUltimaBaixa(clientId){
@@ -1866,7 +1857,7 @@ function renderClientView(code){
     dayGroups[t.date].push(t);
   });
   const dayKeys = Object.keys(dayGroups).sort((a,b)=>b.localeCompare(a));
-  dayKeys.forEach(k=> dayGroups[k].sort((a,b)=>(a.time||'').localeCompare(b.time||'')));
+  dayKeys.forEach(k=> dayGroups[k].sort((a,b)=>(b.time||'').localeCompare(a.time||'')));
 
   const ticketRows = dayKeys.map(day=>{
     const rows = dayGroups[day].map(t=>{
