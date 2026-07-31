@@ -216,6 +216,12 @@ async function loadState(){
 }
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
+function todaySP(){
+  return new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'});
+}
+function nowTimeSP(){
+  return new Date().toLocaleTimeString('en-GB', {timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit'});
+}
 function handleAutocompleteKeydown(e, listId){
   const box = document.getElementById(listId);
   if(!box || box.style.display==='none' || !box.innerHTML.trim()) return;
@@ -261,7 +267,7 @@ function weekLabel(mondayStr){
 
 // ---------- TICKET (bilhete) HELPERS ----------
 function ticketDate(ticket){
-  return ticket.date || new Date().toISOString().slice(0,10);
+  return ticket.date || todaySP();
 }
 function ticketResult(ticket){
   if(!ticket.matches.length) return 'pending';
@@ -368,12 +374,12 @@ function renderAdmin(){
 }
 function setTab(t){ ADMIN_TAB=t; ADMIN_SUBVIEW='list'; render(); }
 function changeDashWeek(dir){
-  if(!DASH_WEEK) DASH_WEEK = mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
+  if(!DASH_WEEK) DASH_WEEK = mondayOf(todaySP());
   DASH_WEEK = shiftWeek(DASH_WEEK, dir*7);
   render();
 }
 function changeFinanceWeek(dir){
-  if(!FINANCE_WEEK) FINANCE_WEEK = mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
+  if(!FINANCE_WEEK) FINANCE_WEEK = mondayOf(todaySP());
   FINANCE_WEEK = shiftWeek(FINANCE_WEEK, dir*7);
   render();
 }
@@ -530,7 +536,7 @@ async function deleteTicket(ticketId){
 
 // ---------- WIZARD (Nova Aposta) ----------
 function startNewTicket(){
-  DRAFT = {clientId:'', clientName:'', date:new Date().toISOString().slice(0,10), time:'', stake:'', matches:[]};
+  DRAFT = {clientId:'', clientName:'', date:todaySP(), time:nowTimeSP(), stake:'', matches:[]};
   EDITING_TICKET_ID = null;
   ADMIN_SUBVIEW='wizard';
   render();
@@ -759,7 +765,7 @@ function addDraftMatch(){
     away = document.getElementById('match-away').value.trim();
     if(!home || !away){ alert('Informe os dois times.'); return; }
   }
-  date = DRAFT.date || new Date().toISOString().slice(0,10);
+  date = DRAFT.date || todaySP();
   time = DRAFT.time || null;
   DRAFT.matches.push({id:uid(), home, away, date, time, market, selection, odd, result:'pending'});
   render();
@@ -1315,7 +1321,7 @@ async function gerarFechamento(clientId){
   try{
   const cl = STATE.clients.find(c=>c.id===clientId);
   if(!cl){ alert('Cliente não encontrado.'); return; }
-  const todaySP = new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'});
+  const todaySP = todaySP();
   const weekMonday = DASH_WEEK || mondayOf(todaySP);
   const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='void');
 
@@ -1462,7 +1468,7 @@ function renderFinanceiroTab(){
   const weeks = allWeeksSorted();
   const caixaTotal = caixaTotalCalc();
 
-  if(!FINANCE_WEEK) FINANCE_WEEK = weeks[0] || mondayOf(new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'}));
+  if(!FINANCE_WEEK) FINANCE_WEEK = weeks[0] || mondayOf(todaySP());
 
   // Situação por cliente: saldo CONTÍNUO (todas as semanas), some da lista só quando quitado
   const rows = STATE.clients.map(cl=>{
@@ -1695,7 +1701,7 @@ function renderLancamentosSection(){
             <option value="em_aberto">Em Aberto (saldo pendente do cliente)</option>
           </select>
         </div>
-        <div><label>Data</label><input type="date" id="new-transaction-date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div><label>Data</label><input type="date" id="new-transaction-date" value="${todaySP()}"></div>
       </div>
       <label>Categoria (opcional)</label>
       <input type="text" id="new-transaction-category" placeholder="Ex: Sistema, Funcionário, Comissão, Marketing…">
@@ -1822,7 +1828,7 @@ function renderClientView(code){
   const myTickets = STATE.tickets.filter(t=>t.clientId===client.id);
 
   if(CLIENT_WEEK===null){
-    const todaySP = new Date().toLocaleDateString('en-CA', {timeZone:'America/Sao_Paulo'});
+    const todaySP = todaySP();
     const currentWeekMonday = mondayOf(todaySP);
     const hasPendingThisWeek = myTickets.some(t=>mondayOf(ticketDate(t))===currentWeekMonday && ticketResult(t)==='pending');
     if(hasPendingThisWeek){
