@@ -279,10 +279,13 @@ function ticketResult(ticket){
 function ticketOddTotal(ticket){
   return ticket.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
 }
+function effectiveOdds(ticket){
+  return (ticket.odds && ticket.odds>0) ? ticket.odds : ticketOddTotal(ticket);
+}
 function ticketProfit(ticket){
   const r = ticketResult(ticket);
   if(r==='red') return -ticket.stake;
-  if(r==='green') return ticket.odds ? (ticket.stake*ticket.odds) - ticket.stake : 0;
+  if(r==='green'){ const odds = effectiveOdds(ticket); return odds ? (ticket.stake*odds) - ticket.stake : 0; }
   return 0;
 }
 function resultChip(r){
@@ -495,7 +498,7 @@ function renderTicketCard(ticket){
       <div class="ticket-top">
         <div>
           <div class="ticket-client"><span style="font-family:var(--font-mono);font-weight:400;font-size:11px;color:var(--text-muted)">#${ticket.ticketNumber||'—'}</span> ${cl?cl.name:'Cliente removido'}</div>
-          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · odd ${ticket.odds!=null?ticket.odds.toFixed(2):'—'}</div>
+          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · odd ${ticketOddTotal(ticket)>0?effectiveOdds(ticket).toFixed(2):'—'}</div>
         </div>
         ${resultChip(r)}
       </div>
@@ -573,9 +576,12 @@ function cancelWizard(){
   if(DRAFT.matches.length && !confirm('Descartar esta aposta em edição?')) return;
   DRAFT=null; EDITING_TICKET_ID=null; ADMIN_SUBVIEW='list'; render();
 }
+function draftMatchesOddTotal(){
+  return DRAFT.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
+}
 function updateWizardTotals(){
   const stake = parseFloat(DRAFT.stake) || 0;
-  const odds = parseFloat(DRAFT.odds) || 0;
+  const odds = parseFloat(DRAFT.odds) || draftMatchesOddTotal();
   const display = document.getElementById('ticket-retorno-display');
   if(display) display.value = (stake>0 && odds>0) ? fmtBRL(stake*odds - stake) : '';
 }
@@ -669,8 +675,8 @@ function renderWizard(){
       <label>Valor</label>
       <input type="number" id="ticket-stake" step="0.01" value="${DRAFT.stake||''}" oninput="DRAFT.stake=this.value;updateWizardTotals()" placeholder="Valor (ex: 100,00 ou 100.00)">
       <div class="row">
-        <div><label>Odds (opcional)</label><input type="number" id="ticket-odds" step="0.01" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" placeholder="Pode preencher depois"></div>
-        <div><label>Retorno (lucro)</label><input type="text" id="ticket-retorno-display" value="${(parseFloat(DRAFT.stake)>0 && parseFloat(DRAFT.odds)>0) ? fmtBRL(parseFloat(DRAFT.stake)*parseFloat(DRAFT.odds)-parseFloat(DRAFT.stake)) : ''}" placeholder="Calculado automaticamente" disabled></div>
+        <div><label>Odds (opcional)</label><input type="number" id="ticket-odds" step="0.01" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" placeholder="Em branco = multiplica as odds dos jogos"></div>
+        <div><label>Retorno (lucro)</label><input type="text" id="ticket-retorno-display" value="${(parseFloat(DRAFT.stake)>0 && (parseFloat(DRAFT.odds)>0 || draftMatchesOddTotal()>0)) ? fmtBRL(parseFloat(DRAFT.stake)*(parseFloat(DRAFT.odds)||draftMatchesOddTotal())-parseFloat(DRAFT.stake)) : ''}" placeholder="Calculado automaticamente" disabled></div>
       </div>
     </div>
 
@@ -1171,7 +1177,7 @@ function renderBgPreviewOverlay(){
   overlay.innerHTML = `
     <div class="card" style="max-width:420px;width:100%;text-align:center;margin:0">
       <h3>Prévia do fundo</h3>
-      <div style="width:100%;aspect-ratio:720/650;border-radius:8px;overflow:hidden;border:2px solid var(--line);margin-bottom:14px">
+      <div style="width:100%;aspect-ratio:720/700;border-radius:8px;overflow:hidden;border:2px solid var(--line);margin-bottom:14px">
         <img src="${PENDING_BG_DATAURL}" style="width:100%;height:100%;object-fit:cover;display:block;">
       </div>
       <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">A imagem preenche todo o retângulo do fechamento (formato acima), cortando as bordas se precisar.</p>
@@ -1221,8 +1227,8 @@ function renderConfigTab(){
     </div>
     <div class="card">
       <h3>Fundo do fechamento</h3>
-      <p style="font-size:13px;color:var(--text-muted);margin-top:0">Foto usada como fundo da imagem de fechamento (ex: um estádio, torcida, ou a arte da sua marca).</p>
-      ${savedBg ? `<div style="width:100%;max-width:320px;aspect-ratio:720/650;margin-bottom:14px;overflow:hidden;border-radius:8px;border:2px solid var(--line)"><img src="${savedBg}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhum fundo configurado ainda — será usado um fundo estilizado padrão.</div>'}
+      <p style="font-size:13px;color:var(--text-muted);margin-top:0">Foto usada como fundo da imagem de fechamento (ex: um estádio, torcida, ou a arte da sua marca). A imagem final sempre tem <strong>720 x 700px</strong> — prepare sua foto nesse formato (ou próximo) pra ficar sem cortes estranhos.</p>
+      ${savedBg ? `<div style="width:100%;max-width:320px;aspect-ratio:720/700;margin-bottom:14px;overflow:hidden;border-radius:8px;border:2px solid var(--line)"><img src="${savedBg}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhum fundo configurado ainda — será usado um fundo estilizado padrão.</div>'}
       <input type="file" id="bg-file-input" accept="image/*" style="display:none" onchange="handleBgUpload(event)">
       <div class="row" style="margin-top:0">
         <div><button class="btn-ghost btn-full" onclick="document.getElementById('bg-file-input').click()">🏟️ ${savedBg?'Trocar fundo':'Enviar fundo'}</button></div>
@@ -1328,13 +1334,13 @@ async function gerarFechamento(clientId){
   // Valor Jogado: total de todas as apostas da semana
   const valorJogado = tickets.reduce((s,t)=>s+t.stake,0);
   // Acertos: valor apostado + lucro das apostas Green (retorno total)
-  const acertos = tickets.filter(t=>ticketResult(t)==='green').reduce((s,t)=>s+(t.odds!=null?t.stake*t.odds:t.stake),0);
+  const acertos = tickets.filter(t=>ticketResult(t)==='green').reduce((s,t)=>s+t.stake*effectiveOdds(t),0);
   // Subtotal: somente o lucro ou prejuízo da semana
   const subtotal = acertos - valorJogado;
   // Desconto: só existe se o cliente tem desconto cadastrado, e incide só sobre o saldo da semana
   const descontoPct = cl.discount||0;
-  const temDesconto = descontoPct>0;
-  const desconto = (temDesconto && subtotal<0) ? Math.abs(subtotal)*descontoPct/100 : 0;
+  const desconto = (descontoPct>0 && subtotal<0) ? Math.abs(subtotal)*descontoPct/100 : 0;
+  const temDesconto = desconto>0;
 
   // Saldo anterior: saldo contínuo (todas as semanas anteriores + saldo em aberto,
   // já líquido de tudo que foi pago) — exatamente o mesmo cálculo usado no Financeiro.
@@ -1360,11 +1366,18 @@ async function gerarFechamento(clientId){
     linhas.push(['SALDO DA SEMANA:', (saldoSemana>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoSemana)).replace('R$','').trim(), saldoSemana>=0?'#3FB68B':'#E0575A', true]);
   }
 
-  const rowH = 44, rowGap = 9, marginX = 55;
+  const marginX = 55;
   const headerH = 178;
-  const canvasHeight = headerH + linhas.length*(rowH+rowGap) + 20 + 30;
+  const FIXED_W = 720, FIXED_H = 700;
+  let rowH = 44, rowGap = 9;
+  const availableForRows = FIXED_H - headerH - 30;
+  const naturalRowsHeight = linhas.length*(rowH+rowGap) + 20;
+  if(naturalRowsHeight > availableForRows){
+    const scale = availableForRows / naturalRowsHeight;
+    rowH *= scale; rowGap *= scale;
+  }
   const canvas = document.createElement('canvas');
-  canvas.width = 720; canvas.height = canvasHeight;
+  canvas.width = FIXED_W; canvas.height = FIXED_H;
   const ctx = canvas.getContext('2d');
 
   await drawBackground(ctx, canvas.width, canvas.height);
@@ -1877,7 +1890,7 @@ function renderClientView(code){
             <p style="margin:0;font-size:11px;color:var(--text-muted)">Valor: ${fmtBRL(t.stake)}</p>
           </div>
           <div style="text-align:right;white-space:nowrap">
-            <p style="margin:0;font-size:12px;font-family:var(--font-mono);color:var(--text-muted)">${t.odds!=null?'@'+t.odds.toFixed(2):'—'}</p>
+            <p style="margin:0;font-size:12px;font-family:var(--font-mono);color:var(--text-muted)">${ticketOddTotal(t)>0?'@'+effectiveOdds(t).toFixed(2):'—'}</p>
             <p style="margin:2px 0 0;font-size:14px;font-weight:600" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</p>
           </div>
         </div>
