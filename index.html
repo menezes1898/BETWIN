@@ -310,6 +310,7 @@ function render(){
   const hash = window.location.hash;
   const m = hash.match(/cliente=([a-zA-Z0-9]+)/);
   if(m){ renderClientView(m[1]); return; }
+  document.title = 'Boletim — Consultoria';
   if(!SESSION){ renderLogin(); return; }
   renderAdmin();
 }
@@ -1865,8 +1866,13 @@ function renderClientView(code){
       const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
       const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
       return `
-        <p style="margin:0;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${teamsLabel}</p>
-        <p style="margin:1px 0 6px;font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${marketLabel}: ${m.selection}</p>
+        <div style="display:flex;align-items:baseline;gap:5px;margin-bottom:3px">
+          <span style="flex-shrink:0;font-size:10px;line-height:1.4">${resultIconSmall(m.result)}</span>
+          <div style="min-width:0;overflow:hidden">
+            <span style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${teamsLabel}</span>
+            <span style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${marketLabel}: ${m.selection}</span>
+          </div>
+        </div>
       `;
     }).join('');
   }
@@ -1883,15 +1889,29 @@ function renderClientView(code){
       const r = ticketResult(t);
       const profit = ticketProfit(t);
       return `
-        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <div style="min-width:40px"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${t.time||'—'}</span><br><span style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted);opacity:0.7">#${t.ticketNumber||'—'}</span></div>
-          <div style="flex:1;min-width:0">
-            ${ticketMatchesBlock(t)}
-            <p style="margin:0;font-size:11px;color:var(--text-muted)">Valor: ${fmtBRL(t.stake)}</p>
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:7px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;margin-bottom:7px;border-bottom:1px solid var(--line)">
+            <div style="display:flex;align-items:baseline;gap:8px;min-width:0">
+              <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);white-space:nowrap">${t.time||'—'}</span>
+              <span style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);opacity:0.65;white-space:nowrap">#${t.ticketNumber||'—'}</span>
+            </div>
+            <div style="text-align:right">
+              <span style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px;display:block">Valor</span>
+              <span style="font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--text)">${fmtBRL(t.stake)}</span>
+            </div>
           </div>
-          <div style="text-align:right;white-space:nowrap">
-            <p style="margin:0;font-size:12px;font-family:var(--font-mono);color:var(--text-muted)">${ticketOddTotal(t)>0?'@'+effectiveOdds(t).toFixed(2):'—'}</p>
-            <p style="margin:2px 0 0;font-size:14px;font-weight:600" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</p>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1;min-width:0">${ticketMatchesBlock(t)}</div>
+            <div style="text-align:right;white-space:nowrap;flex-shrink:0;display:flex;flex-direction:column;justify-content:space-between">
+              <div>
+                <span style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px;display:block">Odds</span>
+                <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">${ticketOddTotal(t)>0?effectiveOdds(t).toFixed(2):'—'}</span>
+              </div>
+              <div style="margin-top:8px">
+                <span style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px;display:block">Resultado</span>
+                <span style="font-family:var(--font-mono);font-size:15px;font-weight:700" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</span>
+              </div>
+            </div>
           </div>
         </div>
       `;
@@ -1899,6 +1919,7 @@ function renderClientView(code){
     return `<div style="margin-bottom:14px"><p style="margin:0 0 6px;font-size:13px;font-weight:500;color:var(--text-muted)">${fmtDate(day)}</p>${rows}</div>`;
   }).join('');
 
+  document.title = 'Relatório';
   app.innerHTML = `
     <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#070B14; --surface:#10141F; --surface-2:#151B29; --line:#222B3E; --text:#F5F7FA; --text-muted:#B8BEC7; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
     <div class="client-header"><div class="name" style="color:var(--text)">${client.name}</div></div>
