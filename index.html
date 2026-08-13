@@ -148,13 +148,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Tf4F0bAvZsHyevsy0JUa0g_q8G4_-dW';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 
-let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [] };
+let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [] };
 let ADMIN_TAB = 'dashboard';
 let ADMIN_SUBVIEW = 'list'; // 'list' | 'wizard'
 let DASH_WEEK = null;
 let FINANCE_WEEK = null;
 let SHOW_LANCAMENTOS = false;
 let SHOW_RETIRADAS = false;
+let SHOW_COMISSOES = false;
 let SHOW_BAIXAS_HISTORICO = false;
 let DRAFT = null;
 let EDITING_TICKET_ID = null;
@@ -164,6 +165,8 @@ let SHOW_PENDENTES = false;
 let CLIENT_WEEK = null;
 let CLIENT_DETAIL_ID = null;
 let CONFIRM_DELETE_CLIENT = false;
+let COMMISSIONER_DETAIL_ID = null;
+let CONFIRM_DELETE_COMMISSIONER = false;
 let CLIENT_SHOW_PENDENTES = false;
 let SESSION = null;
 
@@ -184,15 +187,17 @@ const MARKETS = [
 
 async function loadState(){
   try{
-    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}] = await Promise.all([
+    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}] = await Promise.all([
       supabaseClient.from('clients').select('*').order('created_at'),
       supabaseClient.from('tickets').select('*').order('created_at'),
       supabaseClient.from('settlements').select('*').order('paid_at'),
       supabaseClient.from('withdrawals').select('*').order('created_at'),
-      supabaseClient.from('transactions').select('*').order('date')
+      supabaseClient.from('transactions').select('*').order('date'),
+      supabaseClient.from('commissioners').select('*').order('created_at'),
+      supabaseClient.from('commissioner_clients').select('*').order('created_at')
     ]);
-    if(err1 || err2 || err3 || err4 || err5){
-      alert('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
+    if(err1 || err2 || err3 || err4 || err5 || err6 || err7){
+      alert('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
       return;
     }
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||''}));
@@ -209,6 +214,10 @@ async function loadState(){
     }));
     STATE.transactions = (transactions||[]).map(t=>({
       id:t.id, type:t.type, category:t.category||'', description:t.description||'', amount:parseFloat(t.amount), date:t.date, createdAt:t.created_at, clientId:t.client_id||null
+    }));
+    STATE.commissioners = (commissioners||[]).map(c=>({id:c.id, name:c.name, phone:c.phone||''}));
+    STATE.commissionerClients = (commissionerClients||[]).map(cc=>({
+      id:cc.id, commissionerId:cc.commissioner_id, clientId:cc.client_id, percent:parseFloat(cc.percent)||0
     }));
   }catch(e){
     alert('Erro ao conectar no Supabase: '+e.message);
@@ -364,6 +373,7 @@ function renderAdmin(){
       <div class="tab ${ADMIN_TAB==='pendentes'?'active':''}" onclick="setTab('pendentes')">Pendentes${pendentesCount?' ('+pendentesCount+')':''}</div>
       <div class="tab ${ADMIN_TAB==='clientes'?'active':''}" onclick="setTab('clientes')">Clientes</div>
       <div class="tab ${ADMIN_TAB==='financeiro'?'active':''}" onclick="setTab('financeiro')">Financeiro</div>
+      <div class="tab ${ADMIN_TAB==='parceiros'?'active':''}" onclick="setTab('parceiros')">Parceiros</div>
       <div class="tab ${ADMIN_TAB==='config'?'active':''}" onclick="setTab('config')">Configurações</div>
     </div>
     <div id="tab-content"></div>
@@ -374,6 +384,7 @@ function renderAdmin(){
   if(ADMIN_TAB==='clientes') c.innerHTML = renderClientesTab();
   if(ADMIN_TAB==='dashboard') c.innerHTML = renderDashboardTab();
   if(ADMIN_TAB==='financeiro') c.innerHTML = renderFinanceiroTab();
+  if(ADMIN_TAB==='parceiros') c.innerHTML = renderParceirosTab();
   if(ADMIN_TAB==='config') c.innerHTML = renderConfigTab();
 }
 function setTab(t){ ADMIN_TAB=t; ADMIN_SUBVIEW='list'; render(); }
@@ -965,6 +976,203 @@ function selectClientOption(id){
   box.style.display='none'; box.innerHTML='';
 }
 
+// ---------- PARCEIROS (COMISSIONADOS) ----------
+function computeCommissionAmount(link, weekMonday){
+  const tickets = STATE.tickets.filter(t=>t.clientId===link.clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='pending' && ticketResult(t)!=='void');
+  const resultadoCliente = tickets.reduce((s,t)=>s+ticketProfit(t),0);
+  const grossLoss = resultadoCliente<0 ? Math.abs(resultadoCliente) : 0;
+  return grossLoss * (link.percent/100);
+}
+function renderParceirosTab(){
+  if(COMMISSIONER_DETAIL_ID) return renderCommissionerDetail(COMMISSIONER_DETAIL_ID);
+  return `
+    <div class="card">
+      <h3>Novo comissionado</h3>
+      <label>Nome</label>
+      <input type="text" id="new-commissioner-name" placeholder="Ex: João Parceiro">
+      <label>Telefone (opcional)</label>
+      <input type="text" id="new-commissioner-phone" placeholder="Ex: (11) 91234-5678">
+      <div style="margin-top:14px"><button class="btn-primary" onclick="addCommissioner()">Cadastrar</button></div>
+    </div>
+    <div class="card">
+      <label>Buscar comissionado</label>
+      <input type="text" id="commissioner-search-input" placeholder="Digite o nome…" oninput="updateCommissionerSearch()">
+    </div>
+    <div id="commissioner-list-container">${renderCommissionerListItems(STATE.commissioners)}</div>
+  `;
+}
+function renderCommissionerListItems(list){
+  if(list.length===0) return '<div class="card"><div class="empty">Nenhum comissionado cadastrado ainda.</div></div>';
+  return list.map(cm=>{
+    const linkedCount = STATE.commissionerClients.filter(cc=>cc.commissionerId===cm.id).length;
+    return `
+    <div class="card" style="cursor:pointer" onclick="openCommissionerDetail('${cm.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:600;font-size:15px">${cm.name}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${linkedCount} cliente(s) vinculado(s)${cm.phone?' · '+cm.phone:''}</div>
+        </div>
+        <span style="color:var(--text-muted);font-size:18px">›</span>
+      </div>
+    </div>
+  `;}).join('');
+}
+function updateCommissionerSearch(){
+  const val = document.getElementById('commissioner-search-input').value.trim().toLowerCase();
+  const filtered = val ? STATE.commissioners.filter(c=>c.name.toLowerCase().includes(val)) : STATE.commissioners;
+  document.getElementById('commissioner-list-container').innerHTML = renderCommissionerListItems(filtered);
+}
+function openCommissionerDetail(id){
+  COMMISSIONER_DETAIL_ID = id;
+  CONFIRM_DELETE_COMMISSIONER = false;
+  render();
+}
+function renderCommissionerDetail(id){
+  const cm = STATE.commissioners.find(c=>c.id===id);
+  if(!cm){ COMMISSIONER_DETAIL_ID=null; return renderParceirosTab(); }
+  const links = STATE.commissionerClients.filter(cc=>cc.commissionerId===id);
+  const weekMonday = FINANCE_WEEK || mondayOf(todaySP());
+  const totalWeek = links.reduce((s,l)=>s+computeCommissionAmount(l, weekMonday),0);
+  return `
+    <button class="btn-ghost btn-sm" onclick="COMMISSIONER_DETAIL_ID=null;render()">‹ Voltar</button>
+    <div style="height:12px"></div>
+    <div class="card">
+      <h3>Editar comissionado</h3>
+      <label>Nome</label>
+      <input type="text" id="detail-commissioner-name" value="${cm.name}">
+      <label>Telefone (opcional)</label>
+      <input type="text" id="detail-commissioner-phone" value="${cm.phone||''}">
+      <div style="margin-top:14px"><button class="btn-primary btn-full" onclick="saveCommissionerDetail('${cm.id}')">Salvar alterações</button></div>
+    </div>
+    <div class="card">
+      <h3>Clientes vinculados</h3>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Comissão calculada em cima da semana de ${weekLabel(weekMonday)} · total dessa semana: <strong style="color:var(--gold)">${fmtBRL(totalWeek)}</strong></div>
+      ${links.length===0 ? '<div class="empty">Nenhum cliente vinculado ainda.</div>' : links.map(l=>{
+        const cl = STATE.clients.find(c=>c.id===l.clientId);
+        const amount = computeCommissionAmount(l, weekMonday);
+        return `
+        <div class="match-row">
+          <div class="match-desc">
+            <span class="teams">${cl?cl.name:'Cliente removido'}</span>
+            <span class="meta">${l.percent}% sobre a perda bruta · essa semana: ${fmtBRL(amount)}</span>
+          </div>
+          <div class="match-actions">
+            <button class="btn-ghost btn-sm" onclick="editCommissionLinkPercent('${l.id}')">Editar %</button>
+            <button class="btn-danger-ghost btn-sm" onclick="removeCommissionLink('${l.id}')">Remover</button>
+          </div>
+        </div>
+        `;
+      }).join('')}
+    </div>
+    <div class="card">
+      <h3>Vincular novo cliente</h3>
+      <label>Cliente</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="new-link-client-search" placeholder="Buscar cliente…" autocomplete="off"
+          oninput="filterLinkClientOptions()" onfocus="filterLinkClientOptions()" onkeydown="handleAutocompleteKeydown(event,'link-client-options')"
+          onblur="setTimeout(()=>{const b=document.getElementById('link-client-options'); if(b) b.style.display='none';},150)">
+        <input type="hidden" id="new-link-client-id" value="">
+        <div id="link-client-options" class="autocomplete-list"></div>
+      </div>
+      <label>Porcentagem sobre a perda bruta do cliente (%)</label>
+      <input type="number" id="new-link-percent" min="0" max="100" step="0.1" placeholder="Ex: 5">
+      <div style="margin-top:14px"><button class="btn-primary" onclick="addCommissionLink('${cm.id}')">Vincular cliente</button></div>
+    </div>
+    ${CONFIRM_DELETE_COMMISSIONER ? `
+      <div class="card" style="border-color:var(--red)">
+        <p style="margin:0 0 12px;font-size:14px">Tem certeza que quer excluir <strong>${cm.name}</strong>? Isso remove todos os vínculos com clientes também.</p>
+        <div class="row">
+          <div><button class="btn-ghost btn-full" onclick="CONFIRM_DELETE_COMMISSIONER=false;render()">Cancelar</button></div>
+          <div><button class="btn-danger-ghost btn-full" onclick="deleteCommissioner('${cm.id}')">Sim, excluir definitivamente</button></div>
+        </div>
+      </div>
+    ` : `
+      <div class="card">
+        <button class="btn-danger-ghost btn-full" onclick="CONFIRM_DELETE_COMMISSIONER=true;render()">Excluir comissionado</button>
+      </div>
+    `}
+  `;
+}
+async function addCommissioner(){
+  const name = document.getElementById('new-commissioner-name').value.trim();
+  const phone = document.getElementById('new-commissioner-phone').value.trim();
+  if(!name) return;
+  const {data, error} = await supabaseClient.from('commissioners').insert({name, phone}).select().single();
+  if(error){ alert('Erro ao salvar comissionado: '+error.message); return; }
+  STATE.commissioners.push({id:data.id, name:data.name, phone:data.phone||''});
+  render();
+}
+async function saveCommissionerDetail(id){
+  const name = document.getElementById('detail-commissioner-name').value.trim();
+  const phone = document.getElementById('detail-commissioner-phone').value.trim();
+  if(!name){ alert('Informe o nome.'); return; }
+  const {error} = await supabaseClient.from('commissioners').update({name, phone}).eq('id', id);
+  if(error){ alert('Erro ao salvar: '+error.message); return; }
+  const cm = STATE.commissioners.find(c=>c.id===id);
+  if(cm){ cm.name=name; cm.phone=phone; }
+  render();
+}
+async function deleteCommissioner(id){
+  const {error} = await supabaseClient.from('commissioners').delete().eq('id', id);
+  if(error){ alert('Erro ao excluir: '+error.message); return; }
+  STATE.commissioners = STATE.commissioners.filter(c=>c.id!==id);
+  STATE.commissionerClients = STATE.commissionerClients.filter(cc=>cc.commissionerId!==id);
+  COMMISSIONER_DETAIL_ID = null;
+  CONFIRM_DELETE_COMMISSIONER = false;
+  render();
+}
+function filterLinkClientOptions(){
+  const input = document.getElementById('new-link-client-search');
+  const box = document.getElementById('link-client-options');
+  const val = input.value.trim().toLowerCase();
+  document.getElementById('new-link-client-id').value = '';
+  if(val.length < 2){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = STATE.clients.filter(c=>c.name.toLowerCase().includes(val));
+  if(matches.length===0){
+    box.innerHTML = '<div class="autocomplete-item" style="cursor:default;color:var(--text-muted)">Nenhum cliente encontrado</div>';
+  } else {
+    box.innerHTML = matches.map(c=>`<div class="autocomplete-item" onmousedown="selectLinkClientOption('${c.id}')">${c.name}</div>`).join('');
+  }
+  box.style.display='block';
+}
+function selectLinkClientOption(id){
+  const cl = STATE.clients.find(c=>c.id===id);
+  if(!cl) return;
+  document.getElementById('new-link-client-id').value = id;
+  document.getElementById('new-link-client-search').value = cl.name;
+  const box = document.getElementById('link-client-options');
+  box.style.display='none'; box.innerHTML='';
+}
+async function addCommissionLink(commissionerId){
+  const clientId = document.getElementById('new-link-client-id').value;
+  const percent = parseFloat(document.getElementById('new-link-percent').value);
+  if(!clientId){ alert('Busque e selecione um cliente na lista.'); return; }
+  if(isNaN(percent) || percent<0){ alert('Informe a porcentagem.'); return; }
+  const {data, error} = await supabaseClient.from('commissioner_clients').insert({commissioner_id: commissionerId, client_id: clientId, percent}).select().single();
+  if(error){ alert('Erro ao vincular cliente: '+error.message); return; }
+  STATE.commissionerClients.push({id:data.id, commissionerId:data.commissioner_id, clientId:data.client_id, percent:parseFloat(data.percent)||0});
+  render();
+}
+async function editCommissionLinkPercent(linkId){
+  const link = STATE.commissionerClients.find(l=>l.id===linkId);
+  if(!link) return;
+  const input = prompt('Nova porcentagem (%):', link.percent);
+  if(input===null) return;
+  const percent = parseFloat(String(input).replace(',','.'));
+  if(isNaN(percent) || percent<0){ alert('Valor inválido.'); return; }
+  const {error} = await supabaseClient.from('commissioner_clients').update({percent}).eq('id', linkId);
+  if(error){ alert('Erro ao atualizar: '+error.message); return; }
+  link.percent = percent;
+  render();
+}
+async function removeCommissionLink(linkId){
+  if(!confirm('Remover esse vínculo?')) return;
+  const {error} = await supabaseClient.from('commissioner_clients').delete().eq('id', linkId);
+  if(error){ alert('Erro ao remover: '+error.message); return; }
+  STATE.commissionerClients = STATE.commissionerClients.filter(l=>l.id!==linkId);
+  render();
+}
+
 // ---------- DASHBOARD TAB ----------
 function countBadges(tickets){
   let green=0, red=0, pending=0, voidCount=0;
@@ -1551,6 +1759,7 @@ function renderFinanceiroTab(){
       `).join('')}
     </div>
     ${renderBaixasHistoricoSection()}
+    ${renderComissoesSection()}
     ${renderRetiradasSection()}
     ${renderLancamentosSection()}
   `;
@@ -1622,6 +1831,54 @@ async function excluirBaixa(settlementId){
 }
 
 // ---------- RETIRADAS ----------
+// ---------- COMISSÕES ----------
+function renderComissoesSection(){
+  const weekMonday = FINANCE_WEEK || mondayOf(todaySP());
+  const rows = STATE.commissioners.map(cm=>{
+    const links = STATE.commissionerClients.filter(cc=>cc.commissionerId===cm.id);
+    const amount = links.reduce((s,l)=>s+computeCommissionAmount(l, weekMonday),0);
+    return {id:cm.id, name:cm.name, amount, count:links.length};
+  }).filter(r=>r.count>0);
+  const total = rows.reduce((s,r)=>s+r.amount,0);
+  return `
+    <div class="card" style="cursor:pointer" onclick="SHOW_COMISSOES=!SHOW_COMISSOES;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">COMISSÕES DA SEMANA</span>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(total)}</span>
+      </div>
+    </div>
+    ${SHOW_COMISSOES ? `
+    <div class="card">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Semana de ${weekLabel(weekMonday)} · calculada em cima da perda bruta dos clientes vinculados (antes do desconto do cliente)</div>
+      ${rows.length===0 ? '<div class="empty">Nenhuma comissão essa semana.</div>' : rows.map(r=>`
+        <div class="match-row">
+          <div class="match-desc">
+            <span class="teams">${r.name}</span>
+            <span class="meta">${r.count} cliente(s) vinculado(s)</span>
+          </div>
+          <div class="match-actions">
+            <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--gold)">${fmtBRL(r.amount)}</span>
+            <button class="btn-ghost btn-sm" onclick="registrarPagamentoComissao('${r.id}','${r.name.replace(/'/g,"\\'")}',${r.amount},'${weekMonday}')">Registrar pagamento</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    ` : ''}
+  `;
+}
+async function registrarPagamentoComissao(commissionerId, name, amount, weekMonday){
+  if(amount<=0){ alert('Não há comissão a pagar essa semana pra esse comissionado.'); return; }
+  if(!confirm(`Registrar pagamento de ${fmtBRL(amount)} de comissão pra ${name}? Isso entra como uma despesa no seu financeiro.`)) return;
+  const description = `Comissão — ${name} (semana ${weekLabel(weekMonday)})`;
+  const {data, error} = await supabaseClient.from('transactions').insert({
+    type:'despesa', category:'Comissão', description, amount, date: todaySP()
+  }).select().single();
+  if(error){ alert('Erro ao registrar pagamento: '+error.message); return; }
+  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null});
+  await pruneTransactions();
+  render();
+}
+
 function renderRetiradasSection(){
   const caixaTotal = caixaTotalCalc();
   const list = [...STATE.withdrawals].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
