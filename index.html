@@ -163,6 +163,7 @@ let TEAM_RESULTS = {};
 let SEARCH_TIMERS = {};
 let SHOW_PENDENTES = false;
 let CLIENT_WEEK = null;
+let COMMISSIONER_WEEK = null;
 let CLIENT_DETAIL_ID = null;
 let CLIENT_DETAIL_SUBVIEW = 'info';
 let CONFIRM_DELETE_CLIENT = false;
@@ -218,7 +219,7 @@ async function loadState(){
     STATE.transactions = (transactions||[]).map(t=>({
       id:t.id, type:t.type, category:t.category||'', description:t.description||'', amount:parseFloat(t.amount), date:t.date, createdAt:t.created_at, clientId:t.client_id||null
     }));
-    STATE.commissioners = (commissioners||[]).map(c=>({id:c.id, name:c.name, phone:c.phone||''}));
+    STATE.commissioners = (commissioners||[]).map(c=>({id:c.id, name:c.name, phone:c.phone||'', code:c.code||''}));
     STATE.commissionerClients = (commissionerClients||[]).map(cc=>({
       id:cc.id, commissionerId:cc.commissioner_id, clientId:cc.client_id, percent:parseFloat(cc.percent)||0, effectiveFromWeek:cc.effective_from_week||null
     }));
@@ -328,6 +329,8 @@ function render(){
   const hash = window.location.hash;
   const m = hash.match(/cliente=([a-zA-Z0-9]+)/);
   if(m){ renderClientView(m[1]); return; }
+  const mc = hash.match(/comissionado=([a-zA-Z0-9]+)/);
+  if(mc){ renderCommissionerView(mc[1]); return; }
   document.title = 'Boletim — Consultoria';
   if(!SESSION){ renderLogin(); return; }
   renderAdmin();
@@ -1134,6 +1137,10 @@ function copyLink(id){
   const text = document.getElementById(`link-${id}`).textContent;
   navigator.clipboard?.writeText(text);
 }
+function copyCommissionerLink(id){
+  const text = document.getElementById(`commissioner-link-${id}`).textContent;
+  navigator.clipboard?.writeText(text);
+}
 function filterClientOptions(){
   const input = document.getElementById('new-client-search');
   const box = document.getElementById('client-options');
@@ -1268,6 +1275,11 @@ function renderCommissionerDetail(id){
       <input type="text" id="detail-commissioner-name" value="${cm.name}">
       <label>Telefone (opcional)</label>
       <input type="text" id="detail-commissioner-phone" value="${cm.phone||''}">
+      <label>Link de acompanhamento do comissionado</label>
+      <div class="link-box">
+        <code id="commissioner-link-${cm.id}">${window.location.href.split('#')[0]}#comissionado=${cm.code}</code>
+        <button class="btn-ghost btn-sm" onclick="copyCommissionerLink('${cm.id}')">Copiar link</button>
+      </div>
       <div style="margin-top:14px"><button class="btn-primary btn-full" onclick="saveCommissionerDetail('${cm.id}')">Salvar alterações</button></div>
     </div>
     <div class="card">
@@ -1324,9 +1336,10 @@ async function addCommissioner(){
   const name = document.getElementById('new-commissioner-name').value.trim();
   const phone = document.getElementById('new-commissioner-phone').value.trim();
   if(!name) return;
-  const {data, error} = await supabaseClient.from('commissioners').insert({name, phone}).select().single();
+  const code = uid()+uid();
+  const {data, error} = await supabaseClient.from('commissioners').insert({name, phone, code}).select().single();
   if(error){ alert('Erro ao salvar comissionado: '+error.message); return; }
-  STATE.commissioners.push({id:data.id, name:data.name, phone:data.phone||''});
+  STATE.commissioners.push({id:data.id, name:data.name, phone:data.phone||'', code:data.code||''});
   render();
 }
 async function saveCommissionerDetail(id){
@@ -2465,6 +2478,69 @@ function renderClientView(code){
     <div class="card">
       <h3>Apostas da semana</h3>
       ${ticketRows || '<div class="empty">Nenhuma aposta nessa semana.</div>'}
+    </div>
+    </div>
+  `;
+}
+
+// ---------- COMMISSIONER VIEW ----------
+function changeCommissionerWeek(dir){
+  COMMISSIONER_WEEK = shiftWeek(COMMISSIONER_WEEK, dir*7);
+  render();
+}
+function renderCommissionerView(code){
+  const app = document.getElementById('app');
+  const cm = STATE.commissioners.find(c=>c.code===code);
+  if(!cm){
+    app.innerHTML = `<div class="client-theme" style="--gold:#3EC1F3; background:#070B14; margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;"><div class="empty">Link inválido ou comissionado não encontrado.</div></div>`;
+    return;
+  }
+  if(COMMISSIONER_WEEK===null){
+    COMMISSIONER_WEEK = mondayOf(todaySP());
+  }
+
+  const rows = STATE.clients.map(cl=>{
+    const active = getActiveCommissionersForWeek(cl.id, COMMISSIONER_WEEK).find(a=>a.commissionerId===cm.id);
+    if(!active) return null;
+    const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && mondayOf(ticketDate(t))===COMMISSIONER_WEEK && ticketResult(t)!=='pending' && ticketResult(t)!=='void');
+    if(tickets.length===0) return null;
+    const volume = tickets.reduce((s,t)=>s+t.stake,0);
+    const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
+    const comissao = computeCommissionAmount(cl.id, active.percent, COMMISSIONER_WEEK);
+    return {name: cl.name, volume, resultado, percent: active.percent, comissao};
+  }).filter(Boolean);
+
+  const totalComissao = rows.reduce((s,r)=>s+r.comissao,0);
+
+  document.title = 'Relatório';
+  app.innerHTML = `
+    <div class="client-theme" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#070B14; --surface:#10141F; --surface-2:#151B29; --line:#222B3E; --text:#F5F7FA; --text-muted:#B8BEC7; background:var(--bg); margin:-24px -18px -60px; padding:24px 18px 60px; min-height:100vh;">
+    <div class="client-header"><div class="name" style="color:var(--text)">${cm.name}</div></div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:center;align-items:center;gap:16px">
+        <button class="btn-ghost" style="padding:10px 16px;font-size:16px" onclick="changeCommissionerWeek(-1)">‹</button>
+        <span style="font-family:'Montserrat',sans-serif;font-size:clamp(15px,4.5vw,17px);font-weight:700">${weekLabel(COMMISSIONER_WEEK)}</span>
+        <button class="btn-ghost" style="padding:10px 16px;font-size:16px" onclick="changeCommissionerWeek(1)">›</button>
+      </div>
+    </div>
+
+    <div class="card" style="text-align:center;padding:1.1rem 0.5rem">
+      <div style="font-family:'Montserrat',sans-serif;font-size:12px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Sua comissão da semana</div>
+      <div style="font-family:'Montserrat',sans-serif;font-size:clamp(22px,7vw,28px);font-weight:700;margin-top:3px" class="${totalComissao>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalComissao)}</div>
+    </div>
+
+    <div class="card">
+      <h3>Seus indicados</h3>
+      ${rows.length===0 ? '<div class="empty">Nenhum indicado com apostas nessa semana.</div>' : rows.map(r=>`
+        <div class="match-row" style="flex-wrap:nowrap;gap:10px">
+          <div class="match-desc" style="flex:1;min-width:0;overflow:hidden">
+            <span class="teams" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
+            <span class="meta" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Volume ${fmtBRL(r.volume)} · resultado <span class="${r.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.resultado)}</span> · ${r.percent}% de comissão</span>
+          </div>
+          <span style="font-family:var(--font-mono);font-size:15px;font-weight:700;flex-shrink:0;color:var(--gold)">${fmtBRL(r.comissao)}</span>
+        </div>
+      `).join('')}
     </div>
     </div>
   `;
