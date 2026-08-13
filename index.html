@@ -1887,9 +1887,9 @@ function renderClientView(code){
     <div style="display:flex;align-items:center;gap:8px;padding:0 10px 3px;font-size:8.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px">
       <span style="width:46px;flex-shrink:0"></span>
       <span style="flex:1"></span>
-      <span style="width:58px;text-align:right;flex-shrink:0">Valor</span>
-      <span style="width:44px;text-align:right;flex-shrink:0">Odds</span>
-      <span style="width:66px;text-align:right;flex-shrink:0">Resultado</span>
+      <span style="min-width:64px;text-align:right;flex-shrink:0;white-space:nowrap">Valor</span>
+      <span style="min-width:44px;text-align:right;flex-shrink:0;white-space:nowrap">Odds</span>
+      <span style="min-width:74px;text-align:right;flex-shrink:0;white-space:nowrap">Resultado</span>
     </div>
   `;
 
@@ -1904,9 +1904,9 @@ function renderClientView(code){
             <span style="font-family:var(--font-mono);font-size:8.5px;color:var(--text-muted);opacity:0.65;white-space:nowrap">#${t.ticketNumber||'—'}</span>
           </div>
           <div style="flex:1;min-width:0">${ticketMatchesBlock(t)}</div>
-          <span style="width:58px;text-align:right;flex-shrink:0;font-family:var(--font-mono);font-size:11.5px;color:var(--text)">${fmtBRL(t.stake)}</span>
-          <span style="width:44px;text-align:right;flex-shrink:0;font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${ticketOddTotal(t)>0?effectiveOdds(t).toFixed(2):'—'}</span>
-          <span style="width:66px;text-align:right;flex-shrink:0;font-family:var(--font-mono);font-size:12.5px;font-weight:700" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</span>
+          <span style="min-width:64px;text-align:right;flex-shrink:0;white-space:nowrap;font-family:var(--font-mono);font-size:11.5px;color:var(--text)">${fmtBRL(t.stake)}</span>
+          <span style="min-width:44px;text-align:right;flex-shrink:0;white-space:nowrap;font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${ticketOddTotal(t)>0?effectiveOdds(t).toFixed(2):'—'}</span>
+          <span style="min-width:74px;text-align:right;flex-shrink:0;white-space:nowrap;font-family:var(--font-mono);font-size:12.5px;font-weight:700" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</span>
         </div>
       `;
     }).join('');
