@@ -148,7 +148,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Tf4F0bAvZsHyevsy0JUa0g_q8G4_-dW';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 
-let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [] };
+let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [], clientWeekDiscounts: [], clientWeekCommissioners: [] };
 let ADMIN_TAB = 'dashboard';
 let ADMIN_SUBVIEW = 'list'; // 'list' | 'wizard'
 let DASH_WEEK = null;
@@ -164,6 +164,7 @@ let SEARCH_TIMERS = {};
 let SHOW_PENDENTES = false;
 let CLIENT_WEEK = null;
 let CLIENT_DETAIL_ID = null;
+let CLIENT_DETAIL_SUBVIEW = 'info';
 let CONFIRM_DELETE_CLIENT = false;
 let COMMISSIONER_DETAIL_ID = null;
 let CONFIRM_DELETE_COMMISSIONER = false;
@@ -187,17 +188,19 @@ const MARKETS = [
 
 async function loadState(){
   try{
-    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}] = await Promise.all([
+    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}] = await Promise.all([
       supabaseClient.from('clients').select('*').order('created_at'),
       supabaseClient.from('tickets').select('*').order('created_at'),
       supabaseClient.from('settlements').select('*').order('paid_at'),
       supabaseClient.from('withdrawals').select('*').order('created_at'),
       supabaseClient.from('transactions').select('*').order('date'),
       supabaseClient.from('commissioners').select('*').order('created_at'),
-      supabaseClient.from('commissioner_clients').select('*').order('created_at')
+      supabaseClient.from('commissioner_clients').select('*').order('created_at'),
+      supabaseClient.from('client_week_discount').select('*'),
+      supabaseClient.from('client_week_commissioners').select('*')
     ]);
-    if(err1 || err2 || err3 || err4 || err5 || err6 || err7){
-      alert('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
+    if(err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9){
+      alert('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
       return;
     }
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||''}));
@@ -217,7 +220,13 @@ async function loadState(){
     }));
     STATE.commissioners = (commissioners||[]).map(c=>({id:c.id, name:c.name, phone:c.phone||''}));
     STATE.commissionerClients = (commissionerClients||[]).map(cc=>({
-      id:cc.id, commissionerId:cc.commissioner_id, clientId:cc.client_id, percent:parseFloat(cc.percent)||0
+      id:cc.id, commissionerId:cc.commissioner_id, clientId:cc.client_id, percent:parseFloat(cc.percent)||0, effectiveFromWeek:cc.effective_from_week||null
+    }));
+    STATE.clientWeekDiscounts = (weekDiscounts||[]).map(d=>({
+      id:d.id, clientId:d.client_id, weekStart:d.week_start, discountPercent:parseFloat(d.discount_percent)||0
+    }));
+    STATE.clientWeekCommissioners = (weekCommissioners||[]).map(w=>({
+      id:w.id, clientId:w.client_id, weekStart:w.week_start, commissionerId:w.commissioner_id||null, percent:w.percent!=null?parseFloat(w.percent):null
     }));
   }catch(e){
     alert('Erro ao conectar no Supabase: '+e.message);
@@ -856,6 +865,7 @@ function updateClientSearch(){
 function openClientDetail(id){
   CLIENT_DETAIL_ID = id;
   CONFIRM_DELETE_CLIENT = false;
+  CLIENT_DETAIL_SUBVIEW = 'info';
   render();
 }
 function renderClientDetail(id){
@@ -868,6 +878,15 @@ function renderClientDetail(id){
   return `
     <button class="btn-ghost btn-sm" onclick="CLIENT_DETAIL_ID=null;render()">‹ Voltar</button>
     <div style="height:12px"></div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <h2 style="margin:0;font-family:var(--font-display);font-weight:600;font-size:22px">${cl.name}</h2>
+      <span class="chip ${resultadoGeral>=0?'chip-green':'chip-red'}">${resultadoGeral>=0?'+':''}${fmtBRL(resultadoGeral)} no total</span>
+    </div>
+    <div class="tabs" style="margin-bottom:16px">
+      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='info'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='info';render()">Informações</div>
+      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='semanas'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='semanas';render()">Semanas</div>
+    </div>
+    ${CLIENT_DETAIL_SUBVIEW==='semanas' ? renderClientWeeksList(cl) : `
     <div class="card" style="display:flex;padding:0">
       <div style="flex:1;text-align:center;padding:1rem 0.5rem">
         <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume total (interno)</div>
@@ -885,8 +904,9 @@ function renderClientDetail(id){
       <input type="text" id="detail-client-name" value="${cl.name}">
       <label>Telefone (opcional)</label>
       <input type="text" id="detail-client-phone" value="${cl.phone||''}" placeholder="Ex: (11) 91234-5678">
-      <label>Desconto em caso de perda (%)</label>
+      <label>Desconto padrão em caso de perda (%)</label>
       <input type="number" id="detail-client-discount" min="0" max="100" step="1" value="${cl.discount||0}">
+      <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">Esse é o padrão pra semanas novas. Pra mudar o desconto de uma semana específica (passada ou atual), usa a aba <strong>Semanas</strong>.</p>
       <label>Link de acesso do cliente</label>
       <div class="link-box">
         <code id="link-${cl.id}">${baseUrl}#cliente=${cl.code}</code>
@@ -907,7 +927,170 @@ function renderClientDetail(id){
         <button class="btn-danger-ghost btn-full" onclick="CONFIRM_DELETE_CLIENT=true;render()">Excluir cliente</button>
       </div>
     `}
+    `}
   `;
+}
+function renderClientWeeksList(cl){
+  const weeksSet = new Set(STATE.tickets.filter(t=>t.clientId===cl.id).map(t=>mondayOf(ticketDate(t))));
+  const weeks = Array.from(weeksSet).sort().reverse();
+  if(weeks.length===0) return '<div class="card"><div class="empty">Esse cliente ainda não tem apostas registradas.</div></div>';
+
+  return weeks.map(wk=>{
+    const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && mondayOf(ticketDate(t))===wk);
+    const greenCount = tickets.filter(t=>ticketResult(t)==='green').length;
+    const redCount = tickets.filter(t=>ticketResult(t)==='red').length;
+    const pendingCount = tickets.filter(t=>ticketResult(t)==='pending').length;
+    const volume = tickets.reduce((s,t)=>s+t.stake,0);
+    const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
+    const descontoPct = getWeekDiscount(cl, wk);
+    const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
+    const liquido = resultado + desconto;
+    const activeCommissioners = getActiveCommissionersForWeek(cl.id, wk);
+    const comissaoTotal = activeCommissioners.reduce((s,c)=>s+computeCommissionAmount(cl.id, c.percent, wk),0);
+    const badges = activeCommissioners.map(c=>{
+      const cm = STATE.commissioners.find(x=>x.id===c.commissionerId);
+      return `<span class="chip" style="background:var(--gold-dim);color:var(--gold)">${cm?cm.name:'?'} ${c.percent}%</span>`;
+    }).join(' ') || '<span style="color:var(--text-muted);font-size:12px">Nenhum</span>';
+
+    return `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div style="font-weight:600;font-size:14px">Semana de ${weekLabel(wk)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">
+            ${tickets.length} aposta(s)
+            ${greenCount?` · <span class="profit-pos">✓ ${greenCount}</span>`:''}
+            ${redCount?` · <span class="profit-neg">✗ ${redCount}</span>`:''}
+            ${pendingCount?` · <span class="chip chip-pending" style="padding:1px 7px">${pendingCount} pend.</span>`:''}
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:12px 16px">
+          <div>
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px">Volume</div>
+            <div style="font-family:var(--font-mono);font-size:14px;margin-top:3px">${fmtBRL(volume)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px">Saldo Apostas</div>
+            <div style="font-family:var(--font-mono);font-size:14px;margin-top:3px" class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px">Desconto (${descontoPct}%)</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
+              <span style="font-family:var(--font-mono);font-size:14px" class="${desconto>0?'profit-pos':''}">${fmtBRL(desconto)}</span>
+              <button class="btn-ghost btn-sm" style="padding:1px 6px;font-size:10px" onclick="editWeekDiscount('${cl.id}','${wk}',${descontoPct})" title="Editar desconto só dessa semana">✎</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px">Comissão</div>
+            <div style="font-family:var(--font-mono);font-size:14px;margin-top:3px;color:var(--gold)">${fmtBRL(comissaoTotal)}</div>
+          </div>
+          <div style="grid-column:1 / -1">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px">Comissionados dessa semana</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">
+              ${badges}
+              <button class="btn-ghost btn-sm" style="padding:1px 6px;font-size:10px" onclick="editWeekCommissioners('${cl.id}','${wk}')" title="Editar comissionados só dessa semana">✎</button>
+            </div>
+          </div>
+          <div style="grid-column:1 / -1;border-top:1px solid var(--line);padding-top:10px;margin-top:2px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px">Líquido do cliente</div>
+            <div style="font-family:var(--font-mono);font-size:17px;font-weight:700;margin-top:3px" class="${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+async function editWeekDiscount(clientId, weekStart, currentPct){
+  const input = prompt('Desconto (%) só pra essa semana — não muda o padrão nem outras semanas:', currentPct);
+  if(input===null) return;
+  const pct = parseFloat(String(input).replace(',','.'));
+  if(isNaN(pct) || pct<0){ alert('Valor inválido.'); return; }
+  const existing = STATE.clientWeekDiscounts.find(o=>o.clientId===clientId && o.weekStart===weekStart);
+  if(existing){
+    const {error} = await supabaseClient.from('client_week_discount').update({discount_percent: pct}).eq('id', existing.id);
+    if(error){ alert('Erro ao salvar: '+error.message); return; }
+    existing.discountPercent = pct;
+  } else {
+    const {data, error} = await supabaseClient.from('client_week_discount').insert({client_id: clientId, week_start: weekStart, discount_percent: pct}).select().single();
+    if(error){ alert('Erro ao salvar: '+error.message); return; }
+    STATE.clientWeekDiscounts.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, discountPercent:parseFloat(data.discount_percent)||0});
+  }
+  render();
+}
+let WEEK_COMM_EDIT = null;
+function editWeekCommissioners(clientId, weekStart){
+  const current = getActiveCommissionersForWeek(clientId, weekStart);
+  WEEK_COMM_EDIT = {clientId, weekStart, list: current.map(c=>({commissionerId:c.commissionerId, percent:c.percent}))};
+  renderWeekCommEditOverlay();
+}
+function renderWeekCommEditOverlay(){
+  let overlay = document.getElementById('week-comm-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'week-comm-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(overlay);
+  }
+  const {weekStart, list} = WEEK_COMM_EDIT;
+  const availableToAdd = STATE.commissioners.filter(cm=>!list.some(l=>l.commissionerId===cm.id));
+  overlay.innerHTML = `
+    <div class="card" style="max-width:380px;width:100%;margin:0;max-height:85vh;overflow-y:auto">
+      <h3>Comissionados — semana de ${weekLabel(weekStart)}</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:0">Editar aqui afeta só essa semana. Outras semanas não mudam.</p>
+      ${list.length===0 ? '<div class="empty">Nenhum comissionado nessa semana.</div>' : list.map((c,idx)=>{
+        const cm = STATE.commissioners.find(x=>x.id===c.commissionerId);
+        return `
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)">
+          <span style="flex:1;font-size:13px">${cm?cm.name:'?'}</span>
+          <input type="number" value="${c.percent}" min="0" max="100" step="0.1" style="width:70px" onchange="WEEK_COMM_EDIT.list[${idx}].percent=parseFloat(this.value)||0">
+          <span style="font-size:12px;color:var(--text-muted)">%</span>
+          <button class="btn-danger-ghost btn-sm" onclick="WEEK_COMM_EDIT.list.splice(${idx},1);renderWeekCommEditOverlay()">×</button>
+        </div>`;
+      }).join('')}
+      ${availableToAdd.length>0 ? `
+      <label>Adicionar comissionado</label>
+      <select id="week-comm-add-select">
+        <option value="">Selecione…</option>
+        ${availableToAdd.map(cm=>`<option value="${cm.id}">${cm.name}</option>`).join('')}
+      </select>
+      <div style="margin-top:10px"><button class="btn-ghost btn-full" onclick="addToWeekCommEdit()">+ Adicionar</button></div>
+      ` : ''}
+      <div class="row" style="margin-top:14px">
+        <div><button class="btn-ghost btn-full" onclick="cancelWeekCommEdit()">Cancelar</button></div>
+        <div><button class="btn-primary btn-full" onclick="saveWeekCommEdit()">Salvar</button></div>
+      </div>
+    </div>
+  `;
+}
+function addToWeekCommEdit(){
+  const sel = document.getElementById('week-comm-add-select');
+  const id = sel.value;
+  if(!id) return;
+  WEEK_COMM_EDIT.list.push({commissionerId:id, percent:0});
+  renderWeekCommEditOverlay();
+}
+function cancelWeekCommEdit(){
+  WEEK_COMM_EDIT = null;
+  const overlay = document.getElementById('week-comm-overlay');
+  if(overlay) document.body.removeChild(overlay);
+}
+async function saveWeekCommEdit(){
+  const {clientId, weekStart, list} = WEEK_COMM_EDIT;
+  const {error: delError} = await supabaseClient.from('client_week_commissioners').delete().eq('client_id', clientId).eq('week_start', weekStart);
+  if(delError){ alert('Erro ao salvar: '+delError.message); return; }
+  STATE.clientWeekCommissioners = STATE.clientWeekCommissioners.filter(o=>!(o.clientId===clientId && o.weekStart===weekStart));
+  if(list.length===0){
+    const {data, error} = await supabaseClient.from('client_week_commissioners').insert({client_id: clientId, week_start: weekStart, commissioner_id: null, percent: null}).select().single();
+    if(error){ alert('Erro ao salvar: '+error.message); return; }
+    STATE.clientWeekCommissioners.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, commissionerId:null, percent:null});
+  } else {
+    for(const item of list){
+      const {data, error} = await supabaseClient.from('client_week_commissioners').insert({client_id: clientId, week_start: weekStart, commissioner_id: item.commissionerId, percent: item.percent}).select().single();
+      if(error){ alert('Erro ao salvar: '+error.message); return; }
+      STATE.clientWeekCommissioners.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, commissionerId:data.commissioner_id, percent:data.percent!=null?parseFloat(data.percent):null});
+    }
+  }
+  cancelWeekCommEdit();
+  render();
 }
 async function saveClientDetail(id){
   const name = document.getElementById('detail-client-name').value.trim();
@@ -977,11 +1160,40 @@ function selectClientOption(id){
 }
 
 // ---------- PARCEIROS (COMISSIONADOS) ----------
-function computeCommissionAmount(link, weekMonday){
-  const tickets = STATE.tickets.filter(t=>t.clientId===link.clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='pending' && ticketResult(t)!=='void');
-  const resultadoCliente = tickets.reduce((s,t)=>s+ticketProfit(t),0);
-  const grossLoss = resultadoCliente<0 ? Math.abs(resultadoCliente) : 0;
-  return grossLoss * (link.percent/100);
+
+// Desconto efetivo de um cliente numa semana: sobrescrita manual daquela semana,
+// senão o desconto padrão atual do cliente.
+function getWeekDiscount(client, weekStart){
+  const ov = STATE.clientWeekDiscounts.find(o=>o.clientId===client.id && o.weekStart===weekStart);
+  return ov ? ov.discountPercent : (client.discount||0);
+}
+
+// Comissionados ativos de um cliente numa semana: se existir QUALQUER sobrescrita
+// manual pra essa semana, ela substitui por completo a lista (uma linha com
+// commissionerId nulo representa "sem comissionado nessa semana"). Sem sobrescrita,
+// usa a linha do tempo dos vínculos (só entram os que já estavam em vigor naquela semana).
+function getActiveCommissionersForWeek(clientId, weekStart){
+  const overrides = STATE.clientWeekCommissioners.filter(o=>o.clientId===clientId && o.weekStart===weekStart);
+  if(overrides.length>0){
+    return overrides.filter(o=>o.commissionerId).map(o=>({commissionerId:o.commissionerId, percent:o.percent||0}));
+  }
+  const applicable = STATE.commissionerClients.filter(l=>l.clientId===clientId && (!l.effectiveFromWeek || l.effectiveFromWeek<=weekStart));
+  const byCommissioner = {};
+  applicable.forEach(l=>{
+    const existing = byCommissioner[l.commissionerId];
+    if(!existing || (l.effectiveFromWeek||'0000-00-00') > (existing.effectiveFromWeek||'0000-00-00')){
+      byCommissioner[l.commissionerId] = l;
+    }
+  });
+  return Object.values(byCommissioner).map(l=>({commissionerId:l.commissionerId, percent:l.percent}));
+}
+function grossLossForWeek(clientId, weekStart){
+  const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekStart && ticketResult(t)!=='pending' && ticketResult(t)!=='void');
+  const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
+  return resultado<0 ? Math.abs(resultado) : 0;
+}
+function computeCommissionAmount(clientId, percent, weekStart){
+  return grossLossForWeek(clientId, weekStart) * (percent/100);
 }
 function renderParceirosTab(){
   if(COMMISSIONER_DETAIL_ID) return renderCommissionerDetail(COMMISSIONER_DETAIL_ID);
@@ -1004,7 +1216,7 @@ function renderParceirosTab(){
 function renderCommissionerListItems(list){
   if(list.length===0) return '<div class="card"><div class="empty">Nenhum comissionado cadastrado ainda.</div></div>';
   return list.map(cm=>{
-    const linkedCount = STATE.commissionerClients.filter(cc=>cc.commissionerId===cm.id).length;
+    const linkedCount = new Set(STATE.commissionerClients.filter(cc=>cc.commissionerId===cm.id).map(cc=>cc.clientId)).size;
     return `
     <div class="card" style="cursor:pointer" onclick="openCommissionerDetail('${cm.id}')">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -1032,7 +1244,21 @@ function renderCommissionerDetail(id){
   if(!cm){ COMMISSIONER_DETAIL_ID=null; return renderParceirosTab(); }
   const links = STATE.commissionerClients.filter(cc=>cc.commissionerId===id);
   const weekMonday = FINANCE_WEEK || mondayOf(todaySP());
-  const totalWeek = links.reduce((s,l)=>s+computeCommissionAmount(l, weekMonday),0);
+  // Pra cada cliente vinculado, descobre qual link está REALMENTE em vigor nessa semana
+  // (respeitando linha do tempo e sobrescritas manuais), evitando somar % antigas já substituídas.
+  const activeLinkIdByClient = {};
+  const uniqueClientIds = new Set(links.map(l=>l.clientId));
+  uniqueClientIds.forEach(clientId=>{
+    const active = getActiveCommissionersForWeek(clientId, weekMonday).find(a=>a.commissionerId===id);
+    if(active){
+      const match = links.find(l=>l.clientId===clientId && l.percent===active.percent && (!l.effectiveFromWeek || l.effectiveFromWeek<=weekMonday));
+      if(match) activeLinkIdByClient[clientId] = match.id;
+    }
+  });
+  const totalWeek = Array.from(uniqueClientIds).reduce((s,clientId)=>{
+    const active = getActiveCommissionersForWeek(clientId, weekMonday).find(a=>a.commissionerId===id);
+    return active ? s + computeCommissionAmount(clientId, active.percent, weekMonday) : s;
+  }, 0);
   return `
     <button class="btn-ghost btn-sm" onclick="COMMISSIONER_DETAIL_ID=null;render()">‹ Voltar</button>
     <div style="height:12px"></div>
@@ -1049,12 +1275,13 @@ function renderCommissionerDetail(id){
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Comissão calculada em cima da semana de ${weekLabel(weekMonday)} · total dessa semana: <strong style="color:var(--gold)">${fmtBRL(totalWeek)}</strong></div>
       ${links.length===0 ? '<div class="empty">Nenhum cliente vinculado ainda.</div>' : links.map(l=>{
         const cl = STATE.clients.find(c=>c.id===l.clientId);
-        const amount = computeCommissionAmount(l, weekMonday);
+        const isActive = activeLinkIdByClient[l.clientId] === l.id;
+        const amount = isActive ? computeCommissionAmount(l.clientId, l.percent, weekMonday) : 0;
         return `
-        <div class="match-row">
+        <div class="match-row" style="${isActive?'':'opacity:0.55'}">
           <div class="match-desc">
-            <span class="teams">${cl?cl.name:'Cliente removido'}</span>
-            <span class="meta">${l.percent}% sobre a perda bruta · essa semana: ${fmtBRL(amount)}</span>
+            <span class="teams">${cl?cl.name:'Cliente removido'}${isActive?'':' <span style="font-size:10px;color:var(--text-muted)">(histórico)</span>'}</span>
+            <span class="meta">${l.percent}% sobre a perda bruta${l.effectiveFromWeek?' · a partir de '+weekLabel(l.effectiveFromWeek):''}${isActive?' · essa semana: '+fmtBRL(amount):' · substituído por um % mais novo'}</span>
           </div>
           <div class="match-actions">
             <button class="btn-ghost btn-sm" onclick="editCommissionLinkPercent('${l.id}')">Editar %</button>
@@ -1148,21 +1375,23 @@ async function addCommissionLink(commissionerId){
   const percent = parseFloat(document.getElementById('new-link-percent').value);
   if(!clientId){ alert('Busque e selecione um cliente na lista.'); return; }
   if(isNaN(percent) || percent<0){ alert('Informe a porcentagem.'); return; }
-  const {data, error} = await supabaseClient.from('commissioner_clients').insert({commissioner_id: commissionerId, client_id: clientId, percent}).select().single();
+  const effectiveFromWeek = mondayOf(todaySP());
+  const {data, error} = await supabaseClient.from('commissioner_clients').insert({commissioner_id: commissionerId, client_id: clientId, percent, effective_from_week: effectiveFromWeek}).select().single();
   if(error){ alert('Erro ao vincular cliente: '+error.message); return; }
-  STATE.commissionerClients.push({id:data.id, commissionerId:data.commissioner_id, clientId:data.client_id, percent:parseFloat(data.percent)||0});
+  STATE.commissionerClients.push({id:data.id, commissionerId:data.commissioner_id, clientId:data.client_id, percent:parseFloat(data.percent)||0, effectiveFromWeek:data.effective_from_week||null});
   render();
 }
 async function editCommissionLinkPercent(linkId){
   const link = STATE.commissionerClients.find(l=>l.id===linkId);
   if(!link) return;
-  const input = prompt('Nova porcentagem (%):', link.percent);
+  const input = prompt('Nova porcentagem (%) a partir de agora (semanas passadas mantêm a % antiga):', link.percent);
   if(input===null) return;
   const percent = parseFloat(String(input).replace(',','.'));
   if(isNaN(percent) || percent<0){ alert('Valor inválido.'); return; }
-  const {error} = await supabaseClient.from('commissioner_clients').update({percent}).eq('id', linkId);
+  const effectiveFromWeek = mondayOf(todaySP());
+  const {data, error} = await supabaseClient.from('commissioner_clients').insert({commissioner_id: link.commissionerId, client_id: link.clientId, percent, effective_from_week: effectiveFromWeek}).select().single();
   if(error){ alert('Erro ao atualizar: '+error.message); return; }
-  link.percent = percent;
+  STATE.commissionerClients.push({id:data.id, commissionerId:data.commissioner_id, clientId:data.client_id, percent:parseFloat(data.percent)||0, effectiveFromWeek:data.effective_from_week||null});
   render();
 }
 async function removeCommissionLink(linkId){
@@ -1201,7 +1430,7 @@ function renderDashboardTab(){
     if(tickets.length===0) return null;
     const volume = tickets.reduce((s,t)=>s+t.stake,0);
     const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
-    const descontoPct = cl.discount||0;
+    const descontoPct = getWeekDiscount(cl, DASH_WEEK);
     const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
     const liquido = resultado + desconto;
     const perf = volume>0 ? (resultado/volume*100) : 0;
@@ -1279,7 +1508,6 @@ function getAllSettlementsForClient(clientId){
 // fechamento pra separar "saldo da semana" do "saldo anterior".
 function computeContinuousBalance(clientId, excludeWeek){
   const cl = STATE.clients.find(c=>c.id===clientId);
-  const descontoPct = cl?.discount||0;
   const resolvedTickets = STATE.tickets.filter(t=>t.clientId===clientId && ticketResult(t)!=='pending' && ticketResult(t)!=='void' && (!excludeWeek || mondayOf(ticketDate(t))!==excludeWeek));
   const weekGroups = {};
   resolvedTickets.forEach(t=>{
@@ -1287,7 +1515,8 @@ function computeContinuousBalance(clientId, excludeWeek){
     (weekGroups[wk] = weekGroups[wk]||[]).push(t);
   });
   let totalBetAdmin = 0;
-  Object.values(weekGroups).forEach(list=>{
+  Object.entries(weekGroups).forEach(([wk, list])=>{
+    const descontoPct = cl ? getWeekDiscount(cl, wk) : 0;
     const resultadoW = list.reduce((s,t)=>s+ticketProfit(t),0);
     const descontoW = resultadoW<0 ? Math.abs(resultadoW)*descontoPct/100 : 0;
     totalBetAdmin += (-resultadoW - descontoW);
@@ -1547,7 +1776,7 @@ async function gerarFechamento(clientId){
   // Subtotal: somente o lucro ou prejuízo da semana
   const subtotal = acertos - valorJogado;
   // Desconto: só existe se o cliente tem desconto cadastrado, e incide só sobre o saldo da semana
-  const descontoPct = cl.discount||0;
+  const descontoPct = getWeekDiscount(cl, weekMonday);
   const desconto = (descontoPct>0 && subtotal<0) ? Math.abs(subtotal)*descontoPct/100 : 0;
   const temDesconto = desconto>0;
 
@@ -1716,7 +1945,7 @@ function renderFinanceiroTab(){
   Object.entries(weekTicketsByClient).forEach(([clientId, tks])=>{
     const cl = STATE.clients.find(c=>c.id===clientId);
     const resultadoW = tks.reduce((s,t)=>s+ticketProfit(t),0);
-    const descontoW = resultadoW<0 ? Math.abs(resultadoW)*((cl?.discount)||0)/100 : 0;
+    const descontoW = resultadoW<0 ? Math.abs(resultadoW)*(cl?getWeekDiscount(cl,FINANCE_WEEK):0)/100 : 0;
     const adminAmount = -resultadoW - descontoW;
     if(adminAmount<0) pagarSemana += Math.abs(adminAmount);
   });
@@ -1834,11 +2063,21 @@ async function excluirBaixa(settlementId){
 // ---------- COMISSÕES ----------
 function renderComissoesSection(){
   const weekMonday = FINANCE_WEEK || mondayOf(todaySP());
-  const rows = STATE.commissioners.map(cm=>{
-    const links = STATE.commissionerClients.filter(cc=>cc.commissionerId===cm.id);
-    const amount = links.reduce((s,l)=>s+computeCommissionAmount(l, weekMonday),0);
-    return {id:cm.id, name:cm.name, amount, count:links.length};
-  }).filter(r=>r.count>0);
+  const totals = {}; // commissionerId -> {amount, count}
+  STATE.clients.forEach(cl=>{
+    const active = getActiveCommissionersForWeek(cl.id, weekMonday);
+    active.forEach(a=>{
+      const amount = computeCommissionAmount(cl.id, a.percent, weekMonday);
+      if(amount<=0) return;
+      if(!totals[a.commissionerId]) totals[a.commissionerId] = {amount:0, count:0};
+      totals[a.commissionerId].amount += amount;
+      totals[a.commissionerId].count += 1;
+    });
+  });
+  const rows = Object.entries(totals).map(([commissionerId, v])=>{
+    const cm = STATE.commissioners.find(c=>c.id===commissionerId);
+    return {id:commissionerId, name:cm?cm.name:'Comissionado removido', amount:v.amount, count:v.count};
+  });
   const total = rows.reduce((s,r)=>s+r.amount,0);
   return `
     <div class="card" style="cursor:pointer" onclick="SHOW_COMISSOES=!SHOW_COMISSOES;render()">
@@ -1849,12 +2088,12 @@ function renderComissoesSection(){
     </div>
     ${SHOW_COMISSOES ? `
     <div class="card">
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Semana de ${weekLabel(weekMonday)} · calculada em cima da perda bruta dos clientes vinculados (antes do desconto do cliente)</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Semana de ${weekLabel(weekMonday)} · calculada em cima da perda bruta dos clientes vinculados naquela semana (antes do desconto do cliente)</div>
       ${rows.length===0 ? '<div class="empty">Nenhuma comissão essa semana.</div>' : rows.map(r=>`
         <div class="match-row">
           <div class="match-desc">
             <span class="teams">${r.name}</span>
-            <span class="meta">${r.count} cliente(s) vinculado(s)</span>
+            <span class="meta">${r.count} cliente(s) com perda essa semana</span>
           </div>
           <div class="match-actions">
             <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--gold)">${fmtBRL(r.amount)}</span>
@@ -2112,7 +2351,7 @@ function renderClientView(code){
 
   const weekTickets = myTickets.filter(t=>mondayOf(ticketDate(t))===CLIENT_WEEK).sort((a,b)=>ticketDate(b).localeCompare(ticketDate(a)));
   const resultado = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
-  const descontoPct = client.discount||0;
+  const descontoPct = getWeekDiscount(client, CLIENT_WEEK);
   const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
   const liquido = resultado + desconto;
   const pendentes = weekTickets.filter(t=>ticketResult(t)==='pending');
