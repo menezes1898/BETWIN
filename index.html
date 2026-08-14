@@ -96,7 +96,7 @@
   .ticket-compact .ticket-actions{margin-top:6px;}
 
   table{width:100%;border-collapse:collapse;font-size:13px;}
-  th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);}
+  th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;}
   th{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.4px;font-weight:600;}
   td.num{font-family:var(--font-mono);text-align:center;}
   td.left{text-align:left;}
@@ -1485,11 +1485,12 @@ function renderDashboardTab(){
     <div class="card">
       <h3>Por cliente</h3>
       ${rows.length===0 ? '<div class="empty">Nenhuma aposta nessa semana.</div>' : `
+      <div style="overflow-x:auto">
       <table>
         <tr><th>Cliente</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Comissão</th><th>Perf.</th><th>Líquido</th></tr>
         ${rows.map(r=>`
           <tr>
-            <td>${r.name} <a href="${window.location.href.split('#')[0]}#cliente=${r.code}" target="_blank" title="Abrir relatório do cliente" style="text-decoration:none;color:var(--gold);font-size:12px">↗</a> <button class="btn-ghost btn-sm" style="padding:2px 6px;font-size:10px" onclick="gerarFechamento('${r.id}')" title="Gerar imagem de fechamento">🧾</button></td>
+            <td class="left">${r.name} <a href="${window.location.href.split('#')[0]}#cliente=${r.code}" target="_blank" title="Abrir relatório do cliente" style="text-decoration:none;color:var(--gold);font-size:12px">↗</a> <button class="btn-ghost btn-sm" style="padding:2px 6px;font-size:10px" onclick="gerarFechamento('${r.id}')" title="Gerar imagem de fechamento">🧾</button></td>
             <td>${countBadges(r.tickets)}</td>
             <td class="num">${fmtBRL(r.volume)}</td>
             <td class="num ${r.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.resultado)}</td>
@@ -1500,7 +1501,7 @@ function renderDashboardTab(){
           </tr>
         `).join('')}
         <tr class="total">
-          <td>Total</td>
+          <td class="left">Total</td>
           <td>${countBadges(allTickets)}</td>
           <td class="num">${fmtBRL(totalVolume)}</td>
           <td class="num ${totalResultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalResultado)}</td>
@@ -1510,6 +1511,7 @@ function renderDashboardTab(){
           <td class="num ${totalLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalLiquido)}</td>
         </tr>
       </table>
+      </div>
       `}
     </div>
   `;
