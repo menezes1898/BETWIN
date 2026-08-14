@@ -28,7 +28,7 @@
     margin:0; background:var(--bg); color:var(--text);
     font-family:var(--font-body); -webkit-font-smoothing:antialiased;
   }
-  #app{max-width:960px;margin:0 auto;padding:24px 18px 60px;}
+  #app{max-width:1200px;margin:0 auto;padding:24px 18px 60px;}
 
   .brand{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:16px;}
   .brand .mark{font-family:var(--font-display);font-weight:300;font-size:28px;letter-spacing:0.5px;color:var(--gold);}
@@ -95,8 +95,8 @@
   .ticket-actions{margin-top:10px;display:flex;gap:6px;}
   .ticket-compact .ticket-actions{margin-top:6px;}
 
-  table{width:100%;border-collapse:collapse;font-size:13px;}
-  th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{padding:7px 5px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;}
   th{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.4px;font-weight:600;}
   td.num{font-family:var(--font-mono);text-align:center;}
   td.left{text-align:left;}
@@ -1485,7 +1485,6 @@ function renderDashboardTab(){
     <div class="card">
       <h3>Por cliente</h3>
       ${rows.length===0 ? '<div class="empty">Nenhuma aposta nessa semana.</div>' : `
-      <div style="overflow-x:auto">
       <table>
         <tr><th>Cliente</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Comissão</th><th>Perf.</th><th>Líquido</th></tr>
         ${rows.map(r=>`
@@ -1511,7 +1510,6 @@ function renderDashboardTab(){
           <td class="num ${totalLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalLiquido)}</td>
         </tr>
       </table>
-      </div>
       `}
     </div>
   `;
