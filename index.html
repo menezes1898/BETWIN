@@ -1493,7 +1493,7 @@ function renderDashboardTab(){
   const allTickets = rows.flatMap(r=>r.tickets);
 
   const resumoResultado = -totalResultado;
-  const resumoLiquido = resumoResultado - totalDesconto - totalComissao;
+  const resumoLiquido = -totalLiquido;
 
   return `
     <div class="card">
