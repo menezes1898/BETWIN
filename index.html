@@ -1483,7 +1483,7 @@ function renderDashboardTab(){
     const liquido = applyDescontoSign(cl, resultado, desconto) - comissao;
     const perf = volume>0 ? (resultado/volume*100) : 0;
     return {id:cl.id, name:cl.name, code:cl.code, tickets, volume, resultado, desconto, comissao, liquido, perf};
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a,b)=>a.resultado-b.resultado);
 
   const totalVolume = rows.reduce((s,r)=>s+r.volume,0);
   const totalResultado = rows.reduce((s,r)=>s+r.resultado,0);
