@@ -960,7 +960,7 @@ function renderClientWeeksList(cl){
     const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
     const descontoPct = getWeekDiscount(cl, wk);
     const desconto = computeDescontoAmount(cl, resultado, wk);
-    const liquido = resultado + desconto;
+    const liquido = applyDescontoSign(cl, resultado, desconto);
     const activeCommissioners = getActiveCommissionersForWeek(cl.id, wk);
     const comissaoTotal = activeCommissioners.reduce((s,c)=>s+computeCommissionAmount(cl.id, c.percent, wk),0);
     const badges = activeCommissioners.map(c=>{
@@ -1200,6 +1200,12 @@ function computeDescontoAmount(client, resultado, weekStart){
     return resultado>0 ? resultado*pct/100 : 0;
   }
   return resultado<0 ? Math.abs(resultado)*pct/100 : 0;
+}
+// Junta resultado + desconto no sentido certo. Cliente normal: o desconto é um benefício
+// PARA ELE, então soma (amortece a perda dele). Conta de Descarga: o desconto é um
+// benefício PRA VOCÊ (não pro parceiro), então subtrai do saldo dele.
+function applyDescontoSign(client, resultado, desconto){
+  return client.isDescarga ? (resultado - desconto) : (resultado + desconto);
 }
 
 // Comissionados ativos de um cliente numa semana: se existir QUALQUER sobrescrita
@@ -1474,7 +1480,7 @@ function renderDashboardTab(){
     const desconto = computeDescontoAmount(cl, resultado, DASH_WEEK);
     const activeCommissioners = getActiveCommissionersForWeek(cl.id, DASH_WEEK);
     const comissao = activeCommissioners.reduce((s,a)=>s+computeCommissionAmount(cl.id, a.percent, DASH_WEEK),0);
-    const liquido = resultado + desconto - comissao;
+    const liquido = applyDescontoSign(cl, resultado, desconto) - comissao;
     const perf = volume>0 ? (resultado/volume*100) : 0;
     return {id:cl.id, name:cl.name, code:cl.code, tickets, volume, resultado, desconto, comissao, liquido, perf};
   }).filter(Boolean);
@@ -1565,7 +1571,7 @@ function computeContinuousBalance(clientId, excludeWeek){
     const descontoPct = cl ? getWeekDiscount(cl, wk) : 0;
     const resultadoW = list.reduce((s,t)=>s+ticketProfit(t),0);
     const descontoW = cl ? computeDescontoAmount(cl, resultadoW, wk) : 0;
-    totalBetAdmin += (-resultadoW - descontoW);
+    totalBetAdmin += -(cl ? applyDescontoSign(cl, resultadoW, descontoW) : resultadoW);
   });
   const emAbertoAmount = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId).reduce((s,x)=>s+x.amount,0);
   const totalOwed = totalBetAdmin + emAbertoAmount;
@@ -1831,7 +1837,7 @@ async function gerarFechamento(clientId){
   const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId);
   const temSaldoAnterior = Math.abs(computeContinuousBalance(clientId, weekMonday)) >= 0.01;
   const saldoAnterior = -computeContinuousBalance(clientId, weekMonday);
-  const saldoSemana = subtotal + desconto;
+  const saldoSemana = applyDescontoSign(cl, subtotal, desconto);
   const saldoTotal = saldoSemana + saldoAnterior;
 
   // Monta a lista de linhas a desenhar
@@ -1992,7 +1998,7 @@ function renderFinanceiroTab(){
     const cl = STATE.clients.find(c=>c.id===clientId);
     const resultadoW = tks.reduce((s,t)=>s+ticketProfit(t),0);
     const descontoW = cl ? computeDescontoAmount(cl, resultadoW, FINANCE_WEEK) : 0;
-    const adminAmount = -resultadoW - descontoW;
+    const adminAmount = -(cl ? applyDescontoSign(cl, resultadoW, descontoW) : resultadoW);
     if(adminAmount<0) pagarSemana += Math.abs(adminAmount);
   });
 
@@ -2399,7 +2405,7 @@ function renderClientView(code){
   const resultado = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
   const descontoPct = getWeekDiscount(client, CLIENT_WEEK);
   const desconto = computeDescontoAmount(client, resultado, CLIENT_WEEK);
-  const liquido = resultado + desconto;
+  const liquido = applyDescontoSign(client, resultado, desconto);
   const pendentes = weekTickets.filter(t=>ticketResult(t)==='pending');
   const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
 
