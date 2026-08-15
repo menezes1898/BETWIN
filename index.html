@@ -205,7 +205,7 @@ async function loadState(){
       alert('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
       return;
     }
-    STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||''}));
+    STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false}));
     STATE.tickets = (tickets||[]).map(t=>({
       id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,
       stake: parseFloat(t.stake), odds: t.odds!=null ? parseFloat(t.odds) : null, matches: t.matches||[],
@@ -304,9 +304,13 @@ function effectiveOdds(ticket){
 }
 function ticketProfit(ticket){
   const r = ticketResult(ticket);
-  if(r==='red') return -ticket.stake;
-  if(r==='green'){ const odds = effectiveOdds(ticket); return odds ? (ticket.stake*odds) - ticket.stake : 0; }
-  return 0;
+  let profit;
+  if(r==='red') profit = -ticket.stake;
+  else if(r==='green'){ const odds = effectiveOdds(ticket); profit = odds ? (ticket.stake*odds) - ticket.stake : 0; }
+  else profit = 0;
+  const cl = STATE.clients.find(c=>c.id===ticket.clientId);
+  if(cl && cl.isDescarga) profit = -profit;
+  return profit;
 }
 function resultChip(r){
   const map = {green:['chip-green','GREEN'], red:['chip-red','RED'], void:['chip-void','ANULADA'], pending:['chip-pending','PENDENTE']};
@@ -838,6 +842,10 @@ function renderClientesTab(){
       <input type="text" id="new-client-phone" placeholder="Ex: (11) 91234-5678">
       <label>Desconto em caso de perda (%)</label>
       <input type="number" id="new-client-discount" min="0" max="100" step="1" value="0" placeholder="Ex: 15">
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
+        <input type="checkbox" id="new-client-descarga" style="width:auto">
+        <span>Conta de Descarga (parceiro) — resultado invertido, sem desconto</span>
+      </label>
       <div style="margin-top:14px"><button class="btn-primary" onclick="addClient()">Cadastrar</button></div>
     </div>
     <div class="card">
@@ -853,7 +861,7 @@ function renderClientListItems(list){
     <div class="card" style="cursor:pointer" onclick="openClientDetail('${cl.id}')">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-weight:600;font-size:15px">${cl.name}</div>
+          <div style="font-weight:600;font-size:15px">${cl.name} ${cl.isDescarga?'<span class="chip" style="background:var(--gold-dim);color:var(--gold);font-size:10px">DESCARGA</span>':''}</div>
           ${cl.phone ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${cl.phone}</div>` : ''}
         </div>
         <span style="color:var(--text-muted);font-size:18px">›</span>
@@ -883,7 +891,7 @@ function renderClientDetail(id){
     <button class="btn-ghost btn-sm" onclick="CLIENT_DETAIL_ID=null;render()">‹ Voltar</button>
     <div style="height:12px"></div>
     <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-      <h2 style="margin:0;font-family:var(--font-display);font-weight:600;font-size:22px">${cl.name}</h2>
+      <h2 style="margin:0;font-family:var(--font-display);font-weight:600;font-size:22px">${cl.name} ${cl.isDescarga?'<span class="chip" style="background:var(--gold-dim);color:var(--gold)">DESCARGA</span>':''}</h2>
       <span class="chip ${resultadoGeral>=0?'chip-green':'chip-red'}">${resultadoGeral>=0?'+':''}${fmtBRL(resultadoGeral)} no total</span>
     </div>
     <div class="tabs" style="margin-bottom:16px">
@@ -911,6 +919,10 @@ function renderClientDetail(id){
       <label>Desconto padrão em caso de perda (%)</label>
       <input type="number" id="detail-client-discount" min="0" max="100" step="1" value="${cl.discount||0}">
       <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">Esse é o padrão pra semanas novas. Pra mudar o desconto de uma semana específica (passada ou atual), usa a aba <strong>Semanas</strong>.</p>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer">
+        <input type="checkbox" id="detail-client-descarga" style="width:auto" ${cl.isDescarga?'checked':''}>
+        <span>Conta de Descarga (parceiro) — resultado invertido, sem desconto</span>
+      </label>
       <label>Link de acesso do cliente</label>
       <div class="link-box">
         <code id="link-${cl.id}">${baseUrl}#cliente=${cl.code}</code>
@@ -947,7 +959,7 @@ function renderClientWeeksList(cl){
     const volume = tickets.reduce((s,t)=>s+t.stake,0);
     const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
     const descontoPct = getWeekDiscount(cl, wk);
-    const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
+    const desconto = computeDescontoAmount(cl, resultado, wk);
     const liquido = resultado + desconto;
     const activeCommissioners = getActiveCommissionersForWeek(cl.id, wk);
     const comissaoTotal = activeCommissioners.reduce((s,c)=>s+computeCommissionAmount(cl.id, c.percent, wk),0);
@@ -1100,11 +1112,12 @@ async function saveClientDetail(id){
   const name = document.getElementById('detail-client-name').value.trim();
   const phone = document.getElementById('detail-client-phone').value.trim();
   const discount = Math.max(0, Math.min(100, parseFloat(document.getElementById('detail-client-discount').value)||0));
+  const isDescarga = document.getElementById('detail-client-descarga').checked;
   if(!name){ alert('Informe o nome do cliente.'); return; }
-  const {error} = await supabaseClient.from('clients').update({name, phone, discount}).eq('id', id);
+  const {error} = await supabaseClient.from('clients').update({name, phone, discount, is_descarga: isDescarga}).eq('id', id);
   if(error){ alert('Erro ao salvar cliente: '+error.message); return; }
   const cl = STATE.clients.find(c=>c.id===id);
-  if(cl){ cl.name=name; cl.phone=phone; cl.discount=discount; }
+  if(cl){ cl.name=name; cl.phone=phone; cl.discount=discount; cl.isDescarga=isDescarga; }
   CLIENT_DETAIL_ID = null;
   render();
 }
@@ -1112,11 +1125,12 @@ async function addClient(){
   const name = document.getElementById('new-client-name').value.trim();
   const phone = document.getElementById('new-client-phone').value.trim();
   const discount = parseFloat(document.getElementById('new-client-discount').value) || 0;
+  const isDescarga = document.getElementById('new-client-descarga').checked;
   if(!name) return;
   const code = uid()+uid();
-  const {data, error} = await supabaseClient.from('clients').insert({name, code, discount, phone}).select().single();
+  const {data, error} = await supabaseClient.from('clients').insert({name, code, discount, phone, is_descarga: isDescarga}).select().single();
   if(error){ alert('Erro ao salvar cliente: '+error.message); return; }
-  STATE.clients.push({id:data.id, name:data.name, code:data.code, discount:data.discount||0, phone:data.phone||''});
+  STATE.clients.push({id:data.id, name:data.name, code:data.code, discount:data.discount||0, phone:data.phone||'', isDescarga:data.is_descarga||false});
   render();
 }
 async function setClientDiscount(id, value){
@@ -1174,6 +1188,18 @@ function selectClientOption(id){
 function getWeekDiscount(client, weekStart){
   const ov = STATE.clientWeekDiscounts.find(o=>o.clientId===client.id && o.weekStart===weekStart);
   return ov ? ov.discountPercent : (client.discount||0);
+}
+// Calcula o valor do desconto em cima de um resultado. Pra cliente normal, o desconto
+// incide quando ele PERDE (resultado negativo). Pra conta de Descarga é o contrário:
+// como você é o "cliente" dentro do sistema do parceiro, o desconto incide quando o
+// saldo da descarga fica POSITIVO (que é quando você deve pra ele).
+function computeDescontoAmount(client, resultado, weekStart){
+  const pct = getWeekDiscount(client, weekStart);
+  if(pct<=0) return 0;
+  if(client.isDescarga){
+    return resultado>0 ? resultado*pct/100 : 0;
+  }
+  return resultado<0 ? Math.abs(resultado)*pct/100 : 0;
 }
 
 // Comissionados ativos de um cliente numa semana: se existir QUALQUER sobrescrita
@@ -1445,7 +1471,7 @@ function renderDashboardTab(){
     const volume = tickets.reduce((s,t)=>s+t.stake,0);
     const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
     const descontoPct = getWeekDiscount(cl, DASH_WEEK);
-    const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
+    const desconto = computeDescontoAmount(cl, resultado, DASH_WEEK);
     const activeCommissioners = getActiveCommissionersForWeek(cl.id, DASH_WEEK);
     const comissao = activeCommissioners.reduce((s,a)=>s+computeCommissionAmount(cl.id, a.percent, DASH_WEEK),0);
     const liquido = resultado + desconto - comissao;
@@ -1538,7 +1564,7 @@ function computeContinuousBalance(clientId, excludeWeek){
   Object.entries(weekGroups).forEach(([wk, list])=>{
     const descontoPct = cl ? getWeekDiscount(cl, wk) : 0;
     const resultadoW = list.reduce((s,t)=>s+ticketProfit(t),0);
-    const descontoW = resultadoW<0 ? Math.abs(resultadoW)*descontoPct/100 : 0;
+    const descontoW = cl ? computeDescontoAmount(cl, resultadoW, wk) : 0;
     totalBetAdmin += (-resultadoW - descontoW);
   });
   const emAbertoAmount = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId).reduce((s,x)=>s+x.amount,0);
@@ -1797,7 +1823,7 @@ async function gerarFechamento(clientId){
   const subtotal = acertos - valorJogado;
   // Desconto: só existe se o cliente tem desconto cadastrado, e incide só sobre o saldo da semana
   const descontoPct = getWeekDiscount(cl, weekMonday);
-  const desconto = (descontoPct>0 && subtotal<0) ? Math.abs(subtotal)*descontoPct/100 : 0;
+  const desconto = computeDescontoAmount(cl, subtotal, weekMonday);
   const temDesconto = desconto>0;
 
   // Saldo anterior: saldo contínuo (todas as semanas anteriores + saldo em aberto,
@@ -1965,7 +1991,7 @@ function renderFinanceiroTab(){
   Object.entries(weekTicketsByClient).forEach(([clientId, tks])=>{
     const cl = STATE.clients.find(c=>c.id===clientId);
     const resultadoW = tks.reduce((s,t)=>s+ticketProfit(t),0);
-    const descontoW = resultadoW<0 ? Math.abs(resultadoW)*(cl?getWeekDiscount(cl,FINANCE_WEEK):0)/100 : 0;
+    const descontoW = cl ? computeDescontoAmount(cl, resultadoW, FINANCE_WEEK) : 0;
     const adminAmount = -resultadoW - descontoW;
     if(adminAmount<0) pagarSemana += Math.abs(adminAmount);
   });
@@ -2372,7 +2398,7 @@ function renderClientView(code){
   const weekTickets = myTickets.filter(t=>mondayOf(ticketDate(t))===CLIENT_WEEK).sort((a,b)=>ticketDate(b).localeCompare(ticketDate(a)));
   const resultado = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
   const descontoPct = getWeekDiscount(client, CLIENT_WEEK);
-  const desconto = resultado<0 ? Math.abs(resultado)*descontoPct/100 : 0;
+  const desconto = computeDescontoAmount(client, resultado, CLIENT_WEEK);
   const liquido = resultado + desconto;
   const pendentes = weekTickets.filter(t=>ticketResult(t)==='pending');
   const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
