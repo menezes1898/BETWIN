@@ -149,7 +149,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Tf4F0bAvZsHyevsy0JUa0g_q8G4_-dW';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 
-let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [], clientWeekDiscounts: [], clientWeekCommissioners: [] };
+let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [], clientWeekDiscounts: [], clientWeekCommissioners: [], clientDiscountHistory: [] };
 let ADMIN_TAB = 'dashboard';
 let ADMIN_SUBVIEW = 'list'; // 'list' | 'wizard'
 let DASH_WEEK = null;
@@ -190,7 +190,7 @@ const MARKETS = [
 
 async function loadState(){
   try{
-    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}] = await Promise.all([
+    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}, {data: discountHistory, error: err10}] = await Promise.all([
       supabaseClient.from('clients').select('*').order('created_at'),
       supabaseClient.from('tickets').select('*').order('created_at'),
       supabaseClient.from('settlements').select('*').order('paid_at'),
@@ -199,10 +199,11 @@ async function loadState(){
       supabaseClient.from('commissioners').select('*').order('created_at'),
       supabaseClient.from('commissioner_clients').select('*').order('created_at'),
       supabaseClient.from('client_week_discount').select('*'),
-      supabaseClient.from('client_week_commissioners').select('*')
+      supabaseClient.from('client_week_commissioners').select('*'),
+      supabaseClient.from('client_discount_history').select('*')
     ]);
-    if(err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9){
-      alert('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
+    if(err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10){
+      alert('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9||err10).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
       return;
     }
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false}));
@@ -229,6 +230,9 @@ async function loadState(){
     }));
     STATE.clientWeekCommissioners = (weekCommissioners||[]).map(w=>({
       id:w.id, clientId:w.client_id, weekStart:w.week_start, commissionerId:w.commissioner_id||null, percent:w.percent!=null?parseFloat(w.percent):null
+    }));
+    STATE.clientDiscountHistory = (discountHistory||[]).map(h=>({
+      id:h.id, clientId:h.client_id, discountPercent:parseFloat(h.discount_percent)||0, effectiveFromWeek:h.effective_from_week||null
     }));
   }catch(e){
     alert('Erro ao conectar no Supabase: '+e.message);
@@ -918,7 +922,7 @@ function renderClientDetail(id){
       <input type="text" id="detail-client-phone" value="${cl.phone||''}" placeholder="Ex: (11) 91234-5678">
       <label>Desconto padrão em caso de perda (%)</label>
       <input type="number" id="detail-client-discount" min="0" max="100" step="1" value="${cl.discount||0}">
-      <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">Esse é o padrão pra semanas novas. Pra mudar o desconto de uma semana específica (passada ou atual), usa a aba <strong>Semanas</strong>.</p>
+      <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">Mudar esse valor passa a valer <strong>a partir de agora</strong>, sem afetar semanas passadas. Pra mudar o desconto de uma semana específica no passado, usa a aba <strong>Semanas</strong>.</p>
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer">
         <input type="checkbox" id="detail-client-descarga" style="width:auto" ${cl.isDescarga?'checked':''}>
         <span>Conta de Descarga (parceiro) — resultado invertido, sem desconto</span>
@@ -1117,7 +1121,16 @@ async function saveClientDetail(id){
   const {error} = await supabaseClient.from('clients').update({name, phone, discount, is_descarga: isDescarga}).eq('id', id);
   if(error){ alert('Erro ao salvar cliente: '+error.message); return; }
   const cl = STATE.clients.find(c=>c.id===id);
+  const discountChanged = cl && cl.discount !== discount;
   if(cl){ cl.name=name; cl.phone=phone; cl.discount=discount; cl.isDescarga=isDescarga; }
+  if(discountChanged){
+    const effectiveFromWeek = mondayOf(todaySP());
+    const {data, error: histError} = await supabaseClient.from('client_discount_history').insert({client_id: id, discount_percent: discount, effective_from_week: effectiveFromWeek}).select().single();
+    if(histError){ alert('Cliente salvo, mas houve erro ao registrar a mudança de desconto na linha do tempo: '+histError.message); }
+    else{
+      STATE.clientDiscountHistory.push({id:data.id, clientId:data.client_id, discountPercent:parseFloat(data.discount_percent)||0, effectiveFromWeek:data.effective_from_week||null});
+    }
+  }
   CLIENT_DETAIL_ID = null;
   render();
 }
@@ -1131,6 +1144,10 @@ async function addClient(){
   const {data, error} = await supabaseClient.from('clients').insert({name, code, discount, phone, is_descarga: isDescarga}).select().single();
   if(error){ alert('Erro ao salvar cliente: '+error.message); return; }
   STATE.clients.push({id:data.id, name:data.name, code:data.code, discount:data.discount||0, phone:data.phone||'', isDescarga:data.is_descarga||false});
+  const {data: histData, error: histError} = await supabaseClient.from('client_discount_history').insert({client_id: data.id, discount_percent: discount, effective_from_week: null}).select().single();
+  if(!histError && histData){
+    STATE.clientDiscountHistory.push({id:histData.id, clientId:histData.client_id, discountPercent:parseFloat(histData.discount_percent)||0, effectiveFromWeek:histData.effective_from_week||null});
+  }
   render();
 }
 async function setClientDiscount(id, value){
@@ -1186,8 +1203,15 @@ function selectClientOption(id){
 // Desconto efetivo de um cliente numa semana: sobrescrita manual daquela semana,
 // senão o desconto padrão atual do cliente.
 function getWeekDiscount(client, weekStart){
+  // 1) Sobrescrita manual daquela semana específica (feita na aba Semanas) sempre vence.
   const ov = STATE.clientWeekDiscounts.find(o=>o.clientId===client.id && o.weekStart===weekStart);
-  return ov ? ov.discountPercent : (client.discount||0);
+  if(ov) return ov.discountPercent;
+  // 2) Senão, usa a linha do tempo do desconto padrão: pega o valor que estava em vigor
+  // naquela semana (não o valor atual), pra mudanças não afetarem semanas passadas.
+  const history = STATE.clientDiscountHistory.filter(h=>h.clientId===client.id && (!h.effectiveFromWeek || h.effectiveFromWeek<=weekStart));
+  if(history.length===0) return client.discount||0;
+  history.sort((a,b)=>(a.effectiveFromWeek||'0000-00-00').localeCompare(b.effectiveFromWeek||'0000-00-00'));
+  return history[history.length-1].discountPercent;
 }
 // Calcula o valor do desconto em cima de um resultado. Pra cliente normal, o desconto
 // incide quando ele PERDE (resultado negativo). Pra conta de Descarga é o contrário:
