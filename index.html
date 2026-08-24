@@ -1929,7 +1929,7 @@ async function gerarFechamento(clientId){
   linhas.push(['SALDO TOTAL:', (saldoTotal>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoTotal)).replace('R$','').trim(), saldoTotal>=0?'#3FB68B':'#E0575A', true]);
 
   const marginX = 55;
-  const headerH = 178;
+  const headerH = 205;
   const FIXED_W = 720, FIXED_H = 700;
   let rowH = 44, rowGap = 9;
   const availableForRows = FIXED_H - headerH - 30;
@@ -1974,14 +1974,22 @@ async function gerarFechamento(clientId){
   ctx.fillStyle = '#FFFFFF';
   ctx.fillText(periodoStr, rightEdge, 42);
 
-  // ---- título ----
-  ctx.font = '700 24px Montserrat, Arial, sans-serif';
+  // ---- título (desce mais, e encolhe sozinho se o nome for grande, pra nunca esbarrar na logo) ----
+  let titleSize = 24;
+  const maxTitleWidth = canvas.width - 90;
+  let wA, wB;
+  do{
+    ctx.font = `700 ${titleSize}px Montserrat, Arial, sans-serif`;
+    const titleA = 'FECHAMENTO: '; const titleB = cl.name.toUpperCase();
+    wA = ctx.measureText(titleA).width; wB = ctx.measureText(titleB).width;
+    if(wA+wB <= maxTitleWidth || titleSize<=15) break;
+    titleSize -= 1;
+  } while(true);
   const titleA = 'FECHAMENTO: '; const titleB = cl.name.toUpperCase();
-  const wA = ctx.measureText(titleA).width; const wB = ctx.measureText(titleB).width;
   const startX = canvas.width/2 - (wA+wB)/2;
   ctx.textAlign='left';
-  ctx.fillStyle = '#FFFFFF'; ctx.fillText(titleA, startX, 142);
-  ctx.fillStyle = '#3EC1F3'; ctx.fillText(titleB, startX+wA, 142);
+  ctx.fillStyle = '#FFFFFF'; ctx.fillText(titleA, startX, 170);
+  ctx.fillStyle = '#3EC1F3'; ctx.fillText(titleB, startX+wA, 170);
 
   let rowY = headerH;
   const rowW = canvas.width - marginX*2;
