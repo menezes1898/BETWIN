@@ -1615,6 +1615,7 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.closePath();
 }
 const LOGO_STORAGE_KEY = 'boletim_logo_dataurl';
+const LOGO_HIDDEN_KEY = 'boletim_logo_hidden';
 const LOGO_SHAPE_KEY = 'boletim_logo_shape';
 const BG_STORAGE_KEY = 'boletim_bg_dataurl';
 const DASHBOARD_LOGO_KEY = 'boletim_dashboard_logo_dataurl';
@@ -1742,6 +1743,14 @@ function removeLogo(){
   localStorage.removeItem(LOGO_SHAPE_KEY);
   render();
 }
+function toggleLogoHidden(checked){
+  if(checked){
+    localStorage.setItem(LOGO_HIDDEN_KEY, 'true');
+  } else {
+    localStorage.removeItem(LOGO_HIDDEN_KEY);
+  }
+  render();
+}
 function removeBg(){
   if(!confirm('Remover o fundo atual e voltar a usar o fundo estilizado padrão?')) return;
   localStorage.removeItem(BG_STORAGE_KEY);
@@ -1753,6 +1762,7 @@ function renderConfigTab(){
   const savedLogoShape = localStorage.getItem(LOGO_SHAPE_KEY) || 'round';
   const savedBg = localStorage.getItem(BG_STORAGE_KEY);
   const savedDashboardLogo = localStorage.getItem(DASHBOARD_LOGO_KEY);
+  const logoHidden = localStorage.getItem(LOGO_HIDDEN_KEY)==='true';
   return `
     <div class="card">
       <h3>Logo da Dashboard</h3>
@@ -1767,12 +1777,18 @@ function renderConfigTab(){
     <div class="card">
       <h3>Logo do fechamento</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-top:0">Aparece no canto superior da imagem de fechamento gerada na Dashboard.</p>
-      ${savedLogo ? `<div style="width:100px;height:100px;margin-bottom:14px;overflow:hidden;${savedLogoShape==='round'?'border-radius:50%':'border-radius:10px'};border:2px solid var(--line)"><img src="${savedLogo}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhuma logo configurada ainda — será usado o texto "BET WIN".</div>'}
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:${logoHidden?'0':'14px'}">
+        <input type="checkbox" style="width:auto" ${logoHidden?'checked':''} onchange="toggleLogoHidden(this.checked)">
+        <span>Não mostrar nenhuma logo no fechamento</span>
+      </label>
+      ${logoHidden ? '' : (savedLogo ? `<div style="width:100px;height:100px;margin-bottom:14px;overflow:hidden;${savedLogoShape==='round'?'border-radius:50%':'border-radius:10px'};border:2px solid var(--line)"><img src="${savedLogo}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhuma logo configurada ainda — será usado o texto "BET WIN".</div>')}
+      ${logoHidden ? '' : `
       <input type="file" id="logo-file-input" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
       <div class="row" style="margin-top:0">
         <div><button class="btn-ghost btn-full" onclick="document.getElementById('logo-file-input').click()">🖼️ ${savedLogo?'Trocar logo':'Enviar logo'}</button></div>
         ${savedLogo ? `<div><button class="btn-danger-ghost btn-full" onclick="removeLogo()">Remover e usar padrão</button></div>` : ''}
       </div>
+      `}
     </div>
     <div class="card">
       <h3>Fundo do fechamento</h3>
@@ -1845,6 +1861,7 @@ function drawTextLogo(ctx){
 }
 function drawLogo(ctx){
   return new Promise((resolve)=>{
+    if(localStorage.getItem(LOGO_HIDDEN_KEY)==='true'){ resolve(); return; }
     const saved = localStorage.getItem(LOGO_STORAGE_KEY);
     if(!saved){ drawTextLogo(ctx); resolve(); return; }
     const shape = localStorage.getItem(LOGO_SHAPE_KEY) || 'round';
