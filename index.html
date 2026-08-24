@@ -125,7 +125,7 @@
   .odd-total{font-family:var(--font-mono);color:var(--gold);font-size:14px;}
 
   .client-header{margin-bottom:20px;text-align:center;}
-  .client-header .name{font-family:'Montserrat', sans-serif;font-size:clamp(30px,9vw,38px);font-weight:400;letter-spacing:0.2px;color:var(--gold);line-height:1.15;}
+  .client-header .name{font-family:'Montserrat', sans-serif;font-size:clamp(26px,7.5vw,32px);font-weight:500;letter-spacing:0.2px;color:var(--gold);line-height:1.15;}
   .client-header .balance-now{font-family:var(--font-mono);font-size:13px;color:var(--text-muted);margin-top:4px;}
 
   .client-page-wrap{margin:-24px -18px -60px;padding:24px 18px 60px;min-height:100vh;}
@@ -2440,26 +2440,22 @@ function renderClientView(code){
       const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
       const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
       return `
-        <div style="display:flex;align-items:baseline;gap:5px">
-          <span style="flex-shrink:0;font-size:9.5px;line-height:1.5">${resultIconSmall(m.result)}</span>
-          <span style="min-width:0;overflow-wrap:break-word;font-size:12.5px;line-height:1.4">
-            <strong style="font-weight:600">${teamsLabel}</strong>
-            <span style="color:var(--text-muted)"> — ${marketLabel}: ${m.selection}</span>
-          </span>
+        <div style="margin-bottom:5px">
+          <div style="display:flex;align-items:baseline;justify-content:center;gap:5px">
+            <span style="flex-shrink:0;font-size:9px">${resultIconSmall(m.result)}</span>
+            <span style="font-size:12.5px;font-weight:600;line-height:1.35">${teamsLabel}</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--text-muted);margin-top:1px">${marketLabel}: ${m.selection}</div>
         </div>
       `;
     }).join('');
   }
-  function ticketRowBg(r){
-    if(r==='green') return 'rgba(63,182,139,0.16)';
-    if(r==='red') return 'rgba(224,87,90,0.14)';
-    if(r==='void') return 'rgba(255,255,255,0.04)';
-    return 'var(--surface-2)';
-  }
-  function ticketRowBorder(r){
-    if(r==='green') return 'var(--green)';
-    if(r==='red') return 'var(--red)';
-    return 'var(--line)';
+  // Sombreado discreto por resultado — pendente não recebe nenhuma cor, fica neutro.
+  function ticketRowStyle(r){
+    if(r==='green') return {bg:'rgba(63,182,139,0.06)', border:'rgba(63,182,139,0.28)'};
+    if(r==='red') return {bg:'rgba(224,87,90,0.05)', border:'rgba(224,87,90,0.26)'};
+    if(r==='void') return {bg:'rgba(255,255,255,0.02)', border:'var(--line)'};
+    return {bg:'var(--surface-2)', border:'var(--line)'};
   }
   const dayGroups = {};
   weekTickets.forEach(t=>{
@@ -2473,18 +2469,20 @@ function renderClientView(code){
     const rows = dayGroups[day].map(t=>{
       const r = ticketResult(t);
       const profit = ticketProfit(t);
+      const style = ticketRowStyle(r);
       return `
-        <div style="background:${ticketRowBg(r)};border-left:3px solid ${ticketRowBorder(r)};border-radius:6px;padding:8px 10px;margin-bottom:6px">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px">
-            <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);white-space:nowrap">${t.time||'—'} <span style="opacity:0.65">#${t.ticketNumber||'—'}</span></span>
-            <span style="font-family:var(--font-mono);font-size:13.5px;font-weight:700;white-space:nowrap" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</span>
+        <div style="background:${style.bg};border:1px solid ${style.border};border-radius:8px;padding:10px 12px;margin-bottom:8px;text-align:center">
+          <div style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted);letter-spacing:0.3px">${t.time||'—'} · #${t.ticketNumber||'—'}</div>
+          <div style="margin-top:7px">${ticketMatchesBlock(t)}</div>
+          <div style="margin-top:6px;padding-top:7px;border-top:1px solid rgba(255,255,255,0.07);display:flex;justify-content:center;align-items:baseline;gap:16px">
+            <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted)">${fmtBRL(t.stake)}</span>
+            ${ticketOddTotal(t)>0 ? `<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted)">@${effectiveOdds(t).toFixed(2)}</span>` : ''}
+            <span style="font-family:var(--font-mono);font-size:13px;font-weight:700" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</span>
           </div>
-          <div>${ticketMatchesBlock(t)}</div>
-          <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;font-family:var(--font-mono)">Valor ${fmtBRL(t.stake)}${ticketOddTotal(t)>0?' · Odds @'+effectiveOdds(t).toFixed(2):''}</div>
         </div>
       `;
     }).join('');
-    return `<div style="margin-bottom:14px"><p style="margin:0 0 6px;font-size:13px;font-weight:500;color:var(--text-muted)">${fmtDate(day)}</p>${rows}</div>`;
+    return `<div style="margin-bottom:16px"><p style="margin:0 0 8px;font-size:12.5px;font-weight:600;color:var(--text-muted);text-align:center;text-transform:uppercase;letter-spacing:0.4px">${fmtDate(day)}</p>${rows}</div>`;
   }).join('');
 
   document.title = 'Relatório';
@@ -2494,39 +2492,37 @@ function renderClientView(code){
 
     <div class="card">
       <div style="display:flex;justify-content:center;align-items:center;gap:16px">
-        <button class="btn-ghost" style="padding:10px 16px;font-size:16px" onclick="changeClientWeek(-1)">‹</button>
-        <span style="font-family:'Montserrat',sans-serif;font-size:clamp(15px,4.5vw,17px);font-weight:700">${weekLabel(CLIENT_WEEK)}</span>
-        <button class="btn-ghost" style="padding:10px 16px;font-size:16px" onclick="changeClientWeek(1)">›</button>
+        <button class="btn-ghost" style="padding:8px 14px;font-size:14px" onclick="changeClientWeek(-1)">‹</button>
+        <span style="font-family:'Montserrat',sans-serif;font-size:14px;font-weight:600;letter-spacing:0.2px">${weekLabel(CLIENT_WEEK)}</span>
+        <button class="btn-ghost" style="padding:8px 14px;font-size:14px" onclick="changeClientWeek(1)">›</button>
       </div>
     </div>
 
     <div class="card" style="display:flex;padding:0">
-      <div style="flex:1;text-align:center;padding:0.85rem 0.5rem">
-        <div style="font-family:'Montserrat',sans-serif;font-size:12px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Resultado</div>
-        <div style="font-family:'Montserrat',sans-serif;font-size:clamp(17px,5.5vw,21px);font-weight:700;margin-top:3px" class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
+      <div style="flex:1;text-align:center;padding:0.9rem 0.5rem">
+        <div style="font-family:'Montserrat',sans-serif;font-size:10.5px;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:0.4px">Resultado</div>
+        <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;margin-top:5px" class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
       </div>
       ${resultado<0 ? `
       <div style="width:1px;background:var(--line)"></div>
-      <div style="flex:1;text-align:center;padding:0.85rem 0.5rem">
-        <div style="font-family:'Montserrat',sans-serif;font-size:12px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Desconto</div>
-        <div style="font-family:'Montserrat',sans-serif;font-size:clamp(17px,5.5vw,21px);font-weight:700;margin-top:3px">${fmtBRL(desconto)}</div>
+      <div style="flex:1;text-align:center;padding:0.9rem 0.5rem">
+        <div style="font-family:'Montserrat',sans-serif;font-size:10.5px;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:0.4px">Desconto</div>
+        <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;margin-top:5px">${fmtBRL(desconto)}</div>
       </div>
       <div style="width:1px;background:var(--line)"></div>
-      <div style="flex:1;text-align:center;padding:0.85rem 0.5rem">
-        <div style="font-family:'Montserrat',sans-serif;font-size:12px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Resultado Final</div>
-        <div style="font-family:'Montserrat',sans-serif;font-size:clamp(17px,5.5vw,21px);font-weight:700;margin-top:3px" class="${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
+      <div style="flex:1;text-align:center;padding:0.9rem 0.5rem">
+        <div style="font-family:'Montserrat',sans-serif;font-size:10.5px;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:0.4px">Resultado Final</div>
+        <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;margin-top:5px" class="${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
       </div>
       ` : ''}
     </div>
 
     ${pendentes.length>0 ? `
     <div class="card" style="cursor:pointer" onclick="CLIENT_SHOW_PENDENTES=!CLIENT_SHOW_PENDENTES;render()">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div style="display:flex;justify-content:center;align-items:center;gap:10px;position:relative">
         <span class="chip chip-pending">PENDENTES (${pendentes.length})</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span>
-          <span style="color:var(--text-muted);font-size:14px;transition:transform 0.15s;display:inline-block;transform:rotate(${CLIENT_SHOW_PENDENTES?90:0}deg)">›</span>
-        </div>
+        <span style="font-family:var(--font-mono);font-size:13px;color:var(--gold);font-weight:600">${fmtBRL(pendentesValor)}</span>
+        <span style="color:var(--text-muted);font-size:13px;transition:transform 0.15s;display:inline-block;transform:rotate(${CLIENT_SHOW_PENDENTES?90:0}deg)">›</span>
       </div>
       ${CLIENT_SHOW_PENDENTES ? `
         <div style="margin-top:12px;border-top:1px solid var(--line)">
@@ -2535,7 +2531,7 @@ function renderClientView(code){
               <div class="match-desc">
                 <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · ${ticketDetailsShort(t)}</span>
               </div>
-              <span style="font-family:var(--font-mono);font-size:13px">${fmtBRL(t.stake)}</span>
+              <span style="font-family:var(--font-mono);font-size:12.5px">${fmtBRL(t.stake)}</span>
             </div>
           `).join('')}
         </div>
@@ -2544,7 +2540,7 @@ function renderClientView(code){
     ` : ''}
 
     <div class="card">
-      <h3>Apostas da semana</h3>
+      <h3 style="text-align:center;font-size:16px">Apostas da semana</h3>
       ${ticketRows || '<div class="empty">Nenhuma aposta nessa semana.</div>'}
     </div>
     </div>
