@@ -30,7 +30,7 @@
   }
   #app{max-width:1200px;margin:0 auto;padding:24px 18px 60px;}
 
-  .brand{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:16px;}
+  .brand{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:16px;}
   .brand .mark{font-family:var(--font-display);font-weight:300;font-size:28px;letter-spacing:0.5px;color:var(--gold);}
   .brand .sub{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;}
 
@@ -351,7 +351,7 @@ function render(){
 function renderLogin(){
   const app = document.getElementById('app');
   app.innerHTML = `
-    <div class="brand"><span class="mark" style="color:var(--gold)">BET WIN</span><span class="sub">Painel da Consultoria</span></div>
+    <div class="brand">${renderBrandMark()}<span class="sub">Painel da Consultoria</span></div>
     <div class="card" style="max-width:340px;margin:60px auto 0">
       <h3>Entrar</h3>
       <label>E-mail</label>
@@ -387,7 +387,7 @@ function renderAdmin(){
   const pendentesCount = STATE.tickets.filter(t=>ticketResult(t)==='pending').length;
   app.innerHTML = `
     <div class="brand">
-      <div><span class="mark">BET WIN</span></div>
+      <div>${renderBrandMark()}</div>
       <button class="btn-ghost btn-sm" onclick="doLogout()">Sair</button>
     </div>
     <div class="tabs">
@@ -1617,9 +1617,31 @@ function roundRect(ctx,x,y,w,h,r){
 const LOGO_STORAGE_KEY = 'boletim_logo_dataurl';
 const LOGO_SHAPE_KEY = 'boletim_logo_shape';
 const BG_STORAGE_KEY = 'boletim_bg_dataurl';
+const DASHBOARD_LOGO_KEY = 'boletim_dashboard_logo_dataurl';
 let PENDING_LOGO_DATAURL = null;
 let PENDING_LOGO_SHAPE = 'round';
 let PENDING_BG_DATAURL = null;
+
+function renderBrandMark(){
+  const saved = localStorage.getItem(DASHBOARD_LOGO_KEY);
+  if(saved) return `<img src="${saved}" style="height:32px;max-width:200px;object-fit:contain;display:block;">`;
+  return `<span class="mark">BET WIN</span>`;
+}
+function handleDashboardLogoUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    localStorage.setItem(DASHBOARD_LOGO_KEY, ev.target.result);
+    render();
+  };
+  reader.readAsDataURL(file);
+}
+function removeDashboardLogo(){
+  if(!confirm('Remover a logo da dashboard e voltar a usar o texto "BET WIN"?')) return;
+  localStorage.removeItem(DASHBOARD_LOGO_KEY);
+  render();
+}
 
 function handleLogoUpload(e){
   const file = e.target.files[0];
@@ -1730,7 +1752,18 @@ function renderConfigTab(){
   const savedLogo = localStorage.getItem(LOGO_STORAGE_KEY);
   const savedLogoShape = localStorage.getItem(LOGO_SHAPE_KEY) || 'round';
   const savedBg = localStorage.getItem(BG_STORAGE_KEY);
+  const savedDashboardLogo = localStorage.getItem(DASHBOARD_LOGO_KEY);
   return `
+    <div class="card">
+      <h3>Logo da Dashboard</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:0">Aparece no topo do seu painel administrativo e na tela de login, no lugar do texto "BET WIN".</p>
+      ${savedDashboardLogo ? `<div style="height:48px;margin-bottom:14px;display:flex;align-items:center"><img src="${savedDashboardLogo}" style="max-height:100%;max-width:220px;object-fit:contain;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhuma logo configurada ainda — será usado o texto "BET WIN".</div>'}
+      <input type="file" id="dashboard-logo-file-input" accept="image/*" style="display:none" onchange="handleDashboardLogoUpload(event)">
+      <div class="row" style="margin-top:0">
+        <div><button class="btn-ghost btn-full" onclick="document.getElementById('dashboard-logo-file-input').click()">🖼️ ${savedDashboardLogo?'Trocar logo':'Enviar logo'}</button></div>
+        ${savedDashboardLogo ? `<div><button class="btn-danger-ghost btn-full" onclick="removeDashboardLogo()">Remover e usar padrão</button></div>` : ''}
+      </div>
+    </div>
     <div class="card">
       <h3>Logo do fechamento</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-top:0">Aparece no canto superior da imagem de fechamento gerada na Dashboard.</p>
