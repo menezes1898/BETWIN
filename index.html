@@ -1895,12 +1895,14 @@ async function gerarFechamento(clientId){
   const weekMonday = DASH_WEEK || mondayOf(todaySPStr);
   const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='void');
 
-  // Valor Jogado: total de todas as apostas da semana
+  // Valor Jogado: total de todas as apostas da semana (informativo, inclui pendentes — bate com "Volume" do Dashboard)
   const valorJogado = tickets.reduce((s,t)=>s+t.stake,0);
   // Acertos: valor apostado + lucro das apostas Green (retorno total)
   const acertos = tickets.filter(t=>ticketResult(t)==='green').reduce((s,t)=>s+t.stake*effectiveOdds(t),0);
-  // Subtotal: somente o lucro ou prejuízo da semana
-  const subtotal = acertos - valorJogado;
+  // Subtotal: usa o resultado real (ticketProfit) de cada aposta, que já conta ZERO pra apostas
+  // ainda pendentes — assim uma aposta não resolvida nunca é cobrada na semana fechada, fica de
+  // fora do saldo até ser decidida (mesma lógica usada no Dashboard e no Financeiro).
+  const subtotal = tickets.reduce((s,t)=>s+ticketProfit(t),0);
   // Desconto: só existe se o cliente tem desconto cadastrado, e incide só sobre o saldo da semana
   const descontoPct = getWeekDiscount(cl, weekMonday);
   const desconto = computeDescontoAmount(cl, subtotal, weekMonday);
