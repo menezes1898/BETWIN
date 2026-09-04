@@ -184,3 +184,12 @@
   .skeleton-line{height:14px;margin-bottom:10px;}
   .skeleton-card{height:90px;border-radius:var(--radius);margin-bottom:16px;}
 
+  /* ---------- Relatório do cliente/parceiro: extrato compacto (Fase 9) ---------- */
+  .ledger-nav-btn{background:transparent;border:none;color:var(--text-muted);width:28px;height:28px;border-radius:50%;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background-color .15s var(--ease), color .15s var(--ease);}
+  .ledger-nav-btn:hover{background:var(--surface-3);color:var(--text);}
+  .ledger-row{border-bottom:1px solid var(--line-soft);transition:background-color .12s var(--ease);border-radius:var(--radius-sm);}
+  .ledger-row:last-child{border-bottom:none;}
+  .ledger-row:hover{background:var(--surface-2);}
+  .ledger-disclosure{border-radius:var(--radius);background:var(--surface);cursor:pointer;transition:background-color .15s var(--ease);}
+  .ledger-disclosure:hover{background:var(--surface-2);}
+
