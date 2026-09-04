@@ -11,7 +11,9 @@ function renderFinanceiroTab(){
 
   if(!FINANCE_WEEK) FINANCE_WEEK = weeks[0] || mondayOf(todaySP());
 
-  // Situação por cliente: saldo CONTÍNUO (todas as semanas), some da lista só quando quitado
+  // Situação por cliente: saldo CONTÍNUO (todas as semanas), some da lista só quando quitado.
+  // Revisão: separa o que já é de semanas FECHADAS (anteriores à selecionada) do que é da
+  // semana em curso — que ainda pode mudar, pois pode ter apostas dela ainda pendentes.
   const rows = STATE.clients.map(cl=>{
     const remaining = computeContinuousBalance(cl.id, null);
     if(Math.abs(remaining) < 0.01) return null;
@@ -19,7 +21,11 @@ function renderFinanceiroTab(){
     const status = totalPaid>0 ? 'parcial' : 'pendente';
     const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===cl.id);
     const emAbertoAmount = openTransactions.reduce((s,x)=>s+x.amount,0);
-    return {id:cl.id, name:cl.name, remaining, totalPaid, status, emAbertoAmount};
+    const remainingAnterior = computeContinuousBalance(cl.id, FINANCE_WEEK);
+    const remainingSemanaAtual = remaining - remainingAnterior;
+    const pendentesCliente = STATE.tickets.filter(t=>t.clientId===cl.id && ticketResult(t)==='pending');
+    const pendentesValor = pendentesCliente.reduce((s,t)=>s+t.stake,0);
+    return {id:cl.id, name:cl.name, remaining, totalPaid, status, emAbertoAmount, remainingAnterior, remainingSemanaAtual, pendentesCount:pendentesCliente.length, pendentesValor};
   }).filter(Boolean);
 
   // Resumo: "A receber" é contínuo (soma de tudo que está pendente, de qualquer semana),
@@ -58,6 +64,7 @@ function renderFinanceiroTab(){
     </div>
     <div class="card">
       <h3>Situação por cliente <span style="font-size:12px;color:var(--text-muted);font-weight:400">(saldo contínuo — some só quando quitado)</span></h3>
+      <div style="margin-bottom:12px"><button class="btn-ghost btn-sm" onclick="exportSituacaoClientesCSV()">⬇ Exportar CSV</button></div>
       ${rows.length===0 ? '<div class="empty">Nenhum saldo pendente no momento.</div>' : rows.map(r=>`
         <div class="match-row" style="flex-wrap:nowrap;gap:10px">
           <div class="match-desc" style="flex:1;min-width:0;overflow:hidden">
@@ -66,6 +73,10 @@ function renderFinanceiroTab(){
               ${r.remaining>=0?'A receber':'A pagar'}
               ${r.emAbertoAmount ? ` (inclui saldo em aberto de ${fmtBRL(Math.abs(r.emAbertoAmount))})` : ''}
               ${r.status==='parcial' ? ` — já ${r.totalPaid>=0?'recebido':'pago'} ${fmtBRL(Math.abs(r.totalPaid))} no total` : ''}
+            </span>
+            <span class="meta" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;opacity:0.85">
+              Semanas anteriores: ${fmtBRL(r.remainingAnterior)} · Semana em curso: ${fmtBRL(r.remainingSemanaAtual)}
+              ${r.pendentesCount>0 ? ` · <span style="color:var(--gold)">${r.pendentesCount} pendente(s) de ${fmtBRL(r.pendentesValor)} ainda não entram nessa conta</span>` : ''}
             </span>
           </div>
           <div class="match-actions" style="flex-shrink:0;flex-wrap:nowrap;white-space:nowrap">
@@ -78,11 +89,162 @@ function renderFinanceiroTab(){
       `).join('')}
     </div>
     ${renderBaixasHistoricoSection()}
+    ${renderRelatorioPeriodoSection()}
     ${renderComissoesSection()}
     ${renderRetiradasSection()}
     ${renderLancamentosSection()}
   `;
 }
+// ---------- RELATÓRIO POR PERÍODO ----------
+// Sempre soma semana a semana, usando exatamente as mesmas funções de desconto/comissão
+// usadas no resto do sistema — evita relatório "diário" que corte o desconto/comissão de
+// forma errada (esses dois conceitos são calculados em cima do resultado da SEMANA inteira).
+function computeReportForWeekRange(startWeek, endWeek){
+  const weeks = allWeeksSorted().filter(w => w>=startWeek && w<=endWeek);
+  let volume=0, resultado=0, desconto=0, comissao=0;
+  const porCliente = {};
+  weeks.forEach(wk=>{
+    STATE.clients.forEach(cl=>{
+      const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && mondayOf(ticketDate(t))===wk && ticketResult(t)!=='void');
+      if(tickets.length===0) return;
+      const volumeC = tickets.reduce((s,t)=>s+t.stake,0);
+      const resultadoC = tickets.reduce((s,t)=>s+ticketProfit(t),0);
+      const descontoC = computeDescontoAmount(cl, resultadoC, wk);
+      const activeCommissioners = getActiveCommissionersForWeek(cl.id, wk);
+      const comissaoC = activeCommissioners.reduce((s,a)=>s+computeCommissionAmount(cl.id, a.percent, wk),0);
+      volume += volumeC; resultado += resultadoC; desconto += descontoC; comissao += comissaoC;
+      if(!porCliente[cl.id]) porCliente[cl.id] = {name:cl.name, volume:0, resultado:0, desconto:0, comissao:0};
+      porCliente[cl.id].volume += volumeC;
+      porCliente[cl.id].resultado += resultadoC;
+      porCliente[cl.id].desconto += descontoC;
+      porCliente[cl.id].comissao += comissaoC;
+    });
+  });
+  const liquido = -resultado - desconto - comissao; // perspectiva admin, igual ao resto do sistema
+  return {weeks, volume, resultado, desconto, comissao, liquido, porCliente};
+}
+function setReportPreset(preset){
+  const weeks = allWeeksSorted();
+  if(weeks.length===0) return;
+  const currentWeek = mondayOf(todaySP());
+  if(preset==='essa_semana'){
+    REPORT_WEEK_START = currentWeek; REPORT_WEEK_END = currentWeek;
+  } else if(preset==='4_semanas'){
+    REPORT_WEEK_END = weeks[0];
+    REPORT_WEEK_START = weeks[Math.min(3, weeks.length-1)];
+  } else if(preset==='esse_mes'){
+    const mesAtual = currentWeek.slice(0,7); // YYYY-MM
+    const doMes = weeks.filter(w=>w.slice(0,7)===mesAtual);
+    REPORT_WEEK_START = doMes[doMes.length-1] || weeks[weeks.length-1];
+    REPORT_WEEK_END = doMes[0] || weeks[0];
+  }
+  render();
+}
+function updateReportRange(){
+  REPORT_WEEK_START = document.getElementById('report-week-start').value;
+  REPORT_WEEK_END = document.getElementById('report-week-end').value;
+  render();
+}
+function csvEscape(v){
+  const s = String(v);
+  return /[",;\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function downloadCSV(filename, rows){
+  const content = rows.map(r=>r.map(csvEscape).join(';')).join('\n');
+  const blob = new Blob(['\uFEFF'+content], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportRelatorioCSV(){
+  const report = computeReportForWeekRange(REPORT_WEEK_START, REPORT_WEEK_END);
+  const rows = [['Cliente','Volume','Resultado','Desconto','Comissão']];
+  Object.values(report.porCliente).forEach(c=>{
+    rows.push([c.name, c.volume.toFixed(2), c.resultado.toFixed(2), c.desconto.toFixed(2), c.comissao.toFixed(2)]);
+  });
+  rows.push(['Total', report.volume.toFixed(2), report.resultado.toFixed(2), report.desconto.toFixed(2), report.comissao.toFixed(2)]);
+  downloadCSV(`relatorio_${REPORT_WEEK_START}_a_${REPORT_WEEK_END}.csv`, rows);
+}
+function exportSituacaoClientesCSV(){
+  const rows = [['Cliente','Saldo Total','Semanas Anteriores','Semana em Curso','Pendências (qtd)','Pendências (valor)']];
+  STATE.clients.forEach(cl=>{
+    const remaining = computeContinuousBalance(cl.id, null);
+    if(Math.abs(remaining) < 0.01) return;
+    const remainingAnterior = computeContinuousBalance(cl.id, FINANCE_WEEK);
+    const remainingSemanaAtual = remaining - remainingAnterior;
+    const pend = STATE.tickets.filter(t=>t.clientId===cl.id && ticketResult(t)==='pending');
+    const pendValor = pend.reduce((s,t)=>s+t.stake,0);
+    rows.push([cl.name, remaining.toFixed(2), remainingAnterior.toFixed(2), remainingSemanaAtual.toFixed(2), pend.length, pendValor.toFixed(2)]);
+  });
+  downloadCSV(`situacao_clientes_${todaySP()}.csv`, rows);
+}
+function renderRelatorioPeriodoSection(){
+  const weeks = allWeeksSorted();
+  if(weeks.length===0) return '';
+  if(!REPORT_WEEK_START) REPORT_WEEK_START = weeks[weeks.length-1];
+  if(!REPORT_WEEK_END) REPORT_WEEK_END = weeks[0];
+  const report = computeReportForWeekRange(REPORT_WEEK_START, REPORT_WEEK_END);
+  const clienteRows = Object.values(report.porCliente).sort((a,b)=>a.resultado-b.resultado);
+  return `
+    <div class="card" style="cursor:pointer" onclick="SHOW_RELATORIO_PERIODO=!SHOW_RELATORIO_PERIODO;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">RELATÓRIO POR PERÍODO</span>
+        <span style="font-family:var(--font-mono);font-size:14px" class="${report.liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(report.liquido)}</span>
+      </div>
+    </div>
+    ${SHOW_RELATORIO_PERIODO ? `
+    <div class="card">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn-ghost btn-sm" onclick="setReportPreset('essa_semana')">Essa semana</button>
+        <button class="btn-ghost btn-sm" onclick="setReportPreset('4_semanas')">Últimas 4 semanas</button>
+        <button class="btn-ghost btn-sm" onclick="setReportPreset('esse_mes')">Esse mês</button>
+      </div>
+      <div class="row">
+        <div>
+          <label>De (semana)</label>
+          <select id="report-week-start" onchange="updateReportRange()">
+            ${[...weeks].reverse().map(w=>`<option value="${w}" ${w===REPORT_WEEK_START?'selected':''}>${weekLabel(w)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Até (semana)</label>
+          <select id="report-week-end" onchange="updateReportRange()">
+            ${[...weeks].reverse().map(w=>`<option value="${w}" ${w===REPORT_WEEK_END?'selected':''}>${weekLabel(w)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="row" style="gap:22px;margin-top:16px">
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${fmtBRL(report.volume)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${-report.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(-report.resultado)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Desconto</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${fmtBRL(report.desconto)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Comissão</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px;color:var(--gold)">${fmtBRL(report.comissao)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${report.liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(report.liquido)}</div></div>
+      </div>
+      <div style="margin-top:16px"><button class="btn-ghost" onclick="exportRelatorioCSV()">⬇ Exportar CSV</button></div>
+    </div>
+    <div class="card">
+      <h3>Por cliente, no período</h3>
+      ${clienteRows.length===0 ? '<div class="empty">Nenhuma aposta nesse período.</div>' : `
+      <table>
+        <tr><th>Cliente</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Comissão</th></tr>
+        ${clienteRows.map(c=>`
+          <tr>
+            <td class="left">${c.name}</td>
+            <td class="num">${fmtBRL(c.volume)}</td>
+            <td class="num ${c.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(c.resultado)}</td>
+            <td class="num">${c.desconto>0?fmtBRL(c.desconto):'—'}</td>
+            <td class="num" style="${c.comissao>0?'color:var(--gold)':''}">${c.comissao>0?fmtBRL(c.comissao):'—'}</td>
+          </tr>
+        `).join('')}
+      </table>
+      `}
+    </div>
+    ` : ''}
+  `;
+}
+
 async function darBaixa(clientId, weekStart, remaining){
   const isReceber = remaining>=0;
   const label = isReceber ? 'Valor recebido agora' : 'Valor pago agora';
