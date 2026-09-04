@@ -66,6 +66,7 @@ function renderDashboardTab(){
     <div class="card">
       <h3>Por cliente</h3>
       ${rows.length===0 ? '<div class="empty">Nenhuma aposta nessa semana.</div>' : `
+      <div style="overflow-x:auto">
       <table>
         <tr><th>Cliente</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Comissão</th><th>Perf.</th><th>Líquido</th></tr>
         ${rows.map(r=>`
@@ -91,6 +92,7 @@ function renderDashboardTab(){
           <td class="num ${totalLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalLiquido)}</td>
         </tr>
       </table>
+      </div>
       `}
     </div>
   `;

@@ -66,8 +66,8 @@ function renderFinanceiroTab(){
       <h3>Situação por cliente <span style="font-size:12px;color:var(--text-muted);font-weight:400">(saldo contínuo — some só quando quitado)</span></h3>
       <div style="margin-bottom:12px"><button class="btn-ghost btn-sm" onclick="exportSituacaoClientesCSV()">⬇ Exportar CSV</button></div>
       ${rows.length===0 ? '<div class="empty">Nenhum saldo pendente no momento.</div>' : rows.map(r=>`
-        <div class="match-row" style="flex-wrap:nowrap;gap:10px">
-          <div class="match-desc" style="flex:1;min-width:0;overflow:hidden">
+        <div class="match-row" style="gap:10px">
+          <div class="match-desc" style="flex:1;min-width:220px;overflow:hidden">
             <span class="teams" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
             <span class="meta" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
               ${r.remaining>=0?'A receber':'A pagar'}
@@ -79,7 +79,7 @@ function renderFinanceiroTab(){
               ${r.pendentesCount>0 ? ` · <span style="color:var(--gold)">${r.pendentesCount} pendente(s) de ${fmtBRL(r.pendentesValor)} ainda não entram nessa conta</span>` : ''}
             </span>
           </div>
-          <div class="match-actions" style="flex-shrink:0;flex-wrap:nowrap;white-space:nowrap">
+          <div class="match-actions" style="flex-wrap:wrap">
             <span title="Saldo pendente acumulado, considerando todas as semanas e pagamentos já feitos" style="font-family:var(--font-mono);font-size:15px;font-weight:700;cursor:help;border-bottom:1px dotted currentColor" class="${r.remaining>=0?'profit-pos':'profit-neg'}">${fmtBRL(Math.abs(r.remaining))}</span>
             ${r.status==='parcial' ? `<span class="chip chip-pending">PARCIAL</span>` : `<span class="chip chip-pending">PENDENTE</span>`}
             <button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining})">Dar baixa</button>
@@ -227,6 +227,7 @@ function renderRelatorioPeriodoSection(){
     <div class="card">
       <h3>Por cliente, no período</h3>
       ${clienteRows.length===0 ? '<div class="empty">Nenhuma aposta nesse período.</div>' : `
+      <div style="overflow-x:auto">
       <table>
         <tr><th>Cliente</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Comissão</th></tr>
         ${clienteRows.map(c=>`
@@ -239,6 +240,7 @@ function renderRelatorioPeriodoSection(){
           </tr>
         `).join('')}
       </table>
+      </div>
       `}
     </div>
     ` : ''}
