@@ -85,7 +85,7 @@ function drawLogo(ctx){
 async function gerarFechamento(clientId){
   try{
   const cl = STATE.clients.find(c=>c.id===clientId);
-  if(!cl){ alert('Cliente não encontrado.'); return; }
+  if(!cl){ showToast('Cliente não encontrado.'); return; }
   const todaySPStr = todaySP();
   const weekMonday = DASH_WEEK || mondayOf(todaySPStr);
   const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekMonday && ticketResult(t)!=='void');
@@ -212,7 +212,7 @@ async function gerarFechamento(clientId){
   const dataUrl = canvas.toDataURL('image/png');
   showFechamentoPreview(dataUrl, cl.name, weekMonday);
   }catch(err){
-    alert('Erro ao gerar a imagem de fechamento: '+err.message);
+    showToast('Erro ao gerar a imagem de fechamento: '+err.message);
   }
 }
 function showFechamentoPreview(dataUrl, clientName, weekMonday){

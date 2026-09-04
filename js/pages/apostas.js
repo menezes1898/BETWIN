@@ -208,10 +208,10 @@ function renderTicketCard(ticket){
 async function setMatchResult(ticketId, matchId, result){
   const ticket = STATE.tickets.find(t=>t.id===ticketId);
   const match = ticket.matches.find(m=>m.id===matchId);
-  if(!match || match.result!=='pending'){ alert('Esse resultado já foi definido. Para alterar, use Editar aposta.'); render(); return; }
+  if(!match || match.result!=='pending'){ showToast('Esse resultado já foi definido. Para alterar, use Editar aposta.'); render(); return; }
   match.result = result;
   const {error} = await supabaseClient.from('tickets').update({matches: ticket.matches}).eq('id', ticketId);
-  if(error){ alert('Erro ao salvar resultado: '+error.message); match.result='pending'; return; }
+  if(error){ showToast('Erro ao salvar resultado: '+error.message); match.result='pending'; return; }
   render();
 }
 function setDraftMatchResult(matchId, result){
@@ -221,7 +221,7 @@ function setDraftMatchResult(matchId, result){
 async function deleteTicket(ticketId){
   if(!confirm('Excluir esta aposta?')) return;
   const {error} = await supabaseClient.from('tickets').delete().eq('id', ticketId);
-  if(error){ alert('Erro ao excluir aposta: '+error.message); return; }
+  if(error){ showToast('Erro ao excluir aposta: '+error.message); return; }
   STATE.tickets = STATE.tickets.filter(t=>t.id!==ticketId);
   render();
 }
@@ -253,7 +253,7 @@ async function duplicateTicket(ticketId){
   const {data, error} = await supabaseClient.from('tickets').insert({
     client_id: ticket.clientId, date: ticket.date, time: ticket.time, stake: ticket.stake, odds: ticket.odds, matches: newMatches
   }).select().single();
-  if(error){ alert('Erro ao duplicar aposta: '+error.message); return; }
+  if(error){ showToast('Erro ao duplicar aposta: '+error.message); return; }
   STATE.tickets.push({
     id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
     stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
@@ -282,17 +282,17 @@ async function saveTicket(){
   const stake = parseFloat(document.getElementById('ticket-stake').value);
   const oddsRaw = document.getElementById('ticket-odds').value;
   const odds = oddsRaw ? parseFloat(oddsRaw) : null;
-  if(!clientId){ alert('Digite e selecione o cliente na lista.'); return; }
-  if(!date || !time){ alert('Informe a data e o horário do bilhete.'); return; }
-  if(!stake || stake<=0){ alert('Informe o valor da aposta.'); return; }
-  if(odds!==null && isNaN(odds)){ alert('Odd inválida.'); return; }
-  if(!DRAFT.matches.length){ alert('Adicione ao menos uma partida.'); return; }
+  if(!clientId){ showToast('Digite e selecione o cliente na lista.'); return; }
+  if(!date || !time){ showToast('Informe a data e o horário do bilhete.'); return; }
+  if(!stake || stake<=0){ showToast('Informe o valor da aposta.'); return; }
+  if(odds!==null && isNaN(odds)){ showToast('Odd inválida.'); return; }
+  if(!DRAFT.matches.length){ showToast('Adicione ao menos uma partida.'); return; }
 
   if(EDITING_TICKET_ID){
     const {data, error} = await supabaseClient.from('tickets').update({
       client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
     }).eq('id', EDITING_TICKET_ID).select().single();
-    if(error){ alert('Erro ao salvar aposta: '+error.message); return; }
+    if(error){ showToast('Erro ao salvar aposta: '+error.message); return; }
     const idx = STATE.tickets.findIndex(t=>t.id===EDITING_TICKET_ID);
     const updated = {
       id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
@@ -304,7 +304,7 @@ async function saveTicket(){
     const {data, error} = await supabaseClient.from('tickets').insert({
       client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
     }).select().single();
-    if(error){ alert('Erro ao salvar aposta: '+error.message); return; }
+    if(error){ showToast('Erro ao salvar aposta: '+error.message); return; }
     STATE.tickets.push({
       id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
       stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
@@ -447,18 +447,18 @@ function addDraftMatch(){
   const market = document.getElementById('match-market').value;
   const selection = document.getElementById('match-selection').value.trim();
   const odd = parseFloat(document.getElementById('match-odd').value);
-  if(!selection){ alert('Informe a seleção (ex: Casa, Over 2.5, Sim).'); return; }
-  if(!odd && odd!==0 || isNaN(odd)){ alert('Informe a odd da seleção.'); return; }
+  if(!selection){ showToast('Informe a seleção (ex: Casa, Over 2.5, Sim).'); return; }
+  if(!odd && odd!==0 || isNaN(odd)){ showToast('Informe a odd da seleção.'); return; }
 
   let home, away, date, time;
   if(semEvento){
     const desc = document.getElementById('match-manual-desc').value.trim();
-    if(!desc){ alert('Informe a descrição da aposta de longo prazo.'); return; }
+    if(!desc){ showToast('Informe a descrição da aposta de longo prazo.'); return; }
     home = desc; away = '';
   } else {
     home = document.getElementById('match-home').value.trim();
     away = document.getElementById('match-away').value.trim();
-    if(!home || !away){ alert('Informe os dois times.'); return; }
+    if(!home || !away){ showToast('Informe os dois times.'); return; }
   }
   date = DRAFT.date || todaySP();
   time = DRAFT.time || null;

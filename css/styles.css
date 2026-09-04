@@ -165,3 +165,22 @@
     .row{gap:14px;}
     .client-page-wrap{margin:-18px -14px -50px;padding:18px 14px 50px;}
   }
+
+  /* ---------- Notificações (toast) ---------- */
+  #toast-container{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:100%;padding:0 16px;}
+  .toast{
+    pointer-events:auto;cursor:pointer;max-width:420px;background:var(--surface-3);border:1px solid var(--line);
+    border-left:3px solid var(--gold);color:var(--text);font-size:13.5px;font-weight:500;
+    padding:12px 16px;border-radius:var(--radius-sm);box-shadow:var(--shadow-md);
+    opacity:0;transform:translateY(12px);transition:opacity .25s var(--ease), transform .25s var(--ease);
+  }
+  .toast-show{opacity:1;transform:translateY(0);}
+  .toast-error{border-left-color:var(--red);}
+  .toast-success{border-left-color:var(--green);}
+
+  /* ---------- Skeleton (carregamento inicial) ---------- */
+  .skeleton{background:linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);background-size:200% 100%;animation:skeleton-pulse 1.4s ease-in-out infinite;border-radius:var(--radius-sm);}
+  @keyframes skeleton-pulse{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+  .skeleton-line{height:14px;margin-bottom:10px;}
+  .skeleton-card{height:90px;border-radius:var(--radius);margin-bottom:16px;}
+

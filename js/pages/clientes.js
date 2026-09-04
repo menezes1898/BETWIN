@@ -244,15 +244,15 @@ async function editWeekDiscount(clientId, weekStart, currentPct){
   const input = prompt('Desconto (%) só pra essa semana — não muda o padrão nem outras semanas:', currentPct);
   if(input===null) return;
   const pct = parseFloat(String(input).replace(',','.'));
-  if(isNaN(pct) || pct<0){ alert('Valor inválido.'); return; }
+  if(isNaN(pct) || pct<0){ showToast('Valor inválido.'); return; }
   const existing = STATE.clientWeekDiscounts.find(o=>o.clientId===clientId && o.weekStart===weekStart);
   if(existing){
     const {error} = await supabaseClient.from('client_week_discount').update({discount_percent: pct}).eq('id', existing.id);
-    if(error){ alert('Erro ao salvar: '+error.message); return; }
+    if(error){ showToast('Erro ao salvar: '+error.message); return; }
     existing.discountPercent = pct;
   } else {
     const {data, error} = await supabaseClient.from('client_week_discount').insert({client_id: clientId, week_start: weekStart, discount_percent: pct}).select().single();
-    if(error){ alert('Erro ao salvar: '+error.message); return; }
+    if(error){ showToast('Erro ao salvar: '+error.message); return; }
     STATE.clientWeekDiscounts.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, discountPercent:parseFloat(data.discount_percent)||0});
   }
   render();
@@ -317,16 +317,16 @@ function cancelWeekCommEdit(){
 async function saveWeekCommEdit(){
   const {clientId, weekStart, list} = WEEK_COMM_EDIT;
   const {error: delError} = await supabaseClient.from('client_week_commissioners').delete().eq('client_id', clientId).eq('week_start', weekStart);
-  if(delError){ alert('Erro ao salvar: '+delError.message); return; }
+  if(delError){ showToast('Erro ao salvar: '+delError.message); return; }
   STATE.clientWeekCommissioners = STATE.clientWeekCommissioners.filter(o=>!(o.clientId===clientId && o.weekStart===weekStart));
   if(list.length===0){
     const {data, error} = await supabaseClient.from('client_week_commissioners').insert({client_id: clientId, week_start: weekStart, commissioner_id: null, percent: null}).select().single();
-    if(error){ alert('Erro ao salvar: '+error.message); return; }
+    if(error){ showToast('Erro ao salvar: '+error.message); return; }
     STATE.clientWeekCommissioners.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, commissionerId:null, percent:null});
   } else {
     for(const item of list){
       const {data, error} = await supabaseClient.from('client_week_commissioners').insert({client_id: clientId, week_start: weekStart, commissioner_id: item.commissionerId, percent: item.percent}).select().single();
-      if(error){ alert('Erro ao salvar: '+error.message); return; }
+      if(error){ showToast('Erro ao salvar: '+error.message); return; }
       STATE.clientWeekCommissioners.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, commissionerId:data.commissioner_id, percent:data.percent!=null?parseFloat(data.percent):null});
     }
   }
@@ -338,16 +338,16 @@ async function saveClientDetail(id){
   const phone = document.getElementById('detail-client-phone').value.trim();
   const discount = Math.max(0, Math.min(100, parseFloat(document.getElementById('detail-client-discount').value)||0));
   const isDescarga = document.getElementById('detail-client-descarga').checked;
-  if(!name){ alert('Informe o nome do cliente.'); return; }
+  if(!name){ showToast('Informe o nome do cliente.'); return; }
   const {error} = await supabaseClient.from('clients').update({name, phone, discount, is_descarga: isDescarga}).eq('id', id);
-  if(error){ alert('Erro ao salvar cliente: '+error.message); return; }
+  if(error){ showToast('Erro ao salvar cliente: '+error.message); return; }
   const cl = STATE.clients.find(c=>c.id===id);
   const discountChanged = cl && cl.discount !== discount;
   if(cl){ cl.name=name; cl.phone=phone; cl.discount=discount; cl.isDescarga=isDescarga; }
   if(discountChanged){
     const effectiveFromWeek = mondayOf(todaySP());
     const {data, error: histError} = await supabaseClient.from('client_discount_history').insert({client_id: id, discount_percent: discount, effective_from_week: effectiveFromWeek}).select().single();
-    if(histError){ alert('Cliente salvo, mas houve erro ao registrar a mudança de desconto na linha do tempo: '+histError.message); }
+    if(histError){ showToast('Cliente salvo, mas houve erro ao registrar a mudança de desconto na linha do tempo: '+histError.message); }
     else{
       STATE.clientDiscountHistory.push({id:data.id, clientId:data.client_id, discountPercent:parseFloat(data.discount_percent)||0, effectiveFromWeek:data.effective_from_week||null});
     }
@@ -363,7 +363,7 @@ async function addClient(){
   if(!name) return;
   const code = uid()+uid();
   const {data, error} = await supabaseClient.from('clients').insert({name, code, discount, phone, is_descarga: isDescarga}).select().single();
-  if(error){ alert('Erro ao salvar cliente: '+error.message); return; }
+  if(error){ showToast('Erro ao salvar cliente: '+error.message); return; }
   STATE.clients.push({id:data.id, name:data.name, code:data.code, discount:data.discount||0, phone:data.phone||'', isDescarga:data.is_descarga||false});
   const {data: histData, error: histError} = await supabaseClient.from('client_discount_history').insert({client_id: data.id, discount_percent: discount, effective_from_week: null}).select().single();
   if(!histError && histData){
@@ -374,13 +374,13 @@ async function addClient(){
 async function setClientDiscount(id, value){
   const discount = Math.max(0, Math.min(100, parseFloat(value)||0));
   const {error} = await supabaseClient.from('clients').update({discount}).eq('id', id);
-  if(error){ alert('Erro ao salvar desconto: '+error.message); return; }
+  if(error){ showToast('Erro ao salvar desconto: '+error.message); return; }
   const cl = STATE.clients.find(c=>c.id===id);
   if(cl) cl.discount = discount;
 }
 async function deleteClient(id){
   const {error} = await supabaseClient.from('clients').delete().eq('id', id);
-  if(error){ alert('Erro ao remover cliente: '+error.message); return; }
+  if(error){ showToast('Erro ao remover cliente: '+error.message); return; }
   STATE.clients = STATE.clients.filter(c=>c.id!==id);
   CLIENT_DETAIL_ID = null;
   CONFIRM_DELETE_CLIENT = false;

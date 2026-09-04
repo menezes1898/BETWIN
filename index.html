@@ -6,7 +6,11 @@
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-<div id="app"><div class="empty">Carregando…</div></div>
+<div id="app">
+  <div class="skeleton skeleton-line" style="width:140px;height:24px;margin-bottom:24px"></div>
+  <div class="skeleton skeleton-card"></div>
+  <div class="skeleton skeleton-card" style="height:180px"></div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="js/state.js"></script>
 <script src="js/data-layer.js"></script>

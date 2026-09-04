@@ -252,10 +252,10 @@ async function darBaixa(clientId, weekStart, remaining){
   const input = prompt(`${label} (falta ${fmtBRL(Math.abs(remaining))}):`, defaultVal);
   if(input===null) return;
   const val = parseFloat(String(input).replace(',','.'));
-  if(isNaN(val) || val<=0){ alert('Valor inválido.'); return; }
+  if(isNaN(val) || val<=0){ showToast('Valor inválido.'); return; }
   const amount = isReceber ? val : -val;
   const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount}).select().single();
-  if(error){ alert('Erro ao dar baixa: '+error.message); return; }
+  if(error){ showToast('Erro ao dar baixa: '+error.message); return; }
   STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at});
   render();
 }
@@ -265,7 +265,7 @@ async function desfazerUltimaBaixa(clientId){
   if(!last) return;
   if(!confirm('Desfazer a última baixa registrada para esse cliente?')) return;
   const {error} = await supabaseClient.from('settlements').delete().eq('id', last.id);
-  if(error){ alert('Erro ao desfazer baixa: '+error.message); return; }
+  if(error){ showToast('Erro ao desfazer baixa: '+error.message); return; }
   STATE.settlements = STATE.settlements.filter(s=>s.id!==last.id);
   render();
 }
@@ -306,7 +306,7 @@ function renderBaixasHistoricoSection(){
 async function excluirBaixa(settlementId){
   if(!confirm('Excluir esse registro de baixa? Isso reabre o valor correspondente como pendente.')) return;
   const {error} = await supabaseClient.from('settlements').delete().eq('id', settlementId);
-  if(error){ alert('Erro ao excluir baixa: '+error.message); return; }
+  if(error){ showToast('Erro ao excluir baixa: '+error.message); return; }
   STATE.settlements = STATE.settlements.filter(s=>s.id!==settlementId);
   render();
 }
@@ -358,13 +358,13 @@ function renderComissoesSection(){
   `;
 }
 async function registrarPagamentoComissao(commissionerId, name, amount, weekMonday){
-  if(amount<=0){ alert('Não há comissão a pagar essa semana pra esse comissionado.'); return; }
+  if(amount<=0){ showToast('Não há comissão a pagar essa semana pra esse comissionado.'); return; }
   if(!confirm(`Registrar pagamento de ${fmtBRL(amount)} de comissão pra ${name}? Isso entra como uma despesa no seu financeiro.`)) return;
   const description = `Comissão — ${name} (semana ${weekLabel(weekMonday)})`;
   const {data, error} = await supabaseClient.from('transactions').insert({
     type:'despesa', category:'Comissão', description, amount, date: todaySP()
   }).select().single();
-  if(error){ alert('Erro ao registrar pagamento: '+error.message); return; }
+  if(error){ showToast('Erro ao registrar pagamento: '+error.message); return; }
   STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null});
   await pruneTransactions();
   render();
@@ -412,16 +412,16 @@ function renderRetiradasSection(){
 async function addWithdrawal(){
   const amount = parseFloat(document.getElementById('new-withdrawal-amount').value);
   const description = document.getElementById('new-withdrawal-desc').value.trim();
-  if(!amount || amount<=0){ alert('Informe o valor da retirada.'); return; }
+  if(!amount || amount<=0){ showToast('Informe o valor da retirada.'); return; }
   const {data, error} = await supabaseClient.from('withdrawals').insert({amount, description}).select().single();
-  if(error){ alert('Erro ao registrar retirada: '+error.message); return; }
+  if(error){ showToast('Erro ao registrar retirada: '+error.message); return; }
   STATE.withdrawals.push({id:data.id, amount:parseFloat(data.amount), description:data.description||'', createdAt:data.created_at});
   render();
 }
 async function deleteWithdrawal(id){
   if(!confirm('Excluir esse registro de retirada?')) return;
   const {error} = await supabaseClient.from('withdrawals').delete().eq('id', id);
-  if(error){ alert('Erro ao excluir retirada: '+error.message); return; }
+  if(error){ showToast('Erro ao excluir retirada: '+error.message); return; }
   STATE.withdrawals = STATE.withdrawals.filter(w=>w.id!==id);
   render();
 }
@@ -530,7 +530,7 @@ function selectTransactionClientOption(id){
 }
 async function marcarComoRecebido(id){
   const {error} = await supabaseClient.from('transactions').update({type:'receita'}).eq('id', id);
-  if(error){ alert('Erro ao atualizar: '+error.message); return; }
+  if(error){ showToast('Erro ao atualizar: '+error.message); return; }
   const t = STATE.transactions.find(x=>x.id===id);
   if(t) t.type = 'receita';
   render();
@@ -542,10 +542,10 @@ async function addTransaction(){
   const description = document.getElementById('new-transaction-desc').value.trim();
   const amount = parseFloat(document.getElementById('new-transaction-amount').value);
   const date = document.getElementById('new-transaction-date').value;
-  if(!date){ alert('Informe a data.'); return; }
-  if(!amount || amount<=0){ alert('Informe o valor.'); return; }
+  if(!date){ showToast('Informe a data.'); return; }
+  if(!amount || amount<=0){ showToast('Informe o valor.'); return; }
   const {data, error} = await supabaseClient.from('transactions').insert({type, category, description, amount, date, client_id: clientId}).select().single();
-  if(error){ alert('Erro ao registrar lançamento: '+error.message); return; }
+  if(error){ showToast('Erro ao registrar lançamento: '+error.message); return; }
   STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null});
   await pruneTransactions();
   render();
@@ -564,7 +564,7 @@ async function pruneTransactions(){
 async function deleteTransaction(id){
   if(!confirm('Excluir esse lançamento?')) return;
   const {error} = await supabaseClient.from('transactions').delete().eq('id', id);
-  if(error){ alert('Erro ao excluir lançamento: '+error.message); return; }
+  if(error){ showToast('Erro ao excluir lançamento: '+error.message); return; }
   STATE.transactions = STATE.transactions.filter(t=>t.id!==id);
   render();
 }

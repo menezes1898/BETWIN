@@ -134,23 +134,23 @@ async function addCommissioner(){
   if(!name) return;
   const code = uid()+uid();
   const {data, error} = await supabaseClient.from('commissioners').insert({name, phone, code}).select().single();
-  if(error){ alert('Erro ao salvar comissionado: '+error.message); return; }
+  if(error){ showToast('Erro ao salvar comissionado: '+error.message); return; }
   STATE.commissioners.push({id:data.id, name:data.name, phone:data.phone||'', code:data.code||''});
   render();
 }
 async function saveCommissionerDetail(id){
   const name = document.getElementById('detail-commissioner-name').value.trim();
   const phone = document.getElementById('detail-commissioner-phone').value.trim();
-  if(!name){ alert('Informe o nome.'); return; }
+  if(!name){ showToast('Informe o nome.'); return; }
   const {error} = await supabaseClient.from('commissioners').update({name, phone}).eq('id', id);
-  if(error){ alert('Erro ao salvar: '+error.message); return; }
+  if(error){ showToast('Erro ao salvar: '+error.message); return; }
   const cm = STATE.commissioners.find(c=>c.id===id);
   if(cm){ cm.name=name; cm.phone=phone; }
   render();
 }
 async function deleteCommissioner(id){
   const {error} = await supabaseClient.from('commissioners').delete().eq('id', id);
-  if(error){ alert('Erro ao excluir: '+error.message); return; }
+  if(error){ showToast('Erro ao excluir: '+error.message); return; }
   STATE.commissioners = STATE.commissioners.filter(c=>c.id!==id);
   STATE.commissionerClients = STATE.commissionerClients.filter(cc=>cc.commissionerId!==id);
   COMMISSIONER_DETAIL_ID = null;
@@ -182,11 +182,11 @@ function selectLinkClientOption(id){
 async function addCommissionLink(commissionerId){
   const clientId = document.getElementById('new-link-client-id').value;
   const percent = parseFloat(document.getElementById('new-link-percent').value);
-  if(!clientId){ alert('Busque e selecione um cliente na lista.'); return; }
-  if(isNaN(percent) || percent<0){ alert('Informe a porcentagem.'); return; }
+  if(!clientId){ showToast('Busque e selecione um cliente na lista.'); return; }
+  if(isNaN(percent) || percent<0){ showToast('Informe a porcentagem.'); return; }
   const effectiveFromWeek = mondayOf(todaySP());
   const {data, error} = await supabaseClient.from('commissioner_clients').insert({commissioner_id: commissionerId, client_id: clientId, percent, effective_from_week: effectiveFromWeek}).select().single();
-  if(error){ alert('Erro ao vincular cliente: '+error.message); return; }
+  if(error){ showToast('Erro ao vincular cliente: '+error.message); return; }
   STATE.commissionerClients.push({id:data.id, commissionerId:data.commissioner_id, clientId:data.client_id, percent:parseFloat(data.percent)||0, effectiveFromWeek:data.effective_from_week||null});
   render();
 }
@@ -196,17 +196,17 @@ async function editCommissionLinkPercent(linkId){
   const input = prompt('Nova porcentagem (%) a partir de agora (semanas passadas mantêm a % antiga):', link.percent);
   if(input===null) return;
   const percent = parseFloat(String(input).replace(',','.'));
-  if(isNaN(percent) || percent<0){ alert('Valor inválido.'); return; }
+  if(isNaN(percent) || percent<0){ showToast('Valor inválido.'); return; }
   const effectiveFromWeek = mondayOf(todaySP());
   const {data, error} = await supabaseClient.from('commissioner_clients').insert({commissioner_id: link.commissionerId, client_id: link.clientId, percent, effective_from_week: effectiveFromWeek}).select().single();
-  if(error){ alert('Erro ao atualizar: '+error.message); return; }
+  if(error){ showToast('Erro ao atualizar: '+error.message); return; }
   STATE.commissionerClients.push({id:data.id, commissionerId:data.commissioner_id, clientId:data.client_id, percent:parseFloat(data.percent)||0, effectiveFromWeek:data.effective_from_week||null});
   render();
 }
 async function removeCommissionLink(linkId){
   if(!confirm('Remover esse vínculo?')) return;
   const {error} = await supabaseClient.from('commissioner_clients').delete().eq('id', linkId);
-  if(error){ alert('Erro ao remover: '+error.message); return; }
+  if(error){ showToast('Erro ao remover: '+error.message); return; }
   STATE.commissionerClients = STATE.commissionerClients.filter(l=>l.id!==linkId);
   render();
 }

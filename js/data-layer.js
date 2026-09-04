@@ -13,7 +13,7 @@ async function loadState(){
       supabaseClient.from('client_discount_history').select('*')
     ]);
     if(err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10){
-      alert('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9||err10).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
+      showToast('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9||err10).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
       return;
     }
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false}));
@@ -45,7 +45,7 @@ async function loadState(){
       id:h.id, clientId:h.client_id, discountPercent:parseFloat(h.discount_percent)||0, effectiveFromWeek:h.effective_from_week||null
     }));
   }catch(e){
-    alert('Erro ao conectar no Supabase: '+e.message);
+    showToast('Erro ao conectar no Supabase: '+e.message);
   }
 }
 

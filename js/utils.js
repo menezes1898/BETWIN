@@ -92,4 +92,29 @@ function allWeeksSorted(){
   return Array.from(set).sort().reverse();
 }
 
+// ---------- NOTIFICAÇÕES (TOAST) ----------
+// Substitui o alert() nativo do navegador por uma notificação discreta, que some sozinha.
+function showToast(message, type){
+  if(!type){
+    type = /erro|inválid|falhou|obrigat[oó]ri/i.test(message) ? 'error' : 'success';
+  }
+  let container = document.getElementById('toast-container');
+  if(!container){
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-'+type;
+  toast.textContent = message;
+  container.appendChild(toast);
+  requestAnimationFrame(()=> toast.classList.add('toast-show'));
+  const remove = ()=>{
+    toast.classList.remove('toast-show');
+    setTimeout(()=>{ toast.remove(); }, 250);
+  };
+  const timer = setTimeout(remove, type==='error' ? 5500 : 3200);
+  toast.onclick = ()=>{ clearTimeout(timer); remove(); };
+}
+
 // ---------- ROOT RENDER ----------
