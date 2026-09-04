@@ -47,12 +47,12 @@ function renderCommissionerView(code){
     <div class="card">
       <h3>Seus indicados</h3>
       ${rows.length===0 ? '<div class="empty">Nenhum indicado com apostas nessa semana.</div>' : rows.map(r=>`
-        <div class="match-row" style="flex-wrap:nowrap;gap:10px">
-          <div class="match-desc" style="flex:1;min-width:0;overflow:hidden">
+        <div class="match-row" style="gap:10px">
+          <div class="match-desc" style="flex:1;min-width:180px;overflow:hidden">
             <span class="teams" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
             <span class="meta" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Volume ${fmtBRL(r.volume)} · resultado <span class="${r.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.resultado)}</span> · ${r.percent}% de comissão</span>
           </div>
-          <span style="font-family:var(--font-mono);font-size:15px;font-weight:700;flex-shrink:0;color:var(--gold)">${fmtBRL(r.comissao)}</span>
+          <span style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--gold)">${fmtBRL(r.comissao)}</span>
         </div>
       `).join('')}
     </div>
