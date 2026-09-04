@@ -44,7 +44,7 @@ function updateClientSearch(){
 function openClientDetail(id){
   CLIENT_DETAIL_ID = id;
   CONFIRM_DELETE_CLIENT = false;
-  CLIENT_DETAIL_SUBVIEW = 'info';
+  CLIENT_DETAIL_SUBVIEW = 'painel';
   render();
 }
 function renderClientDetail(id){
@@ -62,10 +62,11 @@ function renderClientDetail(id){
       <span class="chip ${resultadoGeral>=0?'chip-green':'chip-red'}">${resultadoGeral>=0?'+':''}${fmtBRL(resultadoGeral)} no total</span>
     </div>
     <div class="tabs" style="margin-bottom:16px">
-      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='info'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='info';render()">Informações</div>
+      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='painel'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='painel';render()">Painel</div>
       <div class="tab ${CLIENT_DETAIL_SUBVIEW==='semanas'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='semanas';render()">Semanas</div>
+      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='info'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='info';render()">Editar</div>
     </div>
-    ${CLIENT_DETAIL_SUBVIEW==='semanas' ? renderClientWeeksList(cl) : `
+    ${CLIENT_DETAIL_SUBVIEW==='semanas' ? renderClientWeeksList(cl) : CLIENT_DETAIL_SUBVIEW==='painel' ? renderClientPanel(cl) : `
     <div class="card" style="display:flex;padding:0">
       <div style="flex:1;text-align:center;padding:1rem 0.5rem">
         <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume total (interno)</div>
@@ -111,6 +112,63 @@ function renderClientDetail(id){
       </div>
     `}
     `}
+  `;
+}
+function renderClientPanel(cl){
+  const clientTickets = STATE.tickets.filter(t=>t.clientId===cl.id);
+  const volumeGeral = clientTickets.reduce((s,t)=>s+t.stake,0);
+  const resultadoGeral = clientTickets.reduce((s,t)=>s+ticketProfit(t),0);
+  const pendentes = clientTickets.filter(t=>ticketResult(t)==='pending');
+  const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
+  const resolvidas = clientTickets.filter(t=>{const r=ticketResult(t); return r==='green'||r==='red';});
+  const greens = resolvidas.filter(t=>ticketResult(t)==='green').length;
+  const percAcerto = resolvidas.length>0 ? (greens/resolvidas.length*100) : 0;
+  const saldoDevedor = computeContinuousBalance(cl.id); // positivo = cliente deve pra você
+  const ordenadas = [...clientTickets].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const ultimaAtividade = ordenadas[0] || null;
+  const recentes = ordenadas.slice(0,6);
+
+  function statCard(label, value, colorClass){
+    return `
+      <div class="card" style="margin-bottom:0;padding:16px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:600">${label}</div>
+        <div style="font-family:var(--font-mono);font-size:19px;font-weight:700;margin-top:7px" class="${colorClass||''}">${value}</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
+      ${statCard('Lucro/Prejuízo', fmtBRL(resultadoGeral), resultadoGeral>=0?'profit-pos':'profit-neg')}
+      ${statCard('Volume Apostado', fmtBRL(volumeGeral))}
+      ${statCard('Qtd. de Apostas', clientTickets.length)}
+      ${statCard('% de Acerto', percAcerto.toFixed(1)+'%')}
+      ${statCard('Pendências', pendentes.length+' <span style="font-size:12px;color:var(--text-muted)">('+fmtBRL(pendentesValor)+')</span>')}
+      ${statCard('Saldo Devedor Atual', fmtBRL(saldoDevedor), saldoDevedor>0.01?'profit-neg':(saldoDevedor<-0.01?'profit-pos':''))}
+    </div>
+    <div class="card">
+      <h3>Última atividade</h3>
+      ${ultimaAtividade ? `<div style="font-size:13px">${fmtDate(ultimaAtividade.date)}${ultimaAtividade.time?' às '+ultimaAtividade.time:''} · #${ultimaAtividade.ticketNumber||'—'} · ${fmtBRL(ultimaAtividade.stake)}</div>` : '<div class="empty">Nenhuma aposta registrada ainda.</div>'}
+    </div>
+    <div class="card">
+      <h3>Histórico recente</h3>
+      ${recentes.length===0 ? '<div class="empty">Nenhuma aposta ainda.</div>' : recentes.map(t=>{
+        const r = ticketResult(t);
+        const profit = ticketProfit(t);
+        return `
+          <div class="match-row">
+            <div class="match-desc">
+              <span class="teams">#${t.ticketNumber||'—'} · ${fmtDate(t.date)}${t.time?' '+t.time:''}</span>
+              <span class="meta">${fmtBRL(t.stake)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              ${resultChip(r)}
+              <span style="font-family:var(--font-mono);font-size:12.5px;font-weight:700" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</span>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
   `;
 }
 function renderClientWeeksList(cl){
