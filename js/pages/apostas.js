@@ -15,12 +15,80 @@ function renderPendentesTab(){
 }
 
 // ---------- APOSTAS TAB ----------
+const TICKETS_PAGE_SIZE = 15;
+
+function computeFilteredTickets(){
+  let list = [...STATE.tickets];
+  if(TICKET_FILTER !== 'todas') list = list.filter(t=>ticketResult(t)===TICKET_FILTER);
+  const searchEl = document.getElementById('ticket-search-input');
+  const val = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  if(val){
+    list = list.filter(t=>{
+      const cl = STATE.clients.find(c=>c.id===t.clientId);
+      const clientName = cl ? cl.name.toLowerCase() : '';
+      const num = String(t.ticketNumber||'');
+      return num.includes(val) || clientName.includes(val);
+    });
+  }
+  if(TICKET_SORT==='recentes') list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  else if(TICKET_SORT==='antigas') list.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||''));
+  else if(TICKET_SORT==='maior_valor') list.sort((a,b)=>b.stake-a.stake);
+  else if(TICKET_SORT==='menor_valor') list.sort((a,b)=>a.stake-b.stake);
+  return list;
+}
+function renderPaginationControls(totalItems){
+  const totalPages = Math.max(1, Math.ceil(totalItems/TICKETS_PAGE_SIZE));
+  if(TICKET_PAGE > totalPages) TICKET_PAGE = totalPages;
+  if(totalPages<=1) return '';
+  return `
+    <div style="display:flex;justify-content:center;align-items:center;gap:10px;margin-top:14px">
+      <button class="btn-ghost btn-sm" ${TICKET_PAGE<=1?'disabled':''} onclick="goToTicketPage(${TICKET_PAGE-1})">‹ Anterior</button>
+      <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">Página ${TICKET_PAGE} de ${totalPages}</span>
+      <button class="btn-ghost btn-sm" ${TICKET_PAGE>=totalPages?'disabled':''} onclick="goToTicketPage(${TICKET_PAGE+1})">Próxima ›</button>
+    </div>
+  `;
+}
+function refreshTicketList(resetPage){
+  if(resetPage) TICKET_PAGE = 1;
+  const filtered = computeFilteredTickets();
+  const start = (TICKET_PAGE-1)*TICKETS_PAGE_SIZE;
+  const pageItems = filtered.slice(start, start+TICKETS_PAGE_SIZE);
+  const container = document.getElementById('ticket-list-container');
+  if(container) container.innerHTML = renderTicketListItems(pageItems);
+  const countEl = document.getElementById('ticket-count-label');
+  if(countEl) countEl.textContent = filtered.length + (filtered.length===1 ? ' aposta encontrada' : ' apostas encontradas');
+  const pagContainer = document.getElementById('ticket-pagination-container');
+  if(pagContainer) pagContainer.innerHTML = renderPaginationControls(filtered.length);
+}
+function goToTicketPage(p){
+  TICKET_PAGE = p;
+  refreshTicketList(false);
+  document.getElementById('ticket-list-container')?.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function setTicketFilter(f){
+  TICKET_FILTER = f;
+  TICKET_PAGE = 1;
+  render();
+}
+function setTicketSort(s){
+  TICKET_SORT = s;
+  TICKET_PAGE = 1;
+  render();
+}
+
 function renderApostasTab(){
   if(ADMIN_SUBVIEW==='wizard') return renderWizard();
 
-  const ticketsSorted = [...STATE.tickets].sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
   const pendentes = STATE.tickets.filter(t=>ticketResult(t)==='pending');
   const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
+
+  const filtered = computeFilteredTickets();
+  const start = (TICKET_PAGE-1)*TICKETS_PAGE_SIZE;
+  const pageItems = filtered.slice(start, start+TICKETS_PAGE_SIZE);
+
+  const filterChips = [
+    ['todas','Todas'], ['green','Green'], ['red','Red'], ['pending','Pendente'], ['void','Anulada']
+  ];
 
   return `
     <button class="btn-primary btn-full" onclick="startNewTicket()">+ Nova Aposta</button>
@@ -51,10 +119,27 @@ function renderApostasTab(){
     <div class="card">
       <label>Buscar aposta (nº ou nome do cliente)</label>
       <input type="text" id="ticket-search-input" placeholder="Ex: 42 ou nome do cliente" oninput="updateTicketSearch()">
+      <label>Filtrar por resultado</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${filterChips.map(([val,label])=>`
+          <button class="btn-ghost btn-sm" style="${TICKET_FILTER===val?'background:var(--gold-soft);color:var(--gold);border-color:var(--gold-dim)':''}" onclick="setTicketFilter('${val}')">${label}</button>
+        `).join('')}
+      </div>
+      <label>Ordenar por</label>
+      <select id="ticket-sort-select" onchange="setTicketSort(this.value)">
+        <option value="recentes" ${TICKET_SORT==='recentes'?'selected':''}>Mais recentes</option>
+        <option value="antigas" ${TICKET_SORT==='antigas'?'selected':''}>Mais antigas</option>
+        <option value="maior_valor" ${TICKET_SORT==='maior_valor'?'selected':''}>Maior valor</option>
+        <option value="menor_valor" ${TICKET_SORT==='menor_valor'?'selected':''}>Menor valor</option>
+      </select>
     </div>
     <div class="card">
-      <h3>Apostas cadastradas</h3>
-      <div id="ticket-list-container">${renderTicketListItems(ticketsSorted)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <h3 style="margin:0">Apostas cadastradas</h3>
+        <span id="ticket-count-label" style="font-size:12px;color:var(--text-muted)">${filtered.length} ${filtered.length===1?'aposta encontrada':'apostas encontradas'}</span>
+      </div>
+      <div id="ticket-list-container">${renderTicketListItems(pageItems)}</div>
+      <div id="ticket-pagination-container">${renderPaginationControls(filtered.length)}</div>
     </div>
   `;
 }
@@ -62,15 +147,7 @@ function renderTicketListItems(list){
   return list.length===0 ? '<div class="empty">Nenhuma aposta encontrada.</div>' : list.map(renderTicketCard).join('');
 }
 function updateTicketSearch(){
-  const val = document.getElementById('ticket-search-input').value.trim().toLowerCase();
-  const ticketsSorted = [...STATE.tickets].sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
-  const filtered = !val ? ticketsSorted : ticketsSorted.filter(t=>{
-    const cl = STATE.clients.find(c=>c.id===t.clientId);
-    const clientName = cl ? cl.name.toLowerCase() : '';
-    const num = String(t.ticketNumber||'');
-    return num.includes(val) || clientName.includes(val);
-  });
-  document.getElementById('ticket-list-container').innerHTML = renderTicketListItems(filtered);
+  refreshTicketList(true);
 }
 function ticketDetailsShort(ticket){
   return ticket.matches.map(m=>{
