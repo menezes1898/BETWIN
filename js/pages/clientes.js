@@ -171,6 +171,25 @@ function renderClientPanel(cl){
     </div>
   `;
 }
+// Marca uma semana específica como paga — usa exatamente o mesmo mecanismo de "settlements"
+// que o "Dar baixa" do Financeiro já usa. Por isso fica automaticamente interligado: entra
+// no caixa (aba Caixa) e reduz o saldo devedor contínuo do cliente (aba Clientes), sem
+// precisar de nenhuma lógica nova ou separada.
+async function markWeekAsPaid(clientId, weekStart, weekOwedAmount){
+  const isReceber = weekOwedAmount>=0;
+  const label = isReceber ? 'Valor recebido dessa semana' : 'Valor pago dessa semana';
+  const defaultVal = Math.abs(weekOwedAmount).toFixed(2).replace('.',',');
+  const input = prompt(`${label} (a semana ${isReceber?'gerou':'ficou devendo'} ${fmtBRL(Math.abs(weekOwedAmount))}):`, defaultVal);
+  if(input===null) return;
+  const val = parseFloat(String(input).replace(',','.'));
+  if(isNaN(val) || val<=0){ showToast('Valor inválido.'); return; }
+  const amount = isReceber ? val : -val;
+  const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount}).select().single();
+  if(error){ showToast('Erro ao marcar como pago: '+error.message); return; }
+  STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at, excluded:false});
+  showToast('Semana marcada como paga!');
+  render();
+}
 function renderClientWeeksList(cl){
   const weeksSet = new Set(STATE.tickets.filter(t=>t.clientId===cl.id).map(t=>mondayOf(ticketDate(t))));
   const weeks = Array.from(weeksSet).sort().reverse();
@@ -192,6 +211,10 @@ function renderClientWeeksList(cl){
       const cm = STATE.commissioners.find(x=>x.id===c.commissionerId);
       return `<span class="chip" style="background:var(--gold-dim);color:var(--gold)">${cm?cm.name:'?'} ${c.percent}%</span>`;
     }).join(' ') || '<span style="color:var(--text-muted);font-size:12px">Nenhum</span>';
+    // Quanto já foi registrado como pago/recebido especificamente marcado nessa semana
+    // (informativo — o saldo devedor real do cliente é sempre o contínuo, na aba Financeiro).
+    const pagoNaSemana = STATE.settlements.filter(s=>s.clientId===cl.id && s.weekStart===wk && !s.excluded).reduce((s,x)=>s+x.amount,0);
+    const weekOwed = -liquido; // perspectiva admin: positivo = você deve receber dessa semana
 
     return `
       <div class="card">
@@ -232,8 +255,14 @@ function renderClientWeeksList(cl){
             </div>
           </div>
           <div style="grid-column:1 / -1;border-top:1px solid var(--line);padding-top:10px;margin-top:2px">
-            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px">Líquido do cliente</div>
-            <div style="font-family:var(--font-mono);font-size:17px;font-weight:700;margin-top:3px" class="${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+              <div>
+                <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px">Líquido do cliente</div>
+                <div style="font-family:var(--font-mono);font-size:17px;font-weight:700;margin-top:3px" class="${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
+                ${pagoNaSemana!==0 ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px">Já registrado nessa semana: ${fmtBRL(pagoNaSemana)}</div>` : ''}
+              </div>
+              <button class="btn-ghost btn-sm" onclick="markWeekAsPaid('${cl.id}','${wk}',${weekOwed})">Marcar como pago</button>
+            </div>
           </div>
         </div>
       </div>

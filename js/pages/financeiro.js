@@ -1,25 +1,119 @@
-function caixaTotalCalc(){
-  const entradasClientes = STATE.settlements.reduce((s,x)=>s+x.amount,0);
-  const retiradas = STATE.withdrawals.reduce((s,x)=>s+x.amount,0);
-  const receitas = STATE.transactions.filter(t=>t.type==='receita').reduce((s,x)=>s+x.amount,0);
-  const despesas = STATE.transactions.filter(t=>t.type==='despesa').reduce((s,x)=>s+x.amount,0);
-  return entradasClientes - retiradas + receitas - despesas;
-}
 function renderFinanceiroTab(){
   const weeks = allWeeksSorted();
-  const caixaTotal = caixaTotalCalc();
-
   if(!FINANCE_WEEK) FINANCE_WEEK = weeks[0] || mondayOf(todaySP());
+  return `
+    <div class="tabs" style="margin-bottom:16px">
+      <div class="tab ${FINANCE_TAB==='caixa'?'active':''}" onclick="FINANCE_TAB='caixa';render()">Caixa</div>
+      <div class="tab ${FINANCE_TAB==='clientes'?'active':''}" onclick="FINANCE_TAB='clientes';render()">Clientes</div>
+      <div class="tab ${FINANCE_TAB==='relatorios'?'active':''}" onclick="FINANCE_TAB='relatorios';render()">Relatórios</div>
+    </div>
+    ${FINANCE_TAB==='caixa' ? renderCaixaTab() : FINANCE_TAB==='clientes' ? renderClientesFinanceiroTab() : renderRelatoriosFinanceiroTab()}
+  `;
+}
 
-  // Situação por cliente: saldo CONTÍNUO (todas as semanas), some da lista só quando quitado.
-  // Revisão: separa o que já é de semanas FECHADAS (anteriores à selecionada) do que é da
-  // semana em curso — que ainda pode mudar, pois pode ter apostas dela ainda pendentes.
+// ==================== ABA CAIXA ====================
+// Só a parte financeira real: o que já entrou ou saiu de verdade. Nada de projeção
+// (a receber/a pagar não entram aqui — isso é da aba Clientes).
+function renderCaixaTab(){
+  const caixaTotal = caixaTotalCalc();
+  const saldoAnterior = computeCaixaBeforeWeek(FINANCE_WEEK);
+  const mov = computeCaixaMovementForWeek(FINANCE_WEEK);
+  const saldoSemana = saldoAnterior + mov.liquido;
+
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Caixa Atual (acumulado)</div>
+          <div style="font-family:var(--font-mono);font-size:26px;font-weight:700;margin-top:4px" class="${caixaTotal>=0?'profit-pos':'profit-neg'}">${fmtBRL(caixaTotal)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="btn-ghost btn-sm" onclick="changeFinanceWeek(-1)">‹</button>
+          <span style="font-family:var(--font-mono);font-size:13px;font-weight:600">${weekLabel(FINANCE_WEEK)}</span>
+          <button class="btn-ghost btn-sm" onclick="changeFinanceWeek(1)">›</button>
+        </div>
+      </div>
+      <div class="row" style="gap:22px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft)">
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Saldo Anterior</div><div style="font-family:var(--font-mono);font-size:16px;margin-top:4px" class="${saldoAnterior>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldoAnterior)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Entradas da Semana</div><div style="font-family:var(--font-mono);font-size:16px;margin-top:4px" class="profit-pos">${fmtBRL(mov.entradas)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Saídas da Semana</div><div style="font-family:var(--font-mono);font-size:16px;margin-top:4px" class="profit-neg">${fmtBRL(mov.saidas)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Saldo da Semana</div><div style="font-family:var(--font-mono);font-size:16px;font-weight:700;margin-top:4px" class="${saldoSemana>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldoSemana)}</div></div>
+      </div>
+    </div>
+    ${renderMovimentacoesSection()}
+    ${renderRetiradasSection()}
+    ${renderLancamentosSection()}
+  `;
+}
+
+// Histórico unificado de TUDO que é dinheiro de verdade (baixas de cliente, retiradas,
+// receitas e despesas) — em ordem cronológica, com as excluídas visíveis (auditoria),
+// marcadas e com opção de restaurar.
+function renderMovimentacoesSection(){
+  const all = getAllCaixaMovements();
+  const visible = SHOW_EXCLUIDAS ? all : all.filter(m=>!m.excluded);
+  const excludedCount = all.filter(m=>m.excluded).length;
+  const kindLabel = {baixa:'Baixa de cliente', retirada:'Retirada', receita:'Receita', despesa:'Despesa'};
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Histórico de Movimentações</h3>
+        ${excludedCount>0 ? `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;text-transform:none;font-size:12px;color:var(--text-muted)"><input type="checkbox" style="width:auto" ${SHOW_EXCLUIDAS?'checked':''} onchange="SHOW_EXCLUIDAS=this.checked;render()"> Mostrar excluídas (${excludedCount})</label>` : ''}
+      </div>
+      <div style="margin-top:12px">
+        ${visible.length===0 ? '<div class="empty">Nenhuma movimentação registrada ainda.</div>' : visible.map(m=>{
+          const cl = m.clientId ? STATE.clients.find(c=>c.id===m.clientId) : null;
+          let desc = kindLabel[m.kind];
+          if(m.kind==='baixa') desc += cl ? ' — '+cl.name : '';
+          else if(m.description) desc += ' — '+m.description;
+          if(m.category) desc += ' ('+m.category+')';
+          return `
+          <div class="match-row" style="${m.excluded?'opacity:0.5':''}">
+            <div class="match-desc">
+              <span class="teams">${desc}${m.excluded?' <span class="chip chip-void">EXCLUÍDA</span>':''}</span>
+              <span class="meta">${fmtDate(m.date)}${m.kind==='baixa'&&m.weekStart?' · semana de '+weekLabel(m.weekStart):''}</span>
+            </div>
+            <div class="match-actions">
+              <span style="font-family:var(--font-mono);font-size:13px" class="${m.amount>=0?'profit-pos':'profit-neg'}">${m.amount>=0?'+':'-'}${fmtBRL(Math.abs(m.amount))}</span>
+              ${m.excluded
+                ? `<button class="btn-ghost btn-sm" onclick="restaurarMovimentacao('${m.kind}','${m.id}')">Restaurar</button>`
+                : `<button class="btn-danger-ghost btn-sm" onclick="excluirMovimentacao('${m.kind}','${m.id}')">Excluir</button>`}
+            </div>
+          </div>
+        `;}).join('')}
+      </div>
+    </div>
+  `;
+}
+async function excluirMovimentacao(kind, id){
+  if(!confirm('Excluir essa movimentação? Ela sai do caixa, mas continua no histórico marcada como excluída (você pode restaurar depois).')) return;
+  const table = kind==='baixa' ? 'settlements' : kind==='retirada' ? 'withdrawals' : 'transactions';
+  const {error} = await supabaseClient.from(table).update({excluded:true}).eq('id', id);
+  if(error){ showToast('Erro ao excluir: '+error.message); return; }
+  const list = kind==='baixa' ? STATE.settlements : kind==='retirada' ? STATE.withdrawals : STATE.transactions;
+  const item = list.find(x=>x.id===id);
+  if(item) item.excluded = true;
+  render();
+}
+async function restaurarMovimentacao(kind, id){
+  const table = kind==='baixa' ? 'settlements' : kind==='retirada' ? 'withdrawals' : 'transactions';
+  const {error} = await supabaseClient.from(table).update({excluded:false}).eq('id', id);
+  if(error){ showToast('Erro ao restaurar: '+error.message); return; }
+  const list = kind==='baixa' ? STATE.settlements : kind==='retirada' ? STATE.withdrawals : STATE.transactions;
+  const item = list.find(x=>x.id===id);
+  if(item) item.excluded = false;
+  render();
+}
+
+// ==================== ABA CLIENTES ====================
+// Só o que é dívida/crédito com cliente (projeção — ainda não é caixa até virar baixa).
+function renderClientesFinanceiroTab(){
   const rows = STATE.clients.map(cl=>{
     const remaining = computeContinuousBalance(cl.id, null);
     if(Math.abs(remaining) < 0.01) return null;
     const totalPaid = getAllSettlementsForClient(cl.id);
     const status = totalPaid>0 ? 'parcial' : 'pendente';
-    const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===cl.id);
+    const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===cl.id && !t.excluded);
     const emAbertoAmount = openTransactions.reduce((s,x)=>s+x.amount,0);
     const remainingAnterior = computeContinuousBalance(cl.id, FINANCE_WEEK);
     const remainingSemanaAtual = remaining - remainingAnterior;
@@ -28,9 +122,6 @@ function renderFinanceiroTab(){
     return {id:cl.id, name:cl.name, remaining, totalPaid, status, emAbertoAmount, remainingAnterior, remainingSemanaAtual, pendentesCount:pendentesCliente.length, pendentesValor};
   }).filter(Boolean);
 
-  // Resumo: "A receber" é contínuo (soma de tudo que está pendente, de qualquer semana),
-  // já que clientes às vezes atrasam. "A pagar" é só da semana selecionada, pois pagamentos
-  // pra quem ganha são sempre feitos em dia.
   const receberContinuo = rows.filter(r=>r.remaining>0).reduce((s,r)=>s+r.remaining,0);
 
   const weekTicketsByClient = {};
@@ -49,7 +140,7 @@ function renderFinanceiroTab(){
   return `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <h3 style="margin:0">Financeiro</h3>
+        <h3 style="margin:0">Clientes</h3>
         <div style="display:flex;align-items:center;gap:14px">
           <button class="btn-ghost btn-sm" onclick="changeFinanceWeek(-1)">‹</button>
           <span style="font-family:var(--font-mono);font-size:13px;font-weight:600">${weekLabel(FINANCE_WEEK)}</span>
@@ -57,7 +148,6 @@ function renderFinanceiroTab(){
         </div>
       </div>
       <div class="row" style="gap:22px">
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Caixa (total acumulado)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${caixaTotal>=0?'profit-pos':'profit-neg'}">${fmtBRL(caixaTotal)}</div></div>
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A receber (total pendente)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-pos">${fmtBRL(receberContinuo)}</div></div>
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">A pagar nessa semana</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-neg">${fmtBRL(pagarSemana)}</div></div>
       </div>
@@ -88,13 +178,15 @@ function renderFinanceiroTab(){
         </div>
       `).join('')}
     </div>
-    ${renderBaixasHistoricoSection()}
-    ${renderRelatorioPeriodoSection()}
     ${renderComissoesSection()}
-    ${renderRetiradasSection()}
-    ${renderLancamentosSection()}
   `;
 }
+
+// ==================== ABA RELATÓRIOS ====================
+function renderRelatoriosFinanceiroTab(){
+  return renderRelatorioPeriodoSection();
+}
+
 // ---------- RELATÓRIO POR PERÍODO ----------
 // Sempre soma semana a semana, usando exatamente as mesmas funções de desconto/comissão
 // usadas no resto do sistema — evita relatório "diário" que corte o desconto/comissão de
@@ -182,20 +274,14 @@ function exportSituacaoClientesCSV(){
 }
 function renderRelatorioPeriodoSection(){
   const weeks = allWeeksSorted();
-  if(weeks.length===0) return '';
+  if(weeks.length===0) return '<div class="card"><div class="empty">Cadastre apostas para ver relatórios.</div></div>';
   if(!REPORT_WEEK_START) REPORT_WEEK_START = weeks[weeks.length-1];
   if(!REPORT_WEEK_END) REPORT_WEEK_END = weeks[0];
   const report = computeReportForWeekRange(REPORT_WEEK_START, REPORT_WEEK_END);
   const clienteRows = Object.values(report.porCliente).sort((a,b)=>a.resultado-b.resultado);
   return `
-    <div class="card" style="cursor:pointer" onclick="SHOW_RELATORIO_PERIODO=!SHOW_RELATORIO_PERIODO;render()">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="chip chip-pending">RELATÓRIO POR PERÍODO</span>
-        <span style="font-family:var(--font-mono);font-size:14px" class="${report.liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(report.liquido)}</span>
-      </div>
-    </div>
-    ${SHOW_RELATORIO_PERIODO ? `
     <div class="card">
+      <h3>Relatório por período</h3>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
         <button class="btn-ghost btn-sm" onclick="setReportPreset('essa_semana')">Essa semana</button>
         <button class="btn-ghost btn-sm" onclick="setReportPreset('4_semanas')">Últimas 4 semanas</button>
@@ -243,7 +329,6 @@ function renderRelatorioPeriodoSection(){
       </div>
       `}
     </div>
-    ` : ''}
   `;
 }
 
@@ -258,62 +343,21 @@ async function darBaixa(clientId, weekStart, remaining){
   const amount = isReceber ? val : -val;
   const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount}).select().single();
   if(error){ showToast('Erro ao dar baixa: '+error.message); return; }
-  STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at});
+  STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at, excluded:false});
+  showToast('Baixa registrada com sucesso!');
   render();
 }
 async function desfazerUltimaBaixa(clientId){
-  const list = STATE.settlements.filter(s=>s.clientId===clientId).sort((a,b)=>a.paidAt.localeCompare(b.paidAt));
+  const list = STATE.settlements.filter(s=>s.clientId===clientId && !s.excluded).sort((a,b)=>a.paidAt.localeCompare(b.paidAt));
   const last = list[list.length-1];
   if(!last) return;
-  if(!confirm('Desfazer a última baixa registrada para esse cliente?')) return;
-  const {error} = await supabaseClient.from('settlements').delete().eq('id', last.id);
+  if(!confirm('Desfazer a última baixa registrada para esse cliente? (fica marcada como excluída, dá pra restaurar depois)')) return;
+  const {error} = await supabaseClient.from('settlements').update({excluded:true}).eq('id', last.id);
   if(error){ showToast('Erro ao desfazer baixa: '+error.message); return; }
-  STATE.settlements = STATE.settlements.filter(s=>s.id!==last.id);
+  last.excluded = true;
   render();
 }
 
-// ---------- HISTÓRICO DE BAIXAS ----------
-function renderBaixasHistoricoSection(){
-  const list = [...STATE.settlements].sort((a,b)=>(b.paidAt||'').localeCompare(a.paidAt||''));
-  const totalBaixas = list.reduce((s,x)=>s+x.amount,0);
-  return `
-    <div class="card" style="cursor:pointer" onclick="SHOW_BAIXAS_HISTORICO=!SHOW_BAIXAS_HISTORICO;render()">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="chip chip-pending">HISTÓRICO DE BAIXAS</span>
-        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${list.length} registro(s)</span>
-      </div>
-    </div>
-    ${SHOW_BAIXAS_HISTORICO ? `
-    <div class="card">
-      ${list.length===0 ? '<div class="empty">Nenhuma baixa registrada ainda.</div>' : list.map(s=>{
-        const cl = STATE.clients.find(c=>c.id===s.clientId);
-        const data = s.paidAt ? new Date(s.paidAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-        return `
-          <div class="match-row">
-            <div class="match-desc">
-              <span class="teams">${cl?cl.name:'Cliente removido'}</span>
-              <span class="meta">${data} · semana de ${weekLabel(s.weekStart)} · ${s.amount>=0?'recebido':'pago ao cliente'}</span>
-            </div>
-            <div class="match-actions">
-              <span style="font-family:var(--font-mono);font-size:13px" class="${s.amount>=0?'profit-pos':'profit-neg'}">${s.amount>=0?'+':'-'}${fmtBRL(Math.abs(s.amount))}</span>
-              <button class="btn-danger-ghost btn-sm" onclick="excluirBaixa('${s.id}')">Excluir</button>
-            </div>
-          </div>
-        `;
-      }).join('')}
-    </div>
-    ` : ''}
-  `;
-}
-async function excluirBaixa(settlementId){
-  if(!confirm('Excluir esse registro de baixa? Isso reabre o valor correspondente como pendente.')) return;
-  const {error} = await supabaseClient.from('settlements').delete().eq('id', settlementId);
-  if(error){ showToast('Erro ao excluir baixa: '+error.message); return; }
-  STATE.settlements = STATE.settlements.filter(s=>s.id!==settlementId);
-  render();
-}
-
-// ---------- RETIRADAS ----------
 // ---------- COMISSÕES ----------
 function renderComissoesSection(){
   const weekMonday = FINANCE_WEEK || mondayOf(todaySP());
@@ -361,21 +405,21 @@ function renderComissoesSection(){
 }
 async function registrarPagamentoComissao(commissionerId, name, amount, weekMonday){
   if(amount<=0){ showToast('Não há comissão a pagar essa semana pra esse comissionado.'); return; }
-  if(!confirm(`Registrar pagamento de ${fmtBRL(amount)} de comissão pra ${name}? Isso entra como uma despesa no seu financeiro.`)) return;
+  if(!confirm(`Registrar pagamento de ${fmtBRL(amount)} de comissão pra ${name}? Isso entra como uma despesa no seu caixa.`)) return;
   const description = `Comissão — ${name} (semana ${weekLabel(weekMonday)})`;
   const {data, error} = await supabaseClient.from('transactions').insert({
     type:'despesa', category:'Comissão', description, amount, date: todaySP()
   }).select().single();
   if(error){ showToast('Erro ao registrar pagamento: '+error.message); return; }
-  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null});
+  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null, excluded:false});
   await pruneTransactions();
   render();
 }
 
+// ---------- RETIRADAS ----------
 function renderRetiradasSection(){
-  const caixaTotal = caixaTotalCalc();
-  const list = [...STATE.withdrawals].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  const totalRetiradas = STATE.withdrawals.reduce((s,x)=>s+x.amount,0);
+  const list = [...STATE.withdrawals].filter(w=>!w.excluded).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const totalRetiradas = list.reduce((s,x)=>s+x.amount,0);
   return `
     <div class="card" style="cursor:pointer" onclick="SHOW_RETIRADAS=!SHOW_RETIRADAS;render()">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -385,28 +429,12 @@ function renderRetiradasSection(){
     </div>
     ${SHOW_RETIRADAS ? `
     <div class="card">
-      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Caixa disponível</div>
-      <div style="font-family:var(--font-mono);font-size:22px;margin-top:4px" class="${caixaTotal>=0?'profit-pos':'profit-neg'}">${fmtBRL(caixaTotal)}</div>
-    </div>
-    <div class="card">
       <h3>Nova retirada</h3>
       <label>Valor</label>
       <input type="number" id="new-withdrawal-amount" step="0.01" placeholder="Valor (ex: 500,00)">
       <label>Descrição (opcional)</label>
       <input type="text" id="new-withdrawal-desc" placeholder="Ex: Retirada pessoal">
       <div style="margin-top:14px"><button class="btn-primary" onclick="addWithdrawal()">Registrar retirada</button></div>
-    </div>
-    <div class="card">
-      <h3>Histórico de retiradas</h3>
-      ${list.length===0 ? '<div class="empty">Nenhuma retirada registrada ainda.</div>' : list.map(w=>`
-        <div class="match-row">
-          <div class="match-desc">
-            <span class="teams">${fmtBRL(w.amount)}</span>
-            <span class="meta">${w.createdAt ? new Date(w.createdAt).toLocaleDateString('pt-BR') : ''}${w.description?' · '+w.description:''}</span>
-          </div>
-          <button class="btn-danger-ghost btn-sm" onclick="deleteWithdrawal('${w.id}')">Excluir</button>
-        </div>
-      `).join('')}
     </div>
     ` : ''}
   `;
@@ -417,59 +445,36 @@ async function addWithdrawal(){
   if(!amount || amount<=0){ showToast('Informe o valor da retirada.'); return; }
   const {data, error} = await supabaseClient.from('withdrawals').insert({amount, description}).select().single();
   if(error){ showToast('Erro ao registrar retirada: '+error.message); return; }
-  STATE.withdrawals.push({id:data.id, amount:parseFloat(data.amount), description:data.description||'', createdAt:data.created_at});
+  STATE.withdrawals.push({id:data.id, amount:parseFloat(data.amount), description:data.description||'', createdAt:data.created_at, excluded:false});
+  showToast('Retirada registrada!');
   render();
 }
 async function deleteWithdrawal(id){
-  if(!confirm('Excluir esse registro de retirada?')) return;
-  const {error} = await supabaseClient.from('withdrawals').delete().eq('id', id);
+  if(!confirm('Excluir esse registro de retirada? (fica marcado como excluído, dá pra restaurar depois)')) return;
+  const {error} = await supabaseClient.from('withdrawals').update({excluded:true}).eq('id', id);
   if(error){ showToast('Erro ao excluir retirada: '+error.message); return; }
-  STATE.withdrawals = STATE.withdrawals.filter(w=>w.id!==id);
+  const w = STATE.withdrawals.find(x=>x.id===id);
+  if(w) w.excluded = true;
   render();
 }
 
-// ---------- DESPESAS E RECEITAS ----------
+// ---------- SALDO EM ABERTO (dívida antiga, não conta no caixa) ----------
 function renderLancamentosSection(){
-  const receitas = STATE.transactions.filter(t=>t.type==='receita');
-  const despesas = STATE.transactions.filter(t=>t.type==='despesa');
-  const emAberto = STATE.transactions.filter(t=>t.type==='em_aberto');
-  const totalReceitas = receitas.reduce((s,x)=>s+x.amount,0);
-  const totalDespesas = despesas.reduce((s,x)=>s+x.amount,0);
+  const emAberto = STATE.transactions.filter(t=>t.type==='em_aberto' && !t.excluded);
   const totalEmAberto = emAberto.reduce((s,x)=>s+x.amount,0);
-  const saldo = totalReceitas - totalDespesas;
-  const list = [...STATE.transactions].sort((a,b)=> (b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
 
   return `
     <div class="card" style="cursor:pointer" onclick="SHOW_LANCAMENTOS=!SHOW_LANCAMENTOS;render()">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="chip chip-pending">DESPESAS E RECEITAS</span>
-        <span style="font-family:var(--font-mono);font-size:14px" class="${saldo>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldo)}</span>
+        <span class="chip chip-pending">SALDO EM ABERTO <span style="opacity:0.7">(não conta no caixa)</span></span>
+        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(totalEmAberto)}</span>
       </div>
     </div>
     ${SHOW_LANCAMENTOS ? `
     <div class="card">
-      <div class="row" style="gap:22px">
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Receitas</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-pos">${fmtBRL(totalReceitas)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Despesas</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="profit-neg">${fmtBRL(totalDespesas)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Em aberto</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px;color:var(--gold)">${fmtBRL(totalEmAberto)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Saldo (recebido)</div><div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${saldo>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldo)}</div></div>
-      </div>
-    </div>
-    <div class="card">
-      <h3>Novo lançamento</h3>
-      <div class="row">
-        <div><label>Tipo</label>
-          <select id="new-transaction-type">
-            <option value="receita">Receita</option>
-            <option value="despesa">Despesa</option>
-            <option value="em_aberto">Em Aberto (saldo pendente do cliente)</option>
-          </select>
-        </div>
-        <div><label>Data</label><input type="date" id="new-transaction-date" value="${todaySP()}"></div>
-      </div>
-      <label>Categoria (opcional)</label>
-      <input type="text" id="new-transaction-category" placeholder="Ex: Sistema, Funcionário, Comissão, Marketing…">
-      <label>Vincular a um cliente (opcional)</label>
+      <h3>Registrar saldo em aberto</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:0">Pra corrigir uma dívida antiga de um cliente que não veio de apostas registradas aqui. Isso entra na conta do cliente, mas <strong>não</strong> é dinheiro de verdade no caixa até você dar baixa nele.</p>
+      <label>Cliente</label>
       <div class="autocomplete-wrap">
         <input type="text" id="new-transaction-client-search" placeholder="Buscar cliente…" autocomplete="off"
           oninput="filterTransactionClientOptions()" onfocus="filterTransactionClientOptions()" onkeydown="handleAutocompleteKeydown(event,'transaction-client-options')"
@@ -478,28 +483,27 @@ function renderLancamentosSection(){
         <div id="transaction-client-options" class="autocomplete-list"></div>
       </div>
       <label>Descrição</label>
-      <input type="text" id="new-transaction-desc" placeholder="Ex: Saldo antigo, serviço adquirido…">
+      <input type="text" id="new-transaction-desc" placeholder="Ex: Saldo antigo de antes do sistema">
       <label>Valor</label>
       <input type="number" id="new-transaction-amount" step="0.01" placeholder="Valor (ex: 150,00)">
-      <div style="margin-top:14px"><button class="btn-primary" onclick="addTransaction()">Registrar lançamento</button></div>
+      <input type="hidden" id="new-transaction-type" value="em_aberto">
+      <input type="hidden" id="new-transaction-category" value="">
+      <input type="hidden" id="new-transaction-date" value="${todaySP()}">
+      <div style="margin-top:14px"><button class="btn-primary" onclick="addTransaction()">Registrar</button></div>
     </div>
     <div class="card">
-      <h3>Histórico <span style="font-size:12px;color:var(--text-muted);font-weight:400">(últimos ${Math.min(list.length,100)} de no máximo 100)</span></h3>
-      ${list.length===0 ? '<div class="empty">Nenhum lançamento registrado ainda.</div>' : list.map(t=>{
+      <h3>Em aberto — histórico</h3>
+      ${emAberto.length===0 ? '<div class="empty">Nenhum saldo em aberto registrado.</div>' : emAberto.map(t=>{
         const linkedClient = t.clientId ? STATE.clients.find(c=>c.id===t.clientId) : null;
-        const registradoEm = t.createdAt ? new Date(t.createdAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-        const typeLabel = t.type==='receita' ? 'Receita' : t.type==='despesa' ? 'Despesa' : 'Em Aberto';
-        const valueColor = t.type==='receita' ? 'profit-pos' : t.type==='despesa' ? 'profit-neg' : '';
-        const valueSign = t.type==='despesa' ? '-' : '+';
         return `
         <div class="match-row">
           <div class="match-desc">
-            <span class="teams">${t.description || typeLabel}${linkedClient?' — '+linkedClient.name:''}${t.type==='em_aberto'?' <span class="chip chip-pending" style="margin-left:4px">EM ABERTO</span>':''}</span>
-            <span class="meta">${fmtDate(t.date)}${t.category?' · '+t.category:''} · registrado em ${registradoEm}</span>
+            <span class="teams">${t.description || 'Em Aberto'}${linkedClient?' — '+linkedClient.name:''}</span>
+            <span class="meta">${fmtDate(t.date)}</span>
           </div>
           <div class="match-actions">
-            <span style="font-family:var(--font-mono);font-size:13px" class="${valueColor}" ${t.type==='em_aberto'?'style="color:var(--gold)"':''}>${valueSign}${fmtBRL(t.amount)}</span>
-            ${t.type==='em_aberto' ? `<button class="btn-ghost btn-sm" onclick="marcarComoRecebido('${t.id}')">Marcar recebido</button>` : ''}
+            <span style="font-family:var(--font-mono);font-size:13px;color:var(--gold)">${fmtBRL(t.amount)}</span>
+            <button class="btn-ghost btn-sm" onclick="marcarComoRecebido('${t.id}')">Marcar recebido</button>
             <button class="btn-danger-ghost btn-sm" onclick="deleteTransaction('${t.id}')">Excluir</button>
           </div>
         </div>
@@ -548,15 +552,16 @@ async function addTransaction(){
   if(!amount || amount<=0){ showToast('Informe o valor.'); return; }
   const {data, error} = await supabaseClient.from('transactions').insert({type, category, description, amount, date, client_id: clientId}).select().single();
   if(error){ showToast('Erro ao registrar lançamento: '+error.message); return; }
-  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null});
+  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null, excluded:false});
   await pruneTransactions();
+  showToast('Lançamento registrado!');
   render();
 }
 async function pruneTransactions(){
   const LIMIT = 100;
   if(STATE.transactions.length <= LIMIT) return;
   const sorted = [...STATE.transactions].sort((a,b)=> (a.createdAt||'').localeCompare(b.createdAt||''));
-  const toRemove = sorted.slice(0, STATE.transactions.length - LIMIT);
+  const toRemove = sorted.slice(0, STATE.transactions.length - LIMIT).filter(t=>t.excluded); // só remove de vez as que já estavam excluídas
   for(const t of toRemove){
     await supabaseClient.from('transactions').delete().eq('id', t.id);
   }
@@ -564,10 +569,11 @@ async function pruneTransactions(){
   STATE.transactions = STATE.transactions.filter(t=>!removeIds.has(t.id));
 }
 async function deleteTransaction(id){
-  if(!confirm('Excluir esse lançamento?')) return;
-  const {error} = await supabaseClient.from('transactions').delete().eq('id', id);
+  if(!confirm('Excluir esse lançamento? (fica marcado como excluído, dá pra restaurar depois)')) return;
+  const {error} = await supabaseClient.from('transactions').update({excluded:true}).eq('id', id);
   if(error){ showToast('Erro ao excluir lançamento: '+error.message); return; }
-  STATE.transactions = STATE.transactions.filter(t=>t.id!==id);
+  const t = STATE.transactions.find(x=>x.id===id);
+  if(t) t.excluded = true;
   render();
 }
 
