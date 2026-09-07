@@ -179,6 +179,57 @@ function renderClientesFinanceiroTab(){
       `).join('')}
     </div>
     ${renderComissoesSection()}
+    ${renderDiagnosticoGeralSection()}
+  `;
+}
+
+// Roda a reconciliação (Diagnóstico) de TODOS os clientes de uma vez, e aponta só quem
+// tem alguma divergência entre o saldo recalculado do zero e o saldo real do sistema.
+function renderDiagnosticoGeralSection(){
+  return `
+    <div class="card" style="cursor:pointer" onclick="SHOW_DIAGNOSTICO_GERAL=!SHOW_DIAGNOSTICO_GERAL;render()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip chip-pending">🔍 DIAGNOSTICAR TODOS OS CLIENTES</span>
+        <span style="color:var(--text-muted);font-size:12px;transition:transform .15s;display:inline-block;transform:rotate(${SHOW_DIAGNOSTICO_GERAL?90:0}deg)">›</span>
+      </div>
+    </div>
+    ${SHOW_DIAGNOSTICO_GERAL ? renderDiagnosticoGeralResultado() : ''}
+  `;
+}
+function renderDiagnosticoGeralResultado(){
+  const results = STATE.clients.map(cl=>{
+    const r = computeClientReconciliation(cl);
+    return {cl, ...r};
+  }).sort((a,b)=>{
+    if(a.bateuOk !== b.bateuOk) return a.bateuOk ? 1 : -1; // problemas primeiro
+    return Math.abs(b.diferenca) - Math.abs(a.diferenca);
+  });
+  const comProblema = results.filter(r=>!r.bateuOk);
+
+  return `
+    <div class="card">
+      <p style="font-size:12px;color:var(--text-muted);margin-top:0">Refaz o saldo de cada cliente do zero (apostas, desconto, saldo em aberto, baixas) e compara com o que o sistema mostra de verdade. Quem estiver diferente aparece primeiro, em vermelho.</p>
+      ${comProblema.length===0
+        ? `<div style="padding:10px 12px;background:var(--green-dim);border-radius:var(--radius-sm);color:var(--green);font-size:13px">✓ Todos os ${results.length} clientes conferem certinho — nenhuma divergência encontrada.</div>`
+        : `<div style="padding:10px 12px;background:var(--red-dim);border-radius:var(--radius-sm);color:var(--red);font-size:13px;margin-bottom:14px">⚠ ${comProblema.length} de ${results.length} cliente(s) com divergência — veja abaixo.</div>`
+      }
+      <div style="margin-top:14px">
+        ${results.map(r=>`
+          <div class="match-row" style="${r.bateuOk?'opacity:0.6':''}">
+            <div class="match-desc">
+              <span class="teams">${r.bateuOk?'✓':'⚠'} ${r.cl.name}</span>
+              <span class="meta">
+                Calculado: ${fmtBRL(r.saldoFinalManual)} · No sistema: ${fmtBRL(r.saldoFinalReal)}
+                ${!r.bateuOk ? ` · <span style="color:var(--red)">diferença de ${fmtBRL(Math.abs(r.diferenca))}</span>` : ''}
+              </span>
+            </div>
+            <div class="match-actions">
+              <button class="btn-ghost btn-sm" onclick="openClientDetailAt('${r.cl.id}','diagnostico')">Ver diagnóstico</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
   `;
 }
 
