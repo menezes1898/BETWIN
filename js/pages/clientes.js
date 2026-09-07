@@ -64,9 +64,10 @@ function renderClientDetail(id){
     <div class="tabs" style="margin-bottom:16px">
       <div class="tab ${CLIENT_DETAIL_SUBVIEW==='painel'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='painel';render()">Painel</div>
       <div class="tab ${CLIENT_DETAIL_SUBVIEW==='semanas'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='semanas';render()">Semanas</div>
+      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='diagnostico'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='diagnostico';render()">Diagnóstico</div>
       <div class="tab ${CLIENT_DETAIL_SUBVIEW==='info'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='info';render()">Editar</div>
     </div>
-    ${CLIENT_DETAIL_SUBVIEW==='semanas' ? renderClientWeeksList(cl) : CLIENT_DETAIL_SUBVIEW==='painel' ? renderClientPanel(cl) : `
+    ${CLIENT_DETAIL_SUBVIEW==='semanas' ? renderClientWeeksList(cl) : CLIENT_DETAIL_SUBVIEW==='painel' ? renderClientPanel(cl) : CLIENT_DETAIL_SUBVIEW==='diagnostico' ? renderClientDiagnostico(cl) : `
     <div class="card" style="display:flex;padding:0">
       <div style="flex:1;text-align:center;padding:1rem 0.5rem">
         <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume total (interno)</div>
@@ -189,6 +190,118 @@ async function markWeekAsPaid(clientId, weekStart, weekOwedAmount){
   STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at, excluded:false});
   showToast('Semana marcada como paga!');
   render();
+}
+// Mostra o passo a passo de CADA número que compõe o saldo do cliente, semana por semana —
+// desconto (e desde quando aquele % vale), comissão (e de onde vem), cada pagamento já
+// registrado, e reconcilia tudo no final contra o saldo real do sistema. Serve tanto pra
+// você entender de onde vem um valor quanto pra eu (ou você) achar rápido qualquer
+// inconsistência real, se ela existir.
+function renderClientDiagnostico(cl){
+  const clientTickets = STATE.tickets.filter(t=>t.clientId===cl.id);
+  const weeksSet = new Set(clientTickets.map(t=>mondayOf(ticketDate(t))));
+  const weeks = Array.from(weeksSet).sort().reverse();
+
+  let totalBetAdmin = 0;
+  const weekBlocks = weeks.map(wk=>{
+    const resolvedTickets = clientTickets.filter(t=>mondayOf(ticketDate(t))===wk && ticketResult(t)!=='pending' && ticketResult(t)!=='void');
+    const pendingTickets = clientTickets.filter(t=>mondayOf(ticketDate(t))===wk && ticketResult(t)==='pending');
+    const voidTickets = clientTickets.filter(t=>mondayOf(ticketDate(t))===wk && ticketResult(t)==='void');
+    const resultado = resolvedTickets.reduce((s,t)=>s+ticketProfit(t),0);
+
+    const weekOverride = STATE.clientWeekDiscounts.find(o=>o.clientId===cl.id && o.weekStart===wk);
+    let descontoOrigem;
+    if(weekOverride){
+      descontoOrigem = 'sobrescrita manual dessa semana';
+    } else {
+      const history = STATE.clientDiscountHistory.filter(h=>h.clientId===cl.id && (!h.effectiveFromWeek || h.effectiveFromWeek<=wk)).sort((a,b)=>(a.effectiveFromWeek||'0000-00-00').localeCompare(b.effectiveFromWeek||'0000-00-00'));
+      const chosen = history[history.length-1];
+      descontoOrigem = chosen ? `padrão do cliente, vigente desde ${chosen.effectiveFromWeek?weekLabel(chosen.effectiveFromWeek):'sempre'}` : 'nenhum desconto configurado';
+    }
+    const descontoPct = getWeekDiscount(cl, wk);
+    const desconto = computeDescontoAmount(cl, resultado, wk);
+    const liquido = applyDescontoSign(cl, resultado, desconto);
+    totalBetAdmin += -liquido;
+
+    const weekCommOverride = STATE.clientWeekCommissioners.filter(o=>o.clientId===cl.id && o.weekStart===wk);
+    const activeCommissioners = getActiveCommissionersForWeek(cl.id, wk);
+    const comissaoDetalhe = activeCommissioners.map(a=>{
+      const cm = STATE.commissioners.find(c=>c.id===a.commissionerId);
+      return {name: cm?cm.name:'?', percent:a.percent, amount: computeCommissionAmount(cl.id, a.percent, wk)};
+    });
+    const comissaoOrigem = weekCommOverride.length>0 ? 'sobrescrita manual dessa semana' : 'vínculo padrão (linha do tempo)';
+
+    return {wk, resolvedTickets, pendingTickets, voidTickets, resultado, descontoPct, descontoOrigem, desconto, liquido, comissaoDetalhe, comissaoOrigem};
+  });
+
+  const emAberto = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===cl.id);
+  const emAbertoTotal = emAberto.filter(t=>!t.excluded).reduce((s,x)=>s+x.amount,0);
+
+  const settlements = STATE.settlements.filter(s=>s.clientId===cl.id).sort((a,b)=>(a.paidAt||'').localeCompare(b.paidAt||''));
+  const totalPago = settlements.filter(s=>!s.excluded).reduce((s,x)=>s+x.amount,0);
+
+  const totalDevidoBruto = totalBetAdmin + emAbertoTotal;
+  const saldoFinalManual = totalDevidoBruto - totalPago;
+  const saldoFinalReal = computeContinuousBalance(cl.id, null);
+  const bateuOk = Math.abs(saldoFinalManual - saldoFinalReal) < 0.01;
+
+  return `
+    <div class="card">
+      <h3>Diagnóstico — passo a passo do saldo</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:0">De onde vem cada número, semana por semana — pra achar rápido qualquer valor que esteja diferente do esperado.</p>
+    </div>
+    ${weekBlocks.length===0 ? '<div class="card"><div class="empty">Sem apostas ainda.</div></div>' : weekBlocks.map(w=>`
+      <div class="card">
+        <div style="font-weight:600;font-size:14px;margin-bottom:10px">Semana de ${weekLabel(w.wk)}</div>
+        ${w.resolvedTickets.map(t=>{
+          const profit = ticketProfit(t);
+          return `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--line-soft)">
+            <span>#${t.ticketNumber||'—'} · ${ticketResult(t)} · ${fmtBRL(t.stake)}${t.odds?' @'+t.odds:''}</span>
+            <span class="${profit>=0?'profit-pos':'profit-neg'}" style="font-family:var(--font-mono)">${fmtBRL(profit)}</span>
+          </div>`;
+        }).join('')}
+        ${w.pendingTickets.length>0 ? `<div style="font-size:11px;color:var(--gold);margin-top:6px">${w.pendingTickets.length} aposta(s) pendente(s) nessa semana — não entram na conta ainda</div>` : ''}
+        ${w.voidTickets.length>0 ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${w.voidTickets.length} aposta(s) anulada(s) — não contam</div>` : ''}
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.9">
+          <div>Resultado da semana (soma das apostas resolvidas): <strong class="${w.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(w.resultado)}</strong></div>
+          <div>Desconto: <strong>${fmtBRL(w.desconto)}</strong> <span style="color:var(--text-muted)">(${w.descontoPct}% — ${w.descontoOrigem})</span></div>
+          <div>Líquido do cliente (resultado ${cl.isDescarga?'− desconto, por ser conta de Descarga':'+ desconto'}): <strong class="${w.liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(w.liquido)}</strong></div>
+          ${w.comissaoDetalhe.length>0 ? `<div>Comissão (${w.comissaoOrigem}): ${w.comissaoDetalhe.map(c=>`${c.name} ${c.percent}% = ${fmtBRL(c.amount)}`).join(', ')}</div>` : ''}
+        </div>
+      </div>
+    `).join('')}
+    <div class="card">
+      <h3>Saldo em aberto <span style="font-size:12px;color:var(--text-muted);font-weight:400">(dívida antiga cadastrada manualmente)</span></h3>
+      ${emAberto.length===0 ? '<div class="empty">Nenhum.</div>' : emAberto.map(t=>`
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--line-soft);${t.excluded?'opacity:0.5':''}">
+          <span>${t.description||'—'} · ${fmtDate(t.date)}${t.excluded?' <span class="chip chip-void">EXCLUÍDA</span>':''}${t.type==='receita'?' <span style="color:var(--text-muted)">(já marcado como recebido)</span>':''}</span>
+          <span style="font-family:var(--font-mono);color:var(--gold)">${fmtBRL(t.amount)}</span>
+        </div>
+      `).join('')}
+    </div>
+    <div class="card">
+      <h3>Pagamentos já registrados (baixas)</h3>
+      ${settlements.length===0 ? '<div class="empty">Nenhum ainda.</div>' : settlements.map(s=>`
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--line-soft);${s.excluded?'opacity:0.5':''}">
+          <span>${s.paidAt?new Date(s.paidAt).toLocaleDateString('pt-BR'):'—'} · semana de ${weekLabel(s.weekStart)}${s.excluded?' <span class="chip chip-void">EXCLUÍDA</span>':''}</span>
+          <span style="font-family:var(--font-mono)" class="${s.amount>=0?'profit-pos':'profit-neg'}">${fmtBRL(s.amount)}</span>
+        </div>
+      `).join('')}
+    </div>
+    <div class="card" style="border-color:${bateuOk?'var(--line)':'var(--red)'}">
+      <h3>Reconciliação final</h3>
+      <div style="font-size:13px;line-height:2">
+        <div>Total gerado pelas apostas (soma dos líquidos de todas as semanas, invertido pra sua perspectiva): <strong>${fmtBRL(totalBetAdmin)}</strong></div>
+        <div>+ Saldo em aberto ativo: <strong>${fmtBRL(emAbertoTotal)}</strong></div>
+        <div style="border-top:1px solid var(--line);padding-top:6px;margin-top:6px">= Total devido bruto: <strong>${fmtBRL(totalDevidoBruto)}</strong></div>
+        <div>− Total já pago (baixas ativas): <strong>${fmtBRL(totalPago)}</strong></div>
+        <div style="border-top:1px solid var(--line);padding-top:6px;margin-top:6px">= Saldo devedor final (recalculado aqui, manualmente): <strong class="${saldoFinalManual>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldoFinalManual)}</strong></div>
+        <div>Saldo devedor mostrado no sistema (Painel/Financeiro): <strong class="${saldoFinalReal>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldoFinalReal)}</strong></div>
+      </div>
+      ${bateuOk
+        ? `<div style="margin-top:12px;padding:10px 12px;background:var(--green-dim);border-radius:var(--radius-sm);color:var(--green);font-size:12.5px">✓ Os dois valores batem — a conta está consistente.</div>`
+        : `<div style="margin-top:12px;padding:10px 12px;background:var(--red-dim);border-radius:var(--radius-sm);color:var(--red);font-size:12.5px">⚠ Os valores NÃO batem — isso indica um problema real nos dados desse cliente. Me manda um print dessa tela.</div>`}
+    </div>
+  `;
 }
 function renderClientWeeksList(cl){
   const weeksSet = new Set(STATE.tickets.filter(t=>t.clientId===cl.id).map(t=>mondayOf(ticketDate(t))));
