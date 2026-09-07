@@ -23,13 +23,13 @@ async function loadState(){
       createdAt: t.created_at, ticketNumber: t.ticket_number
     }));
     STATE.settlements = (settlements||[]).map(s=>({
-      id:s.id, clientId:s.client_id, weekStart:s.week_start, amount:parseFloat(s.amount), paidAt:s.paid_at
+      id:s.id, clientId:s.client_id, weekStart:s.week_start, amount:parseFloat(s.amount), paidAt:s.paid_at, excluded:s.excluded||false
     }));
     STATE.withdrawals = (withdrawals||[]).map(w=>({
-      id:w.id, amount:parseFloat(w.amount), description:w.description||'', createdAt:w.created_at
+      id:w.id, amount:parseFloat(w.amount), description:w.description||'', createdAt:w.created_at, excluded:w.excluded||false
     }));
     STATE.transactions = (transactions||[]).map(t=>({
-      id:t.id, type:t.type, category:t.category||'', description:t.description||'', amount:parseFloat(t.amount), date:t.date, createdAt:t.created_at, clientId:t.client_id||null
+      id:t.id, type:t.type, category:t.category||'', description:t.description||'', amount:parseFloat(t.amount), date:t.date, createdAt:t.created_at, clientId:t.client_id||null, excluded:t.excluded||false
     }));
     STATE.commissioners = (commissioners||[]).map(c=>({id:c.id, name:c.name, phone:c.phone||'', code:c.code||''}));
     STATE.commissionerClients = (commissionerClients||[]).map(cc=>({
