@@ -86,6 +86,62 @@ function computeCaixaMovementForWeek(weekStart){
   return {entradas, saidas, liquido: entradas-saidas, settlementsW, withdrawalsW, receitasW, despesasW};
 }
 
+// Refaz o saldo devedor de UM cliente do zero, número por número (apostas de cada semana,
+// saldo em aberto, baixas já pagas) e compara com o valor que o sistema mostra de verdade.
+// Usada tanto no diagnóstico individual do cliente quanto no diagnóstico geral (todos de
+// uma vez), garantindo que os dois usem exatamente a mesma conta.
+function computeClientReconciliation(cl){
+  const clientTickets = STATE.tickets.filter(t=>t.clientId===cl.id);
+  const weeksSet = new Set(clientTickets.map(t=>mondayOf(ticketDate(t))));
+  const weeks = Array.from(weeksSet).sort().reverse();
+
+  let totalBetAdmin = 0;
+  const weekBlocks = weeks.map(wk=>{
+    const resolvedTickets = clientTickets.filter(t=>mondayOf(ticketDate(t))===wk && ticketResult(t)!=='pending' && ticketResult(t)!=='void');
+    const pendingTickets = clientTickets.filter(t=>mondayOf(ticketDate(t))===wk && ticketResult(t)==='pending');
+    const voidTickets = clientTickets.filter(t=>mondayOf(ticketDate(t))===wk && ticketResult(t)==='void');
+    const resultado = resolvedTickets.reduce((s,t)=>s+ticketProfit(t),0);
+
+    const weekOverride = STATE.clientWeekDiscounts.find(o=>o.clientId===cl.id && o.weekStart===wk);
+    let descontoOrigem;
+    if(weekOverride){
+      descontoOrigem = 'sobrescrita manual dessa semana';
+    } else {
+      const history = STATE.clientDiscountHistory.filter(h=>h.clientId===cl.id && (!h.effectiveFromWeek || h.effectiveFromWeek<=wk)).sort((a,b)=>(a.effectiveFromWeek||'0000-00-00').localeCompare(b.effectiveFromWeek||'0000-00-00'));
+      const chosen = history[history.length-1];
+      descontoOrigem = chosen ? `padrão do cliente, vigente desde ${chosen.effectiveFromWeek?weekLabel(chosen.effectiveFromWeek):'sempre'}` : 'nenhum desconto configurado';
+    }
+    const descontoPct = getWeekDiscount(cl, wk);
+    const desconto = computeDescontoAmount(cl, resultado, wk);
+    const liquido = applyDescontoSign(cl, resultado, desconto);
+    totalBetAdmin += -liquido;
+
+    const weekCommOverride = STATE.clientWeekCommissioners.filter(o=>o.clientId===cl.id && o.weekStart===wk);
+    const activeCommissioners = getActiveCommissionersForWeek(cl.id, wk);
+    const comissaoDetalhe = activeCommissioners.map(a=>{
+      const cm = STATE.commissioners.find(c=>c.id===a.commissionerId);
+      return {name: cm?cm.name:'?', percent:a.percent, amount: computeCommissionAmount(cl.id, a.percent, wk)};
+    });
+    const comissaoOrigem = weekCommOverride.length>0 ? 'sobrescrita manual dessa semana' : 'vínculo padrão (linha do tempo)';
+
+    return {wk, resolvedTickets, pendingTickets, voidTickets, resultado, descontoPct, descontoOrigem, desconto, liquido, comissaoDetalhe, comissaoOrigem};
+  });
+
+  const emAberto = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===cl.id);
+  const emAbertoTotal = emAberto.filter(t=>!t.excluded).reduce((s,x)=>s+x.amount,0);
+
+  const settlements = STATE.settlements.filter(s=>s.clientId===cl.id).sort((a,b)=>(a.paidAt||'').localeCompare(b.paidAt||''));
+  const totalPago = settlements.filter(s=>!s.excluded).reduce((s,x)=>s+x.amount,0);
+
+  const totalDevidoBruto = totalBetAdmin + emAbertoTotal;
+  const saldoFinalManual = totalDevidoBruto - totalPago;
+  const saldoFinalReal = computeContinuousBalance(cl.id, null);
+  const diferenca = saldoFinalManual - saldoFinalReal;
+  const bateuOk = Math.abs(diferenca) < 0.01;
+
+  return {weekBlocks, emAberto, emAbertoTotal, settlements, totalPago, totalBetAdmin, totalDevidoBruto, saldoFinalManual, saldoFinalReal, diferenca, bateuOk};
+}
+
 // ---------- IMAGEM DE FECHAMENTO ----------
 function roundRect(ctx,x,y,w,h,r){
   ctx.beginPath();

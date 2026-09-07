@@ -14,6 +14,7 @@ let SHOW_LANCAMENTOS = false;
 let SHOW_RELATORIO_PERIODO = false;
 let FINANCE_TAB = 'caixa';
 let SHOW_EXCLUIDAS = false;
+let SHOW_DIAGNOSTICO_GERAL = false;
 let REPORT_WEEK_START = null;
 let REPORT_WEEK_END = null;
 let SHOW_RETIRADAS = false;
