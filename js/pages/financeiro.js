@@ -392,9 +392,9 @@ async function darBaixa(clientId, weekStart, remaining){
   const val = parseFloat(String(input).replace(',','.'));
   if(isNaN(val) || val<=0){ showToast('Valor inválido.'); return; }
   const amount = isReceber ? val : -val;
-  const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount}).select().single();
+  const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount, created_by: currentUserId()}).select().single();
   if(error){ showToast('Erro ao dar baixa: '+error.message); return; }
-  STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at, excluded:false});
+  STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at, excluded:false, createdBy:data.created_by||null});
   showToast('Baixa registrada com sucesso!');
   render();
 }
@@ -438,7 +438,10 @@ function renderComissoesSection(){
     ${SHOW_COMISSOES ? `
     <div class="card">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Semana de ${weekLabel(weekMonday)} · calculada em cima da perda bruta dos clientes vinculados naquela semana (antes do desconto do cliente)</div>
-      ${rows.length===0 ? '<div class="empty">Nenhuma comissão essa semana.</div>' : rows.map(r=>`
+      ${rows.length===0 ? '<div class="empty">Nenhuma comissão essa semana.</div>' : rows.map(r=>{
+        const paga = getComissaoPagaSemana(r.id, weekMonday);
+        const jaPago = paga >= r.amount - 0.01;
+        return `
         <div class="match-row">
           <div class="match-desc">
             <span class="teams">${r.name}</span>
@@ -446,10 +449,12 @@ function renderComissoesSection(){
           </div>
           <div class="match-actions">
             <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--gold)">${fmtBRL(r.amount)}</span>
-            <button class="btn-ghost btn-sm" onclick="registrarPagamentoComissao('${r.id}','${r.name.replace(/'/g,"\\'")}',${r.amount},'${weekMonday}')">Registrar pagamento</button>
+            ${jaPago
+              ? '<span class="chip chip-green">PAGO</span>'
+              : `<button class="btn-ghost btn-sm" onclick="registrarPagamentoComissao('${r.id}','${r.name.replace(/'/g,"\\'")}',${r.amount},'${weekMonday}')">Registrar pagamento</button>`}
           </div>
         </div>
-      `).join('')}
+      `;}).join('')}
     </div>
     ` : ''}
   `;
@@ -459,11 +464,12 @@ async function registrarPagamentoComissao(commissionerId, name, amount, weekMond
   if(!confirm(`Registrar pagamento de ${fmtBRL(amount)} de comissão pra ${name}? Isso entra como uma despesa no seu caixa.`)) return;
   const description = `Comissão — ${name} (semana ${weekLabel(weekMonday)})`;
   const {data, error} = await supabaseClient.from('transactions').insert({
-    type:'despesa', category:'Comissão', description, amount, date: todaySP()
+    type:'despesa', category:'Comissão', description, amount, date: todaySP(), commissioner_id: commissionerId, week_start: weekMonday, created_by: currentUserId()
   }).select().single();
   if(error){ showToast('Erro ao registrar pagamento: '+error.message); return; }
-  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null, excluded:false});
+  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null, excluded:false, createdBy:data.created_by||null, commissionerId:data.commissioner_id||null, weekStart:data.week_start||null});
   await pruneTransactions();
+  showToast('Pagamento registrado!');
   render();
 }
 
@@ -494,9 +500,9 @@ async function addWithdrawal(){
   const amount = parseFloat(document.getElementById('new-withdrawal-amount').value);
   const description = document.getElementById('new-withdrawal-desc').value.trim();
   if(!amount || amount<=0){ showToast('Informe o valor da retirada.'); return; }
-  const {data, error} = await supabaseClient.from('withdrawals').insert({amount, description}).select().single();
+  const {data, error} = await supabaseClient.from('withdrawals').insert({amount, description, created_by: currentUserId()}).select().single();
   if(error){ showToast('Erro ao registrar retirada: '+error.message); return; }
-  STATE.withdrawals.push({id:data.id, amount:parseFloat(data.amount), description:data.description||'', createdAt:data.created_at, excluded:false});
+  STATE.withdrawals.push({id:data.id, amount:parseFloat(data.amount), description:data.description||'', createdAt:data.created_at, excluded:false, createdBy:data.created_by||null});
   showToast('Retirada registrada!');
   render();
 }
@@ -601,9 +607,9 @@ async function addTransaction(){
   const date = document.getElementById('new-transaction-date').value;
   if(!date){ showToast('Informe a data.'); return; }
   if(!amount || amount<=0){ showToast('Informe o valor.'); return; }
-  const {data, error} = await supabaseClient.from('transactions').insert({type, category, description, amount, date, client_id: clientId}).select().single();
+  const {data, error} = await supabaseClient.from('transactions').insert({type, category, description, amount, date, client_id: clientId, created_by: currentUserId()}).select().single();
   if(error){ showToast('Erro ao registrar lançamento: '+error.message); return; }
-  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null, excluded:false});
+  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:data.client_id||null, excluded:false, createdBy:data.created_by||null, commissionerId:data.commissioner_id||null, weekStart:data.week_start||null});
   await pruneTransactions();
   showToast('Lançamento registrado!');
   render();

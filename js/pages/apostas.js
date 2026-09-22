@@ -187,7 +187,7 @@ function renderTicketCard(ticket){
       <div class="ticket-top">
         <div>
           <div class="ticket-client"><span style="font-family:var(--font-mono);font-weight:400;font-size:11px;color:var(--text-muted)">#${ticket.ticketNumber||'—'}</span> ${cl?cl.name:'Cliente removido'}</div>
-          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · odd ${ticketOddTotal(ticket)>0?effectiveOdds(ticket).toFixed(2):'—'}</div>
+          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · odd ${ticketOddTotal(ticket)>0?effectiveOdds(ticket).toFixed(2):'—'}${ticket.createdBy && STATE.profiles.length>0 ? ' · digitado por <strong>'+authorName(ticket.createdBy)+'</strong>' : ''}${ticket.conferido ? ' · <span style="color:var(--green)">✓ conferido</span>' : ''}</div>
         </div>
         ${resultChip(r)}
       </div>
@@ -251,13 +251,14 @@ async function duplicateTicket(ticketId){
   if(!ticket) return;
   const newMatches = ticket.matches.map(m=>({...m, id:uid(), result:'pending'}));
   const {data, error} = await supabaseClient.from('tickets').insert({
-    client_id: ticket.clientId, date: ticket.date, time: ticket.time, stake: ticket.stake, odds: ticket.odds, matches: newMatches
+    client_id: ticket.clientId, date: ticket.date, time: ticket.time, stake: ticket.stake, odds: ticket.odds, matches: newMatches, created_by: currentUserId()
   }).select().single();
   if(error){ showToast('Erro ao duplicar aposta: '+error.message); return; }
   STATE.tickets.push({
     id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
     stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
-    createdAt: data.created_at, ticketNumber: data.ticket_number
+    createdAt: data.created_at, ticketNumber: data.ticket_number,
+    createdBy: data.created_by||null, conferido:false, conferidoAt:null, conferidoBy:null
   });
   render();
 }
@@ -302,13 +303,14 @@ async function saveTicket(){
     if(idx>=0) STATE.tickets[idx] = updated; else STATE.tickets.push(updated);
   } else {
     const {data, error} = await supabaseClient.from('tickets').insert({
-      client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
+      client_id: clientId, date, time, stake, odds, matches: DRAFT.matches, created_by: currentUserId()
     }).select().single();
     if(error){ showToast('Erro ao salvar aposta: '+error.message); return; }
     STATE.tickets.push({
       id:data.id, clientId:data.client_id, date:data.date, time: data.time ? data.time.slice(0,5) : null,
       stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
-      createdAt: data.created_at, ticketNumber: data.ticket_number
+      createdAt: data.created_at, ticketNumber: data.ticket_number,
+      createdBy: data.created_by||null, conferido:false, conferidoAt:null, conferidoBy:null
     });
   }
   DRAFT=null; EDITING_TICKET_ID=null; ADMIN_SUBVIEW='list';

@@ -80,7 +80,17 @@ function renderCommissionerDetail(id){
     </div>
     <div class="card">
       <h3>Clientes vinculados</h3>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Comissão calculada em cima da semana de ${weekLabel(weekMonday)} · total dessa semana: <strong style="color:var(--gold)">${fmtBRL(totalWeek)}</strong></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <div style="font-size:12px;color:var(--text-muted)">Comissão calculada em cima da semana de ${weekLabel(weekMonday)} · total dessa semana: <strong style="color:var(--gold)">${fmtBRL(totalWeek)}</strong></div>
+        ${(()=>{
+          if(totalWeek<=0) return '';
+          const paga = getComissaoPagaSemana(cm.id, weekMonday);
+          const jaPago = paga >= totalWeek - 0.01;
+          return jaPago
+            ? '<span class="chip chip-green">PAGAMENTO JÁ FEITO ESSA SEMANA</span>'
+            : `<button class="btn-primary btn-sm" onclick="registrarPagamentoComissao('${cm.id}','${cm.name.replace(/'/g,"\\'")}',${totalWeek},'${weekMonday}')">Marcar pagamento como feito</button>`;
+        })()}
+      </div>
       ${links.length===0 ? '<div class="empty">Nenhum cliente vinculado ainda.</div>' : links.map(l=>{
         const cl = STATE.clients.find(c=>c.id===l.clientId);
         const isActive = activeLinkIdByClient[l.clientId] === l.id;

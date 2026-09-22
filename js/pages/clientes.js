@@ -192,9 +192,9 @@ async function markWeekAsPaid(clientId, weekStart, weekOwedAmount){
   const val = parseFloat(String(input).replace(',','.'));
   if(isNaN(val) || val<=0){ showToast('Valor inválido.'); return; }
   const amount = isReceber ? val : -val;
-  const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount}).select().single();
+  const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount, created_by: currentUserId()}).select().single();
   if(error){ showToast('Erro ao marcar como pago: '+error.message); return; }
-  STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at, excluded:false});
+  STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at, excluded:false, createdBy:data.created_by||null});
   showToast('Semana marcada como paga!');
   render();
 }
