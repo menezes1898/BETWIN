@@ -4,6 +4,12 @@ function getSettlementsFor(clientId, weekStart){
 function getAllSettlementsForClient(clientId){
   return STATE.settlements.filter(s=>s.clientId===clientId && !s.excluded).reduce((s,x)=>s+x.amount,0);
 }
+// Quanto já foi efetivamente pago de comissão pra esse comissionado, naquela semana
+// (soma as despesas tipo "Comissão" ligadas a ele pela semana — mesmo mecanismo usado
+// tanto no botão do Financeiro > Comissões quanto no botão da aba Parceiros).
+function getComissaoPagaSemana(commissionerId, weekStart){
+  return STATE.transactions.filter(t=>t.type==='despesa' && t.commissionerId===commissionerId && t.weekStart===weekStart && !t.excluded).reduce((s,x)=>s+x.amount,0);
+}
 // Saldo contínuo (perspectiva admin, positivo = cliente deve) de todas as apostas já
 // resolvidas + saldo em aberto, descontando tudo que já foi pago em qualquer semana.
 // excludeWeek (opcional) tira uma semana específica do cálculo das apostas — usado no

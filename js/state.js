@@ -5,7 +5,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Tf4F0bAvZsHyevsy0JUa0g_q8G4_-dW';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 
-let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [], clientWeekDiscounts: [], clientWeekCommissioners: [], clientDiscountHistory: [] };
+let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [], clientWeekDiscounts: [], clientWeekCommissioners: [], clientDiscountHistory: [], profiles: [] };
 let ADMIN_TAB = 'dashboard';
 let ADMIN_SUBVIEW = 'list'; // 'list' | 'wizard'
 let DASH_WEEK = null;
@@ -37,6 +37,9 @@ let COMMISSIONER_DETAIL_ID = null;
 let CONFIRM_DELETE_COMMISSIONER = false;
 let CLIENT_SHOW_PENDENTES = false;
 let SESSION = null;
+let CONFERENCIA_FILTER_USER = 'todos';
+let CONFERENCIA_SHOW_ALL = false;
+let CONFERENCIA_INCLUIR_ANTIGAS = false;
 
 const MARKETS = [
   {v:'Resultado Final', l:'Resultado Final (1X2)'},

@@ -92,6 +92,21 @@ function allWeeksSorted(){
   return Array.from(set).sort().reverse();
 }
 
+// ---------- AUTORIA (quem fez) ----------
+function currentUserId(){
+  return (SESSION && SESSION.user && SESSION.user.id) || null;
+}
+function currentUserEmail(){
+  return (SESSION && SESSION.user && SESSION.user.email) || '';
+}
+function authorName(userId){
+  if(!userId) return null;
+  const p = STATE.profiles.find(x=>x.id===userId);
+  if(p) return p.name;
+  if(userId===currentUserId() && currentUserEmail()) return currentUserEmail().split('@')[0];
+  return 'usuário removido';
+}
+
 // ---------- NOTIFICAÇÕES (TOAST) ----------
 // Substitui o alert() nativo do navegador por uma notificação discreta, que some sozinha.
 function showToast(message, type){

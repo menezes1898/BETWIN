@@ -47,6 +47,7 @@ async function doLogout(){
 function renderAdmin(){
   const app = document.getElementById('app');
   const pendentesCount = STATE.tickets.filter(t=>ticketResult(t)==='pending').length;
+  const conferenciaCount = conferenciaPendingCount();
   app.innerHTML = `
     <div class="brand">
       <div>${renderBrandMark()}</div>
@@ -56,6 +57,7 @@ function renderAdmin(){
       <div class="tab ${ADMIN_TAB==='dashboard'?'active':''}" onclick="setTab('dashboard')">Dashboard</div>
       <div class="tab ${ADMIN_TAB==='apostas'?'active':''}" onclick="setTab('apostas')">Apostas</div>
       <div class="tab ${ADMIN_TAB==='pendentes'?'active':''}" onclick="setTab('pendentes')">Pendentes${pendentesCount?' ('+pendentesCount+')':''}</div>
+      <div class="tab ${ADMIN_TAB==='conferencia'?'active':''}" onclick="setTab('conferencia')">Conferência${conferenciaCount?' ('+conferenciaCount+')':''}</div>
       <div class="tab ${ADMIN_TAB==='clientes'?'active':''}" onclick="setTab('clientes')">Clientes</div>
       <div class="tab ${ADMIN_TAB==='financeiro'?'active':''}" onclick="setTab('financeiro')">Financeiro</div>
       <div class="tab ${ADMIN_TAB==='parceiros'?'active':''}" onclick="setTab('parceiros')">Parceiros</div>
@@ -66,6 +68,7 @@ function renderAdmin(){
   const c = document.getElementById('tab-content');
   if(ADMIN_TAB==='apostas') c.innerHTML = renderApostasTab();
   if(ADMIN_TAB==='pendentes') c.innerHTML = renderPendentesTab();
+  if(ADMIN_TAB==='conferencia') c.innerHTML = renderConferenciaTab();
   if(ADMIN_TAB==='clientes') c.innerHTML = renderClientesTab();
   if(ADMIN_TAB==='dashboard') c.innerHTML = renderDashboardTab();
   if(ADMIN_TAB==='financeiro') c.innerHTML = renderFinanceiroTab();
