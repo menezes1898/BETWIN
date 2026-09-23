@@ -44,7 +44,7 @@ let CONFERENCIA_FILTER_CLIENT_ID = '';
 let CONFERENCIA_FILTER_CLIENT_NAME = '';
 let CONFERENCIA_DATE_FROM = '';
 let CONFERENCIA_DATE_TO = '';
-let EXPANDED_TICKETS = new Set();
+let COLLAPSED_TICKETS = new Set(); // bilhetes que o usuário fechou manualmente (por padrão, todos ficam abertos)
 
 const MARKETS = [
   {v:'Resultado Final', l:'Resultado Final (1X2)'},
