@@ -159,7 +159,7 @@ function ticketDetailsShort(ticket){
 
 // ---------- CARD DE APOSTA (layout em linha, usado em Apostas/Pendentes e Conferência) ----------
 function toggleTicketDetails(ticketId){
-  if(EXPANDED_TICKETS.has(ticketId)) EXPANDED_TICKETS.delete(ticketId); else EXPANDED_TICKETS.add(ticketId);
+  if(COLLAPSED_TICKETS.has(ticketId)) COLLAPSED_TICKETS.delete(ticketId); else COLLAPSED_TICKETS.add(ticketId);
   render();
 }
 function weekRangeShortLabel(weekStart){
@@ -182,7 +182,7 @@ function renderBetCard(ticket, opts){
   const retornoMax = ticket.stake * odds;
   const pendentesNoTicket = ticket.matches.filter(m=>m.result==='pending').length;
   const weekStart = mondayOf(ticketDate(ticket));
-  const expanded = EXPANDED_TICKETS.has(ticket.id);
+  const expanded = !COLLAPSED_TICKETS.has(ticket.id); // aberto por padrão, pra ver jogo/mercado sem precisar clicar
 
   const matchesHtml = ticket.matches.map(m=>{
     const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
