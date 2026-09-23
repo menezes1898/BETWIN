@@ -44,7 +44,7 @@ function renderClientView(code){
       return `
         <div style="display:flex;align-items:baseline;gap:5px">
           <span style="flex-shrink:0;font-size:9.5px;line-height:1.5">${resultIconSmall(m.result)}</span>
-          <span style="min-width:0;overflow-wrap:break-word;font-size:12.5px;line-height:1.4">
+          <span style="min-width:0;overflow-wrap:break-word;font-size:12.5px;line-height:1.4;text-transform:uppercase">
             <strong style="font-weight:600">${teamsLabel}</strong>
             <span style="color:var(--text-muted)"> — ${marketLabel}: ${m.selection}</span>
           </span>
@@ -130,7 +130,7 @@ function renderClientView(code){
           ${pendentes.map(t=>`
             <div class="match-row">
               <div class="match-desc">
-                <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · ${ticketDetailsShort(t)}</span>
+                <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · <span style="text-transform:uppercase">${ticketDetailsShort(t)}</span></span>
               </div>
               <span style="font-family:var(--font-mono);font-size:12.5px">${fmtBRL(t.stake)}</span>
             </div>
