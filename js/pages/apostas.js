@@ -243,6 +243,7 @@ function editTicket(ticketId){
     matches: ticket.matches.map(m=>({...m}))
   };
   EDITING_TICKET_ID = ticketId;
+  ADMIN_TAB = 'apostas';
   ADMIN_SUBVIEW='wizard';
   render();
 }
