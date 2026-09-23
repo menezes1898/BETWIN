@@ -40,6 +40,10 @@ let SESSION = null;
 let CONFERENCIA_FILTER_USER = 'todos';
 let CONFERENCIA_SHOW_ALL = false;
 let CONFERENCIA_INCLUIR_ANTIGAS = false;
+let CONFERENCIA_FILTER_CLIENT_ID = '';
+let CONFERENCIA_FILTER_CLIENT_NAME = '';
+let CONFERENCIA_DATE_FROM = '';
+let CONFERENCIA_DATE_TO = '';
 
 const MARKETS = [
   {v:'Resultado Final', l:'Resultado Final (1X2)'},
