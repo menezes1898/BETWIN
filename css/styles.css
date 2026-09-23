@@ -121,6 +121,36 @@
   .ticket-actions{margin-top:11px;display:flex;gap:6px;}
   .ticket-compact .ticket-actions{margin-top:7px;}
 
+  /* ---- Card de aposta em formato de linha (Apostas / Conferência) ---- */
+  .bet-card{border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;background:var(--surface);transition:border-color .15s var(--ease);}
+  .bet-card:hover{border-color:#2C3448;}
+  .bet-card-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .bet-card-title{display:flex;align-items:center;gap:8px;min-width:0;}
+  .bet-number{font-family:var(--font-mono);font-size:11px;font-weight:700;background:var(--gold-soft);color:var(--gold);padding:2px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0;}
+  .bet-client{font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bet-card-icons{display:flex;gap:4px;flex-shrink:0;}
+  .icon-btn{background:var(--surface-2);border:1px solid var(--line);color:var(--text-muted);width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;padding:0;transition:background .15s var(--ease),color .15s var(--ease);}
+  .icon-btn:hover{background:var(--surface-3);color:var(--text);filter:none;}
+  .icon-btn.icon-danger:hover{color:var(--red);background:var(--red-dim);}
+
+  .bet-stats-row{display:flex;flex-wrap:wrap;gap:12px 20px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);}
+  .bet-stat{min-width:58px;}
+  .bet-stat-label{display:block;font-size:9.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px;}
+  .bet-stat-value{font-family:var(--font-mono);font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;}
+  .bet-stat-toggle{cursor:pointer;user-select:none;}
+  .bet-stat-toggle:hover .bet-stat-value{color:var(--gold);}
+
+  .bet-matches{margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:4px;}
+  .bet-match-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line-soft);}
+  .bet-match-row:last-child{border-bottom:none;}
+  .bet-match-teams{display:flex;flex-direction:column;gap:3px;font-size:12.5px;min-width:140px;}
+  .bet-match-team{display:flex;align-items:center;gap:6px;}
+  .side-badge{width:16px;height:16px;border-radius:4px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;}
+  .side-badge.side-home{background:var(--gold-dim);}
+  .side-badge.side-away{background:#4A3A5C;}
+  .bet-match-market{font-size:11.5px;color:var(--text-muted);flex:1;min-width:160px;}
+  .bet-match-odd{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;}
+
   table{width:100%;border-collapse:collapse;font-size:12px;}
   th,td{padding:10px 6px;text-align:center;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
   th{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.4px;font-weight:600;border-bottom-color:var(--line);}
@@ -183,13 +213,4 @@
   @keyframes skeleton-pulse{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
   .skeleton-line{height:14px;margin-bottom:10px;}
   .skeleton-card{height:90px;border-radius:var(--radius);margin-bottom:16px;}
-
-  /* ---------- Relatório do cliente/parceiro: extrato compacto (Fase 9) ---------- */
-  .ledger-nav-btn{background:transparent;border:none;color:var(--text-muted);width:28px;height:28px;border-radius:50%;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background-color .15s var(--ease), color .15s var(--ease);}
-  .ledger-nav-btn:hover{background:var(--surface-3);color:var(--text);}
-  .ledger-row{border-bottom:1px solid var(--line-soft);transition:background-color .12s var(--ease);border-radius:var(--radius-sm);}
-  .ledger-row:last-child{border-bottom:none;}
-  .ledger-row:hover{background:var(--surface-2);}
-  .ledger-disclosure{border-radius:var(--radius);background:var(--surface);cursor:pointer;transition:background-color .15s var(--ease);}
-  .ledger-disclosure:hover{background:var(--surface-2);}
 
