@@ -157,52 +157,94 @@ function ticketDetailsShort(ticket){
   }).join('; ');
 }
 
-function renderTicketCard(ticket){
+// ---------- CARD DE APOSTA (layout em linha, usado em Apostas/Pendentes e Conferência) ----------
+function toggleTicketDetails(ticketId){
+  if(EXPANDED_TICKETS.has(ticketId)) EXPANDED_TICKETS.delete(ticketId); else EXPANDED_TICKETS.add(ticketId);
+  render();
+}
+function weekRangeShortLabel(weekStart){
+  const d = new Date(weekStart+'T00:00:00');
+  const sun = new Date(d); sun.setDate(d.getDate()+6);
+  const f = x=>x.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  return `${f(d)} a ${f(sun)}`;
+}
+function initialsBadge(name){
+  const c = (name||'?').trim().charAt(0).toUpperCase();
+  return c || '?';
+}
+// opts: {showEdit, showDuplicate, showDelete, showQuickResult, showAuthor, conferenciaAction}
+function renderBetCard(ticket, opts){
+  opts = opts || {};
   const cl = STATE.clients.find(c=>c.id===ticket.clientId);
   const r = ticketResult(ticket);
   const profit = ticketProfit(ticket);
+  const odds = ticketOddTotal(ticket)>0 ? effectiveOdds(ticket) : 0;
+  const retornoMax = ticket.stake * odds;
+  const pendentesNoTicket = ticket.matches.filter(m=>m.result==='pending').length;
+  const weekStart = mondayOf(ticketDate(ticket));
+  const expanded = EXPANDED_TICKETS.has(ticket.id);
+
   const matchesHtml = ticket.matches.map(m=>{
     const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
-    const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
     return `
-      <div class="match-row">
-        <div class="match-desc">
-          <span class="teams">${teamsLabel}</span>
-          <span class="meta">${marketLabel}: ${m.selection} · odd ${m.odd.toFixed(2)}</span>
+      <div class="bet-match-row">
+        <div class="bet-match-teams">
+          <div class="bet-match-team"><span class="side-badge side-home">${initialsBadge(m.home)}</span>${m.home}</div>
+          ${m.away ? `<div class="bet-match-team"><span class="side-badge side-away">${initialsBadge(m.away)}</span>${m.away}</div>` : ''}
         </div>
-        <div class="match-actions">
-          ${resultChip(m.result)}
-          ${m.result==='pending' ? `
-            <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','green')">Green</button>
-            <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','red')">Red</button>
-            <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','void')">Anular</button>
+        <div class="bet-match-market">
+          ${resultIconSmall(m.result)} ${marketLabel} · ${m.selection}
+          ${(opts.showQuickResult && m.result==='pending') ? `
+            <span style="margin-left:8px;display:inline-flex;gap:4px;vertical-align:middle">
+              <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','green')">Green</button>
+              <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','red')">Red</button>
+              <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','void')">Anular</button>
+            </span>
           ` : ''}
         </div>
+        <div class="bet-match-odd">@${m.odd.toFixed(2)}</div>
       </div>
     `;
   }).join('');
 
+  const showAuthor = opts.showAuthor && ticket.createdBy && STATE.profiles.length>0;
+  const authorStat = showAuthor ? `<div class="bet-stat"><span class="bet-stat-label">Digitado por</span><span class="bet-stat-value">${authorName(ticket.createdBy)}</span></div>` : '';
+  const conferidoStat = (opts.showAuthor && ticket.conferido) ? `<div class="bet-stat"><span class="bet-stat-label">Conferência</span><span class="bet-stat-value" style="color:var(--green)">✓ Conferido</span></div>` : '';
+
   return `
-    <div class="ticket ticket-compact">
-      <div class="ticket-top">
-        <div>
-          <div class="ticket-client"><span style="font-family:var(--font-mono);font-weight:400;font-size:11px;color:var(--text-muted)">#${ticket.ticketNumber||'—'}</span> ${cl?cl.name:'Cliente removido'}</div>
-          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · odd ${ticketOddTotal(ticket)>0?effectiveOdds(ticket).toFixed(2):'—'}${ticket.createdBy && STATE.profiles.length>0 ? ' · digitado por <strong>'+authorName(ticket.createdBy)+'</strong>' : ''}${ticket.conferido ? ' · <span style="color:var(--green)">✓ conferido</span>' : ''}</div>
+    <div class="bet-card">
+      <div class="bet-card-top">
+        <div class="bet-card-title">
+          <span class="bet-number">#${ticket.ticketNumber||'—'}</span>
+          <span class="bet-client">${cl?cl.name:'Cliente removido'}</span>
         </div>
-        ${resultChip(r)}
+        <div class="bet-card-icons">
+          ${opts.showEdit!==false ? `<button class="icon-btn" title="Editar" onclick="editTicket('${ticket.id}')">✎</button>` : ''}
+          ${opts.showDuplicate ? `<button class="icon-btn" title="Duplicar" onclick="duplicateTicket('${ticket.id}')">⧉</button>` : ''}
+          ${opts.showDelete ? `<button class="icon-btn icon-danger" title="Excluir" onclick="deleteTicket('${ticket.id}')">🗑</button>` : ''}
+          ${opts.conferenciaAction || ''}
+        </div>
       </div>
-      <div class="match-list">${matchesHtml}</div>
-      <div class="ticket-footer">
-        <span>Resultado</span>
-        <span class="${profit>=0?'profit-pos':'profit-neg'}">${r==='pending'?'—':(profit>=0?'+':'')+fmtBRL(profit)}</span>
+      <div class="bet-stats-row">
+        <div class="bet-stat"><span class="bet-stat-label">Data</span><span class="bet-stat-value">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''}</span></div>
+        <div class="bet-stat"><span class="bet-stat-label">Semana</span><span class="bet-stat-value">${weekRangeShortLabel(weekStart)}</span></div>
+        <div class="bet-stat bet-stat-toggle" onclick="toggleTicketDetails('${ticket.id}')" title="${expanded?'Recolher':'Ver'} partidas do bilhete"><span class="bet-stat-label">Detalhes</span><span class="bet-stat-value">☰ ${ticket.matches.length} ${expanded?'⌃':'⌄'}</span></div>
+        <div class="bet-stat"><span class="bet-stat-label">Conf.</span><span class="bet-stat-value">⏱ ${pendentesNoTicket}</span></div>
+        <div class="bet-stat"><span class="bet-stat-label">Valor</span><span class="bet-stat-value">${fmtBRL(ticket.stake)}</span></div>
+        <div class="bet-stat"><span class="bet-stat-label">Odds</span><span class="bet-stat-value">${odds>0?odds.toFixed(2):'—'}</span></div>
+        <div class="bet-stat"><span class="bet-stat-label">Retorno Máx.</span><span class="bet-stat-value" style="color:var(--gold)">${fmtBRL(retornoMax)}</span></div>
+        <div class="bet-stat"><span class="bet-stat-label">Resultado</span><span class="bet-stat-value ${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</span></div>
+        <div class="bet-stat"><span class="bet-stat-label">Status</span>${resultChip(r)}</div>
+        ${authorStat}
+        ${conferidoStat}
+        ${opts.extraStats || ''}
       </div>
-      <div class="ticket-actions">
-        <button class="btn-ghost btn-sm" onclick="editTicket('${ticket.id}')">Editar</button>
-        <button class="btn-ghost btn-sm" onclick="duplicateTicket('${ticket.id}')">Duplicar</button>
-        <button class="btn-danger-ghost btn-sm" onclick="deleteTicket('${ticket.id}')">Excluir</button>
-      </div>
+      ${expanded ? `<div class="bet-matches">${matchesHtml}</div>` : ''}
     </div>
   `;
+}
+function renderTicketCard(ticket){
+  return renderBetCard(ticket, {showEdit:true, showDuplicate:true, showDelete:true, showQuickResult:true, showAuthor:true});
 }
 
 async function setMatchResult(ticketId, matchId, result){

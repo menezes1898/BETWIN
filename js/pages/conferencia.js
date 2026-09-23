@@ -85,51 +85,22 @@ function renderConferenciaTab(){
 }
 
 function renderConferenciaTicketCard(ticket){
-  const cl = STATE.clients.find(c=>c.id===ticket.clientId);
-  const r = ticketResult(ticket);
-  const profit = ticketProfit(ticket);
-  const matchesHtml = ticket.matches.map(m=>{
-    const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
-    const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
-    return `
-      <div class="match-row">
-        <div class="match-desc">
-          <span class="teams">${teamsLabel}</span>
-          <span class="meta">${marketLabel}: ${m.selection} · odd ${m.odd.toFixed(2)}</span>
-        </div>
-        ${resultChip(m.result)}
-      </div>
-    `;
-  }).join('');
-
+  // Na Conferência, "digitado por" e o status da conferência sempre aparecem — mesmo pra
+  // apostas antigas sem autor registrado — ao contrário do card padrão de Apostas.
   const autor = ticket.createdBy ? authorName(ticket.createdBy) : 'sem autor registrado';
+  const autorStat = `<div class="bet-stat"><span class="bet-stat-label">Digitado por</span><span class="bet-stat-value">${autor}</span></div>`;
   const conferidoInfo = ticket.conferido
-    ? `<span style="color:var(--green)">✓ Conferido${ticket.conferidoBy?' por '+authorName(ticket.conferidoBy):''}${ticket.conferidoAt?' em '+new Date(ticket.conferidoAt).toLocaleDateString('pt-BR'):''}</span>`
+    ? `<div class="bet-stat"><span class="bet-stat-label">Conferência</span><span class="bet-stat-value" style="color:var(--green)">✓ ${ticket.conferidoBy?'por '+authorName(ticket.conferidoBy):'Conferido'}${ticket.conferidoAt?' em '+new Date(ticket.conferidoAt).toLocaleDateString('pt-BR'):''}</span></div>`
     : '';
 
-  return `
-    <div class="ticket ticket-compact">
-      <div class="ticket-top">
-        <div>
-          <div class="ticket-client"><span style="font-family:var(--font-mono);font-weight:400;font-size:11px;color:var(--text-muted)">#${ticket.ticketNumber||'—'}</span> ${cl?cl.name:'Cliente removido'}</div>
-          <div class="ticket-meta">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''} · stake ${fmtBRL(ticket.stake)} · digitado por <strong>${autor}</strong></div>
-          ${conferidoInfo ? `<div class="ticket-meta" style="margin-top:2px">${conferidoInfo}</div>` : ''}
-        </div>
-        ${resultChip(r)}
-      </div>
-      <div class="match-list">${matchesHtml}</div>
-      <div class="ticket-footer">
-        <span>Resultado</span>
-        <span class="${profit>=0?'profit-pos':'profit-neg'}">${r==='pending'?'—':(profit>=0?'+':'')+fmtBRL(profit)}</span>
-      </div>
-      <div class="ticket-actions" style="align-items:center">
-        <button class="btn-ghost btn-sm" onclick="editTicket('${ticket.id}')">Editar</button>
-        ${ticket.conferido
-          ? `<button class="btn-ghost btn-sm" onclick="desfazerConferencia('${ticket.id}')">Desfazer conferência</button>`
-          : `<button onclick="marcarConferido('${ticket.id}')" title="Marcar como conferido" style="width:32px;height:32px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">✓</button>`}
-      </div>
-    </div>
-  `;
+  const conferenciaAction = ticket.conferido
+    ? `<button class="icon-btn" title="Desfazer conferência" onclick="desfazerConferencia('${ticket.id}')">↺</button>`
+    : `<button onclick="marcarConferido('${ticket.id}')" title="Marcar como conferido" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:15px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0">✓</button>`;
+
+  return renderBetCard(ticket, {
+    showEdit: true, showDuplicate: false, showDelete: false, showQuickResult: false,
+    showAuthor: false, conferenciaAction, extraStats: autorStat + conferidoInfo
+  });
 }
 
 function setConferenciaFilterUser(v){
