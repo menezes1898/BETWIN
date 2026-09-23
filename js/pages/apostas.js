@@ -444,10 +444,20 @@ function quickMarket(market, selection){
   oddField.select();
 }
 
+// Troca as palavras genéricas "Casa"/"Fora" da seleção pelo nome de fato digitado no time da
+// casa/visitante (ex: "Empate ou Fora" com os times "Aldosivi" x "Atlético Tucumán" vira
+// "Empate ou Atlético Tucumán"), evitando ficar genérico e tendo que editar isso na mão toda hora.
+function autoFillSelectionTeamNames(selection, home, away){
+  let out = selection;
+  if(home) out = out.replace(/\bcasa\b/gi, home);
+  if(away) out = out.replace(/\bfora\b/gi, away);
+  return out;
+}
+
 function addDraftMatch(){
   const semEvento = document.getElementById('match-sem-evento').checked;
   const market = document.getElementById('match-market').value;
-  const selection = document.getElementById('match-selection').value.trim();
+  let selection = document.getElementById('match-selection').value.trim();
   const odd = parseFloat(document.getElementById('match-odd').value);
   if(!selection){ showToast('Informe a seleção (ex: Casa, Over 2.5, Sim).'); return; }
   if(!odd && odd!==0 || isNaN(odd)){ showToast('Informe a odd da seleção.'); return; }
@@ -461,6 +471,7 @@ function addDraftMatch(){
     home = document.getElementById('match-home').value.trim();
     away = document.getElementById('match-away').value.trim();
     if(!home || !away){ showToast('Informe os dois times.'); return; }
+    selection = autoFillSelectionTeamNames(selection, home, away);
   }
   date = DRAFT.date || todaySP();
   time = DRAFT.time || null;
