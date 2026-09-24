@@ -1,6 +1,6 @@
 async function loadState(){
   try{
-    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}, {data: discountHistory, error: err10}, {data: profiles, error: err11}] = await Promise.all([
+    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}, {data: discountHistory, error: err10}, {data: profiles, error: err11}, {data: whatsappGroups, error: err12}] = await Promise.all([
       supabaseClient.from('clients').select('*').order('created_at'),
       supabaseClient.from('tickets').select('*').order('created_at'),
       supabaseClient.from('settlements').select('*').order('paid_at'),
@@ -11,14 +11,17 @@ async function loadState(){
       supabaseClient.from('client_week_discount').select('*'),
       supabaseClient.from('client_week_commissioners').select('*'),
       supabaseClient.from('client_discount_history').select('*'),
-      supabaseClient.from('profiles').select('*')
+      supabaseClient.from('profiles').select('*'),
+      supabaseClient.from('whatsapp_groups').select('*').order('created_at')
     ]);
     if(err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10){
       showToast('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9||err10).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
       return;
     }
-    // profiles é opcional (só existe depois da migração de autoria) — não trava o sistema se ainda não existir.
+    // profiles e whatsapp_groups são opcionais (só existem depois de rodar a migração correspondente)
+    // — não travam o sistema se ainda não existirem.
     STATE.profiles = (!err11 && profiles) ? profiles.map(p=>({id:p.id, name:p.name})) : [];
+    STATE.whatsappGroups = (!err12 && whatsappGroups) ? whatsappGroups.map(g=>({id:g.id, name:g.name})) : [];
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false}));
     STATE.tickets = (tickets||[]).map(t=>({
       id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,

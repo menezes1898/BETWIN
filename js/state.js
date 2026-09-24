@@ -5,7 +5,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Tf4F0bAvZsHyevsy0JUa0g_q8G4_-dW';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 
-let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [], clientWeekDiscounts: [], clientWeekCommissioners: [], clientDiscountHistory: [], profiles: [] };
+let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [], clientWeekDiscounts: [], clientWeekCommissioners: [], clientDiscountHistory: [], profiles: [], whatsappGroups: [] };
 let ADMIN_TAB = 'dashboard';
 let ADMIN_SUBVIEW = 'list'; // 'list' | 'wizard'
 let DASH_WEEK = null;
@@ -45,6 +45,13 @@ let CONFERENCIA_FILTER_CLIENT_NAME = '';
 let CONFERENCIA_DATE_FROM = '';
 let CONFERENCIA_DATE_TO = '';
 let COLLAPSED_TICKETS = new Set(); // bilhetes que o usuário fechou manualmente (por padrão, todos ficam abertos)
+
+// ---- Destaques do Dia (envio de arte pro WhatsApp) ----
+let DESTAQUE_IMAGE_DATAURL = null;
+let DESTAQUE_IMAGE_NAME = '';
+let DESTAQUE_CAPTION = '';
+let DESTAQUE_SENT_IDS = new Set(); // grupos já marcados como "enviado" nessa sessão (checklist, não persistido)
+let SHOW_DESTAQUE_PROMPT = false;
 
 const MARKETS = [
   {v:'Resultado Final', l:'Resultado Final (1X2)'},

@@ -61,6 +61,7 @@ function renderAdmin(){
       <div class="tab ${ADMIN_TAB==='clientes'?'active':''}" onclick="setTab('clientes')">Clientes</div>
       <div class="tab ${ADMIN_TAB==='financeiro'?'active':''}" onclick="setTab('financeiro')">Financeiro</div>
       <div class="tab ${ADMIN_TAB==='parceiros'?'active':''}" onclick="setTab('parceiros')">Parceiros</div>
+      <div class="tab ${ADMIN_TAB==='destaques'?'active':''}" onclick="setTab('destaques')">Destaques do Dia</div>
       <div class="tab ${ADMIN_TAB==='config'?'active':''}" onclick="setTab('config')">Configurações</div>
     </div>
     <div id="tab-content"></div>
@@ -73,6 +74,7 @@ function renderAdmin(){
   if(ADMIN_TAB==='dashboard') c.innerHTML = renderDashboardTab();
   if(ADMIN_TAB==='financeiro') c.innerHTML = renderFinanceiroTab();
   if(ADMIN_TAB==='parceiros') c.innerHTML = renderParceirosTab();
+  if(ADMIN_TAB==='destaques') c.innerHTML = renderDestaquesTab();
   if(ADMIN_TAB==='config') c.innerHTML = renderConfigTab();
 }
 function setTab(t){ ADMIN_TAB=t; ADMIN_SUBVIEW='list'; render(); }
