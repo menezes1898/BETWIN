@@ -1,18 +1,40 @@
+// O Supabase/PostgREST limita cada requisição a um número máximo de linhas (por padrão, 1000 —
+// configurável em Project Settings > API > Max Rows, mas o código não deve depender disso).
+// Sem paginação, uma tabela que passa desse teto simplesmente perde as linhas mais novas (as que
+// ficam depois do corte, numa consulta ordenada crescente) — foi exatamente isso que fez apostas
+// novas "sumirem" ao atualizar a página depois que a tabela 'tickets' passou de 1000 linhas.
+// Esta função busca TODAS as linhas, avançando em blocos, não importa quantas existam.
+async function fetchAllRows(table, orderColumn){
+  const PAGE_SIZE = 1000;
+  let allRows = [];
+  let from = 0;
+  while(true){
+    let q = supabaseClient.from(table).select('*');
+    if(orderColumn) q = q.order(orderColumn);
+    const {data, error} = await q.range(from, from + PAGE_SIZE - 1);
+    if(error) return {data: null, error};
+    allRows = allRows.concat(data || []);
+    if(!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return {data: allRows, error: null};
+}
+
 async function loadState(){
   try{
     const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}, {data: discountHistory, error: err10}, {data: profiles, error: err11}, {data: whatsappGroups, error: err12}] = await Promise.all([
-      supabaseClient.from('clients').select('*').order('created_at'),
-      supabaseClient.from('tickets').select('*').order('created_at'),
-      supabaseClient.from('settlements').select('*').order('paid_at'),
-      supabaseClient.from('withdrawals').select('*').order('created_at'),
-      supabaseClient.from('transactions').select('*').order('date'),
-      supabaseClient.from('commissioners').select('*').order('created_at'),
-      supabaseClient.from('commissioner_clients').select('*').order('created_at'),
-      supabaseClient.from('client_week_discount').select('*'),
-      supabaseClient.from('client_week_commissioners').select('*'),
-      supabaseClient.from('client_discount_history').select('*'),
-      supabaseClient.from('profiles').select('*'),
-      supabaseClient.from('whatsapp_groups').select('*').order('created_at')
+      fetchAllRows('clients', 'created_at'),
+      fetchAllRows('tickets', 'created_at'),
+      fetchAllRows('settlements', 'paid_at'),
+      fetchAllRows('withdrawals', 'created_at'),
+      fetchAllRows('transactions', 'date'),
+      fetchAllRows('commissioners', 'created_at'),
+      fetchAllRows('commissioner_clients', 'created_at'),
+      fetchAllRows('client_week_discount'),
+      fetchAllRows('client_week_commissioners'),
+      fetchAllRows('client_discount_history'),
+      fetchAllRows('profiles'),
+      fetchAllRows('whatsapp_groups', 'created_at')
     ]);
     if(err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10){
       showToast('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9||err10).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
