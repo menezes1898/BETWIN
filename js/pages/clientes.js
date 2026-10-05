@@ -245,7 +245,7 @@ function renderClientDiagnostico(cl){
       <h3>Pagamentos já registrados (baixas)</h3>
       ${settlements.length===0 ? '<div class="empty">Nenhum ainda.</div>' : settlements.map(s=>`
         <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--line-soft);${s.excluded?'opacity:0.5':''}">
-          <span>${s.paidAt?new Date(s.paidAt).toLocaleDateString('pt-BR'):'—'} · semana de ${weekLabel(s.weekStart)}${s.excluded?' <span class="chip chip-void">EXCLUÍDA</span>':''}</span>
+          <span>${s.paidAt?new Date(s.paidAt).toLocaleDateString('pt-BR'):'—'} · ${s.weekStart?'semana de '+weekLabel(s.weekStart):'baixa geral (não presa a uma semana)'}${s.excluded?' <span class="chip chip-void">EXCLUÍDA</span>':''}</span>
           <span style="font-family:var(--font-mono)" class="${s.amount>=0?'profit-pos':'profit-neg'}">${fmtBRL(s.amount)}</span>
         </div>
       `).join('')}

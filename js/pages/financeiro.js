@@ -172,7 +172,7 @@ function renderClientesFinanceiroTab(){
           <div class="match-actions" style="flex-wrap:wrap">
             <span title="Saldo pendente acumulado, considerando todas as semanas e pagamentos já feitos" style="font-family:var(--font-mono);font-size:15px;font-weight:700;cursor:help;border-bottom:1px dotted currentColor" class="${r.remaining>=0?'profit-pos':'profit-neg'}">${fmtBRL(Math.abs(r.remaining))}</span>
             ${r.status==='parcial' ? `<span class="chip chip-pending">PARCIAL</span>` : `<span class="chip chip-pending">PENDENTE</span>`}
-            <button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}','${FINANCE_WEEK}',${r.remaining})">Dar baixa</button>
+            <button class="btn-ghost btn-sm" onclick="darBaixa('${r.id}',${r.remaining})">Dar baixa (geral)</button>
             ${r.status==='parcial' ? `<button class="btn-ghost btn-sm" onclick="desfazerUltimaBaixa('${r.id}')">Desfazer última</button>` : ''}
           </div>
         </div>
@@ -383,16 +383,22 @@ function renderRelatorioPeriodoSection(){
   `;
 }
 
-async function darBaixa(clientId, weekStart, remaining){
+// "Dar baixa" é um acerto GERAL do saldo acumulado do cliente (todas as semanas somadas),
+// não de uma semana específica — por isso NUNCA prende a settlement a nenhuma semana
+// (week_start fica null) e NUNCA vem com o valor pré-preenchido: a pessoa precisa digitar
+// o valor conscientemente toda vez, pra não confirmar sem querer o saldo inteiro de uma
+// tacada só. Pagamento de UMA semana específica é feito pelo botão "Marcar como pago"
+// dentro da própria semana, na aba do cliente (markWeekAsPaid) — esse sim fica preso à
+// semana certa.
+async function darBaixa(clientId, remaining){
   const isReceber = remaining>=0;
   const label = isReceber ? 'Valor recebido agora' : 'Valor pago agora';
-  const defaultVal = Math.abs(remaining).toFixed(2).replace('.',',');
-  const input = prompt(`${label} (falta ${fmtBRL(Math.abs(remaining))}):`, defaultVal);
+  const input = prompt(`${label} — baixa GERAL do saldo acumulado (não fica presa a uma semana). Saldo pendente total: ${fmtBRL(Math.abs(remaining))}. Digite o valor:`);
   if(input===null) return;
   const val = parseFloat(String(input).replace(',','.'));
   if(isNaN(val) || val<=0){ showToast('Valor inválido.'); return; }
   const amount = isReceber ? val : -val;
-  const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: weekStart, amount, created_by: currentUserId()}).select().single();
+  const {data, error} = await supabaseClient.from('settlements').insert({client_id: clientId, week_start: null, amount, created_by: currentUserId()}).select().single();
   if(error){ showToast('Erro ao dar baixa: '+error.message); return; }
   STATE.settlements.push({id:data.id, clientId:data.client_id, weekStart:data.week_start, amount:parseFloat(data.amount), paidAt:data.paid_at, excluded:false, createdBy:data.created_by||null});
   showToast('Baixa registrada com sucesso!');
