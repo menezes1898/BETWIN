@@ -42,22 +42,12 @@ function renderClientView(code){
       const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
       const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
       return `
-        <div style="display:flex;align-items:baseline;gap:5px">
-          <span style="flex-shrink:0;font-size:9.5px;line-height:1.5">${resultIconSmall(m.result)}</span>
-          <span style="min-width:0;overflow-wrap:break-word;font-size:12.5px;line-height:1.4;text-transform:uppercase">
-            <strong style="font-weight:600">${teamsLabel}</strong>
-            <span style="color:var(--text-muted)"> — ${marketLabel}: ${m.selection}</span>
-          </span>
+        <div class="bet-detail-line">
+          <span class="dl-ic">${resultIconSmall(m.result)}</span>
+          <span class="dl-txt"><b>${teamsLabel}</b> — ${marketLabel}: ${m.selection}</span>
         </div>
       `;
     }).join('');
-  }
-  // Sombreado discreto por resultado — pendente não recebe nenhuma cor, fica neutro.
-  function ticketRowStyle(r){
-    if(r==='green') return {bg:'rgba(63,182,139,0.06)', border:'var(--green)'};
-    if(r==='red') return {bg:'rgba(224,87,90,0.05)', border:'var(--red)'};
-    if(r==='void') return {bg:'rgba(255,255,255,0.02)', border:'var(--line)'};
-    return {bg:'var(--surface-2)', border:'var(--line)'};
   }
   const dayGroups = {};
   weekTickets.forEach(t=>{
@@ -71,49 +61,50 @@ function renderClientView(code){
     const rows = dayGroups[day].map(t=>{
       const r = ticketResult(t);
       const profit = ticketProfit(t);
-      const style = ticketRowStyle(r);
       return `
-        <div style="background:${style.bg};border-left:3px solid ${style.border};border-radius:6px;padding:8px 10px;margin-bottom:6px">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px">
-            <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);white-space:nowrap">${t.time||'—'} <span style="opacity:0.65">#${t.ticketNumber||'—'}</span></span>
-            <span style="font-family:var(--font-mono);font-size:13.5px;font-weight:700;white-space:nowrap" class="${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</span>
-          </div>
-          <div>${ticketMatchesBlock(t)}</div>
-          <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;font-family:var(--font-mono)">Valor ${fmtBRL(t.stake)}${ticketOddTotal(t)>0?' · Odds @'+effectiveOdds(t).toFixed(2):''}</div>
+        <div class="bet-row">
+          <div class="col-date">${t.time||'—'}<span class="ticket-num">#${t.ticketNumber||'—'}</span></div>
+          <div class="col-value">${fmtBRL(t.stake)}</div>
+          <div class="col-odds">${ticketOddTotal(t)>0?effectiveOdds(t).toFixed(2):'—'}</div>
+          <div class="col-details">${ticketMatchesBlock(t)}</div>
+          <div class="col-result ${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</div>
         </div>
       `;
     }).join('');
-    return `<div style="margin-bottom:14px"><p style="margin:0 0 6px;font-size:13px;font-weight:500;color:var(--text-muted)">${fmtDate(day)}</p>${rows}</div>`;
+    return `<div class="bet-day-label">${fmtDate(day)}</div>${rows}`;
   }).join('');
+
+  const totalResultadoSemana = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
 
   document.title = 'Relatório';
   app.innerHTML = `
     <div class="client-theme client-page-wrap" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#070B14; --surface:#10141F; --surface-2:#151B29; --line:#222B3E; --text:#F5F7FA; --text-muted:#B8BEC7; background:var(--bg);">
-    <div class="client-header"><div class="name" style="color:var(--text)">${client.name}</div></div>
+    <div class="client-header"><div class="name">${client.name}</div></div>
 
-    <div class="card">
-      <div style="display:flex;justify-content:center;align-items:center;gap:16px">
-        <button class="btn-ghost" style="padding:8px 14px;font-size:14px" onclick="changeClientWeek(-1)">‹</button>
-        <span style="font-family:'Montserrat',sans-serif;font-size:14px;font-weight:600;letter-spacing:0.2px">${weekLabel(CLIENT_WEEK)}</span>
-        <button class="btn-ghost" style="padding:8px 14px;font-size:14px" onclick="changeClientWeek(1)">›</button>
+    <div class="card client-week-card">
+      <div class="client-week-nav">
+        <button class="client-week-btn" onclick="changeClientWeek(-1)">‹</button>
+        <span class="client-week-label">${weekLabel(CLIENT_WEEK)}</span>
+        <button class="client-week-btn" onclick="changeClientWeek(1)">›</button>
       </div>
     </div>
 
-    <div class="card" style="display:flex;padding:0">
-      <div style="flex:1;text-align:center;padding:0.9rem 0.5rem">
-        <div style="font-family:'Montserrat',sans-serif;font-size:10.5px;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:0.4px">Resultado</div>
-        <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;margin-top:5px" class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
+    <div class="card client-result-card">
+      <div class="client-result-hero">
+        <div class="r-label">Resultado Final</div>
+        <div class="r-value ${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
       </div>
       ${resultado<0 ? `
-      <div style="width:1px;background:var(--line)"></div>
-      <div style="flex:1;text-align:center;padding:0.9rem 0.5rem">
-        <div style="font-family:'Montserrat',sans-serif;font-size:10.5px;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:0.4px">Desconto</div>
-        <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;margin-top:5px">${fmtBRL(desconto)}</div>
-      </div>
-      <div style="width:1px;background:var(--line)"></div>
-      <div style="flex:1;text-align:center;padding:0.9rem 0.5rem">
-        <div style="font-family:'Montserrat',sans-serif;font-size:10.5px;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:0.4px">Resultado Final</div>
-        <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;margin-top:5px" class="${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
+      <div class="client-result-sub">
+        <div class="stat">
+          <div class="s-label">Resultado</div>
+          <div class="s-value ${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
+        </div>
+        <div class="s-divider"></div>
+        <div class="stat">
+          <div class="s-label">Desconto</div>
+          <div class="s-value">${fmtBRL(desconto)}</div>
+        </div>
       </div>
       ` : ''}
     </div>
@@ -141,7 +132,19 @@ function renderClientView(code){
     ` : ''}
 
     <div class="card">
-      <h3 style="text-align:center;font-size:16px">Apostas da semana</h3>
+      <div class="client-list-summary">
+        <span class="count-badge">Apostas (${weekTickets.length})</span>
+        <span class="amount-badge ${totalResultadoSemana>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalResultadoSemana)}</span>
+      </div>
+      ${weekTickets.length ? `
+        <div class="bet-table-head">
+          <span class="col-date">Data</span>
+          <span class="col-value">Valor</span>
+          <span class="col-odds">Odds</span>
+          <span class="col-details">Detalhes</span>
+          <span class="col-result">Resultado</span>
+        </div>
+      ` : ''}
       ${ticketRows || '<div class="empty">Nenhuma aposta nessa semana.</div>'}
     </div>
     </div>
