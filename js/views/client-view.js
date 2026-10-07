@@ -90,9 +90,8 @@ function renderClientView(code){
   }).join('');
 
   const totalResultadoSemana = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
-  // Mesma regra de antes: com resultado negativo mostra o resultado final (com desconto);
-  // senão mostra o próprio resultado.
-  const hasDesc = resultado<0;
+  // Com perda E desconto: 3 cartões (Resultado / Desconto / Líquido). Senão: só o resultado, centralizado.
+  const hasDesc = resultado<0 && desconto>0;
   const heroValue = hasDesc ? liquido : resultado;
 
   document.title = 'Relatório';
@@ -108,16 +107,27 @@ function renderClientView(code){
       <button class="cv-week-btn" onclick="changeClientWeek(1)" aria-label="Próxima semana">›</button>
     </div>
 
-    <div class="cv-card cv-result-card">
-      <div class="lbl">${hasDesc?'Resultado Final':'Resultado'}</div>
-      <div class="val ${heroValue>=0?'profit-pos':'profit-neg'}">${fmtNum(heroValue)}</div>
-      ${hasDesc ? `
-      <div class="sub">
-        <span>Resultado <b class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtNum(resultado)}</b></span>
-        <span>Desconto <b>${fmtNum(desconto)}</b></span>
+    ${hasDesc ? `
+    <div class="cv-stats">
+      <div class="cv-stat">
+        <div class="lbl">Resultado</div>
+        <div class="val ${resultado>=0?'profit-pos':'profit-neg'}">${fmtNum(resultado)}</div>
       </div>
-      ` : ''}
+      <div class="cv-stat">
+        <div class="lbl">Desconto</div>
+        <div class="val profit-pos">${fmtNum(desconto)}</div>
+      </div>
+      <div class="cv-stat">
+        <div class="lbl">Líquido</div>
+        <div class="val ${liquido>=0?'profit-pos':'profit-neg'}">${fmtNum(liquido)}</div>
+      </div>
     </div>
+    ` : `
+    <div class="cv-card cv-result-card">
+      <div class="lbl">Resultado</div>
+      <div class="val ${heroValue>=0?'profit-pos':'profit-neg'}">${fmtNum(heroValue)}</div>
+    </div>
+    `}
 
     ${pendentes.length>0 ? `
     <div class="cv-card cv-pend" onclick="CLIENT_SHOW_PENDENTES=!CLIENT_SHOW_PENDENTES;render()">
