@@ -7,6 +7,21 @@ function changeClientWeek(dir){
   CLIENT_WEEK = shiftWeek(CLIENT_WEEK, dir*7);
   render();
 }
+// Botão de atualizar (canto superior direito): só recarrega os mesmos dados e redesenha.
+async function refreshClientData(){
+  try{ await loadState(); }catch(e){}
+  render();
+}
+// Número no padrão da referência: 1.500,00 / -15.610,76 (sem o "R$").
+function fmtNum(v){
+  return new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+}
+function cvIcon(r){
+  if(r==='green') return '<span class="cv-ic cv-ic-green">✓</span>';
+  if(r==='red') return '<span class="cv-ic cv-ic-red">✕</span>';
+  if(r==='void') return '<span class="cv-ic cv-ic-void">–</span>';
+  return '<span class="cv-ic cv-ic-pending">…</span>';
+}
 
 function renderClientView(code){
   const app = document.getElementById('app');
@@ -29,7 +44,10 @@ function renderClientView(code){
     }
   }
 
-  const weekTickets = myTickets.filter(t=>mondayOf(ticketDate(t))===CLIENT_WEEK).sort((a,b)=>ticketDate(b).localeCompare(ticketDate(a)));
+  const weekTickets = myTickets.filter(t=>mondayOf(ticketDate(t))===CLIENT_WEEK).sort((a,b)=>{
+    const byDate = ticketDate(b).localeCompare(ticketDate(a));
+    return byDate!==0 ? byDate : (b.time||'').localeCompare(a.time||'');
+  });
   const resultado = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
   const descontoPct = getWeekDiscount(client, CLIENT_WEEK);
   const desconto = computeDescontoAmount(client, resultado, CLIENT_WEEK);
@@ -41,89 +59,81 @@ function renderClientView(code){
     return t.matches.map(m=>{
       const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
       const teamsLabel = m.away ? `${m.home} x ${m.away}` : m.home;
+      const odd = m.odd>0 ? ` <b>@ ${Number(m.odd).toFixed(2)}</b>` : '';
       return `
-        <div class="bet-detail-line">
-          <span class="dl-ic">${resultIconSmall(m.result)}</span>
-          <span class="dl-txt"><b>${teamsLabel}</b> — ${marketLabel}: ${m.selection}</span>
+        <div class="cv-line">
+          ${cvIcon(m.result)}
+          <span class="cv-line-txt">${teamsLabel} - ${marketLabel} - ${m.selection}${odd}</span>
         </div>
       `;
     }).join('');
   }
-  const dayGroups = {};
-  weekTickets.forEach(t=>{
-    if(!dayGroups[t.date]) dayGroups[t.date] = [];
-    dayGroups[t.date].push(t);
-  });
-  const dayKeys = Object.keys(dayGroups).sort((a,b)=>b.localeCompare(a));
-  dayKeys.forEach(k=> dayGroups[k].sort((a,b)=>(b.time||'').localeCompare(a.time||'')));
 
-  const ticketRows = dayKeys.map(day=>{
-    const rows = dayGroups[day].map(t=>{
-      const r = ticketResult(t);
-      const profit = ticketProfit(t);
-      return `
-        <div class="bet-row">
-          <div class="col-date">${t.time||'—'}<span class="ticket-num">#${t.ticketNumber||'—'}</span></div>
-          <div class="col-value">${fmtBRL(t.stake)}</div>
-          <div class="col-odds">${ticketOddTotal(t)>0?effectiveOdds(t).toFixed(2):'—'}</div>
-          <div class="col-details">${ticketMatchesBlock(t)}</div>
-          <div class="col-result ${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</div>
+  const ticketRows = weekTickets.map(t=>{
+    const r = ticketResult(t);
+    const profit = ticketProfit(t);
+    const rowCls = r==='red' ? 'is-red' : (r==='green' ? 'is-green' : '');
+    return `
+      <div class="cv-row ${rowCls}">
+        <div class="cv-date">
+          <div class="d1">${fmtDate(t.date)} ${t.time?String(t.time).slice(0,5):''}</div>
+          <div class="d2">#${t.ticketNumber||'—'} <span class="cv-tag"><svg viewBox="0 0 16 16" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 7h12M5 1.5v3M11 1.5v3"/></svg></span></div>
         </div>
-      `;
-    }).join('');
-    return `<div class="bet-day-label">${fmtDate(day)}</div>${rows}`;
+        <div class="cv-meta">
+          <div class="cv-val" data-l="Valor">${fmtNum(t.stake)}</div>
+          <div class="cv-odds" data-l="Odds">${ticketOddTotal(t)>0?effectiveOdds(t).toFixed(2):'—'}</div>
+        </div>
+        <div class="cv-details">${ticketMatchesBlock(t)}</div>
+        <div class="cv-result ${r==='pending'?'is-pending':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtNum(profit)}</div>
+      </div>
+    `;
   }).join('');
 
   const totalResultadoSemana = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
+  // Mesma regra de antes: com resultado negativo mostra o resultado final (com desconto);
+  // senão mostra o próprio resultado.
+  const hasDesc = resultado<0;
+  const heroValue = hasDesc ? liquido : resultado;
 
   document.title = 'Relatório';
   app.innerHTML = `
-    <div class="client-theme client-page-wrap" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#070B14; --surface:#10141F; --surface-2:#151B29; --line:#222B3E; --text:#F5F7FA; --text-muted:#B8BEC7; background:var(--bg);">
+    <div class="client-theme client-page-wrap" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#0d1420; --surface:#18212f; --surface-2:#202b3d; --surface-3:#2b3850; --line:#2a3550; --line-soft:#232d42; --text:#F5F7FA; --text-muted:#93a0ba; --red:#ff5d62; --red-dim:rgba(255,93,98,0.14); --green:#34d399; --green-dim:rgba(52,211,153,0.14); background:var(--bg);">
+    <button class="cv-refresh" onclick="refreshClientData()" title="Atualizar" aria-label="Atualizar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg></button>
+
     <div class="client-header"><div class="name">${client.name}</div></div>
 
-    <div class="card client-week-card">
-      <div class="client-week-nav">
-        <button class="client-week-btn" onclick="changeClientWeek(-1)">‹</button>
-        <span class="client-week-label">${weekLabel(CLIENT_WEEK)}</span>
-        <button class="client-week-btn" onclick="changeClientWeek(1)">›</button>
-      </div>
+    <div class="cv-week">
+      <button class="cv-week-btn" onclick="changeClientWeek(-1)" aria-label="Semana anterior">‹</button>
+      <span class="cv-week-label">${weekLabel(CLIENT_WEEK)}</span>
+      <button class="cv-week-btn" onclick="changeClientWeek(1)" aria-label="Próxima semana">›</button>
     </div>
 
-    <div class="card client-result-card">
-      <div class="client-result-hero">
-        <div class="r-label">Resultado Final</div>
-        <div class="r-value ${liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(liquido)}</div>
-      </div>
-      ${resultado<0 ? `
-      <div class="client-result-sub">
-        <div class="stat">
-          <div class="s-label">Resultado</div>
-          <div class="s-value ${resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultado)}</div>
-        </div>
-        <div class="s-divider"></div>
-        <div class="stat">
-          <div class="s-label">Desconto</div>
-          <div class="s-value">${fmtBRL(desconto)}</div>
-        </div>
+    <div class="cv-card cv-result-card">
+      <div class="lbl">${hasDesc?'Resultado Final':'Resultado'}</div>
+      <div class="val ${heroValue>=0?'profit-pos':'profit-neg'}">${fmtNum(heroValue)}</div>
+      ${hasDesc ? `
+      <div class="sub">
+        <span>Resultado <b class="${resultado>=0?'profit-pos':'profit-neg'}">${fmtNum(resultado)}</b></span>
+        <span>Desconto <b>${fmtNum(desconto)}</b></span>
       </div>
       ` : ''}
     </div>
 
     ${pendentes.length>0 ? `
-    <div class="card" style="cursor:pointer" onclick="CLIENT_SHOW_PENDENTES=!CLIENT_SHOW_PENDENTES;render()">
-      <div style="display:flex;justify-content:center;align-items:center;gap:10px;position:relative">
+    <div class="cv-card cv-pend" onclick="CLIENT_SHOW_PENDENTES=!CLIENT_SHOW_PENDENTES;render()">
+      <div class="cv-pend-top">
         <span class="chip chip-pending">PENDENTES (${pendentes.length})</span>
-        <span style="font-family:var(--font-mono);font-size:13px;color:var(--gold);font-weight:600">${fmtBRL(pendentesValor)}</span>
-        <span style="color:var(--text-muted);font-size:13px;transition:transform 0.15s;display:inline-block;transform:rotate(${CLIENT_SHOW_PENDENTES?90:0}deg)">›</span>
+        <span class="cv-pend-val">${fmtNum(pendentesValor)}</span>
+        <span class="cv-pend-arrow" style="transform:rotate(${CLIENT_SHOW_PENDENTES?90:0}deg)">›</span>
       </div>
       ${CLIENT_SHOW_PENDENTES ? `
-        <div style="margin-top:12px;border-top:1px solid var(--line)">
+        <div class="cv-pend-list">
           ${pendentes.map(t=>`
             <div class="match-row">
               <div class="match-desc">
-                <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · <span style="text-transform:uppercase">${ticketDetailsShort(t)}</span></span>
+                <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · ${ticketDetailsShort(t)}</span>
               </div>
-              <span style="font-family:var(--font-mono);font-size:12.5px">${fmtBRL(t.stake)}</span>
+              <span style="font-size:12.5px;font-weight:600">${fmtNum(t.stake)}</span>
             </div>
           `).join('')}
         </div>
@@ -131,21 +141,22 @@ function renderClientView(code){
     </div>
     ` : ''}
 
-    <div class="card">
-      <div class="client-list-summary">
-        <span class="count-badge">Apostas (${weekTickets.length})</span>
-        <span class="amount-badge ${totalResultadoSemana>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalResultadoSemana)}</span>
+    <div class="cv-card cv-list-card">
+      <div class="cv-tabs">
+        <div class="cv-tab">
+          <span class="t1">Apostas (${weekTickets.length})</span>
+          <span class="t2 ${totalResultadoSemana>=0?'profit-pos':'profit-neg'}">${fmtNum(totalResultadoSemana)}</span>
+        </div>
       </div>
       ${weekTickets.length ? `
-        <div class="bet-table-head">
-          <span class="col-date">Data</span>
-          <span class="col-value">Valor</span>
-          <span class="col-odds">Odds</span>
-          <span class="col-details">Detalhes</span>
-          <span class="col-result">Resultado</span>
+        <div class="cv-head">
+          <span class="h-date">Data <svg viewBox="0 0 10 6" width="8" height="5" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 1l4 4 4-4"/></svg></span>
+          <span class="h-meta"><span class="h-val">Valor</span><span class="h-odds">Odds</span></span>
+          <span class="h-details">Detalhes</span>
+          <span class="h-result">Resultado</span>
         </div>
-      ` : ''}
-      ${ticketRows || '<div class="empty">Nenhuma aposta nessa semana.</div>'}
+        ${ticketRows}
+      ` : '<div class="empty" style="padding:28px 0">Nenhuma aposta nessa semana.</div>'}
     </div>
     </div>
   `;
