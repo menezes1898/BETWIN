@@ -20,7 +20,7 @@ function cvIcon(r){
   if(r==='green') return '<span class="cv-ic cv-ic-green">✓</span>';
   if(r==='red') return '<span class="cv-ic cv-ic-red">✕</span>';
   if(r==='void') return '<span class="cv-ic cv-ic-void">–</span>';
-  return '<span class="cv-ic cv-ic-pending">…</span>';
+  return '<span class="cv-ic cv-ic-pending"><svg viewBox="0 0 12 12" width="8" height="8" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M6 3v3.2l2 1.2"/></svg></span>';
 }
 
 function renderClientView(code){
@@ -69,10 +69,12 @@ function renderClientView(code){
     }).join('');
   }
 
-  const ticketRows = weekTickets.map(t=>{
+  function buildRow(t, pendingAsZero){
     const r = ticketResult(t);
     const profit = ticketProfit(t);
     const rowCls = r==='red' ? 'is-red' : (r==='green' ? 'is-green' : '');
+    const resTxt = r==='pending' ? (pendingAsZero ? fmtNum(0) : '—') : fmtNum(profit);
+    const resCls = r==='pending' ? (pendingAsZero ? '' : 'is-pending') : (profit>=0?'profit-pos':'profit-neg');
     return `
       <div class="cv-row ${rowCls}">
         <div class="cv-date">
@@ -84,10 +86,12 @@ function renderClientView(code){
           <div class="cv-odds" data-l="Odds">${ticketOddTotal(t)>0?effectiveOdds(t).toFixed(2):'—'}</div>
         </div>
         <div class="cv-details">${ticketMatchesBlock(t)}</div>
-        <div class="cv-result ${r==='pending'?'is-pending':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtNum(profit)}</div>
+        <div class="cv-result ${resCls}">${resTxt}</div>
       </div>
     `;
-  }).join('');
+  }
+  const ticketRows = weekTickets.map(t=>buildRow(t,false)).join('');
+  const pendentesRows = pendentes.map(t=>buildRow(t,true)).join('');
 
   const totalResultadoSemana = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
   // Com perda E desconto: 3 cartões (Resultado / Desconto / Líquido). Senão: só o resultado, centralizado.
@@ -130,23 +134,21 @@ function renderClientView(code){
     `}
 
     ${pendentes.length>0 ? `
-    <div class="cv-card cv-pend" onclick="CLIENT_SHOW_PENDENTES=!CLIENT_SHOW_PENDENTES;render()">
-      <div class="cv-pend-top">
-        <span class="chip chip-pending">PENDENTES (${pendentes.length})</span>
+    <div class="cv-card cv-pend">
+      <div class="cv-pend-top" onclick="CLIENT_SHOW_PENDENTES=!CLIENT_SHOW_PENDENTES;render()">
+        <span class="cv-pend-title">Pendentes</span>
+        <span class="cv-pend-count">(${pendentes.length})</span>
         <span class="cv-pend-val">${fmtNum(pendentesValor)}</span>
-        <span class="cv-pend-arrow" style="transform:rotate(${CLIENT_SHOW_PENDENTES?90:0}deg)">›</span>
+        <span class="cv-pend-arrow" style="transform:rotate(${CLIENT_SHOW_PENDENTES?0:-90}deg)"><svg viewBox="0 0 10 6" width="11" height="7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l4 4 4-4"/></svg></span>
       </div>
       ${CLIENT_SHOW_PENDENTES ? `
-        <div class="cv-pend-list">
-          ${pendentes.map(t=>`
-            <div class="match-row">
-              <div class="match-desc">
-                <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · ${ticketDetailsShort(t)}</span>
-              </div>
-              <span style="font-size:12.5px;font-weight:600">${fmtNum(t.stake)}</span>
-            </div>
-          `).join('')}
+        <div class="cv-head cv-head-up">
+          <span class="h-date">Data</span>
+          <span class="h-meta"><span class="h-val">Valor</span><span class="h-odds">Odds</span></span>
+          <span class="h-details">Descrição</span>
+          <span class="h-result">Resultado</span>
         </div>
+        ${pendentesRows}
       ` : ''}
     </div>
     ` : ''}
