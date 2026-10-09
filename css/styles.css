@@ -26,6 +26,7 @@
     --shadow-md: 0 8px 24px rgba(0,0,0,0.28), 0 1px 2px rgba(0,0,0,0.3);
     --ease: cubic-bezier(0.4,0,0.2,1);
   }
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
   *{box-sizing:border-box;}
   body{
     margin:0; background:var(--bg); color:var(--text);
@@ -239,8 +240,8 @@
   .cv-odds{text-align:center;font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;}
   .cv-details{min-width:0;display:flex;flex-direction:column;gap:5px;}
   .cv-line{display:flex;align-items:flex-start;gap:7px;font-size:11.5px;line-height:1.5;}
-  .cv-line-txt{color:#aebad0;min-width:0;overflow-wrap:anywhere;}
-  .cv-line-txt b{color:#cdd6e6;font-weight:700;}
+  .cv-line-txt{color:#aebad0;min-width:0;overflow-wrap:anywhere;text-transform:uppercase;font-size:inherit;}
+  .cv-line-txt b{color:#cdd6e6;font-weight:700;font-size:inherit;}
   .cv-ic{width:12px;height:12px;margin-top:2.5px;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;line-height:1;color:#fff;}
   .cv-ic-red{background:#ef5350;}
   .cv-ic-green{background:#2fc58b;}
@@ -260,7 +261,7 @@
     .cv-val,.cv-odds{text-align:left;font-size:12.5px;}
     .cv-val::before,.cv-odds::before{content:attr(data-l) " ";color:var(--text-muted);font-weight:500;font-size:11px;}
     .cv-details{grid-area:details;}
-    .cv-line{font-size:12px;}
+    .cv-line{font-size:11.5px;}
     .cv-week{gap:14px;}
     .cv-tabs{padding:10px 12px;}
   }
