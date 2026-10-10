@@ -11,7 +11,7 @@ function renderClientesTab(){
       <input type="number" id="new-client-discount" min="0" max="100" step="1" value="0" placeholder="Ex: 15">
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
         <input type="checkbox" id="new-client-descarga" style="width:auto">
-        <span>Conta de Descarga (parceiro) — resultado invertido, sem desconto</span>
+        <span>Conta de Descarga — resultado invertido</span>
       </label>
       <div style="margin-top:14px"><button class="btn-primary" onclick="addClient()">Cadastrar</button></div>
     </div>
@@ -97,7 +97,7 @@ function renderClientDetail(id){
       <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">Mudar esse valor passa a valer <strong>a partir de agora</strong>, sem afetar semanas passadas. Pra mudar o desconto de uma semana específica no passado, usa a aba <strong>Semanas</strong>.</p>
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer">
         <input type="checkbox" id="detail-client-descarga" style="width:auto" ${cl.isDescarga?'checked':''}>
-        <span>Conta de Descarga (parceiro) — resultado invertido, sem desconto</span>
+        <span>Conta de Descarga — resultado invertido</span>
       </label>
       <label>Link de acesso do cliente</label>
       <div class="link-box">
