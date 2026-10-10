@@ -29,20 +29,24 @@ function renderDashboardTab(){
     const desconto = computeDescontoAmount(cl, resultado, DASH_WEEK);
     const activeCommissioners = getActiveCommissionersForWeek(cl.id, DASH_WEEK);
     const comissao = activeCommissioners.reduce((s,a)=>s+computeCommissionAmount(cl.id, a.percent, DASH_WEEK),0);
-    const liquido = applyDescontoSign(cl, resultado, desconto) - comissao;
+    // Parceria: positivo = você paga ao parceiro (cliente perdeu), negativo = parceiro paga a você (cliente ganhou).
+    const parceria = getActivePartnersForWeek(cl.id, DASH_WEEK).reduce((s,a)=>s+computePartnerShare(cl.id, a.percent, DASH_WEEK),0);
+    const liquido = applyDescontoSign(cl, resultado, desconto) - comissao + parceria;
     const perf = volume>0 ? (resultado/volume*100) : 0;
-    return {id:cl.id, name:cl.name, code:cl.code, tickets, volume, resultado, desconto, comissao, liquido, perf};
+    return {id:cl.id, name:cl.name, code:cl.code, tickets, volume, resultado, desconto, comissao, parceria, liquido, perf};
   }).filter(Boolean).sort((a,b)=>a.resultado-b.resultado);
 
   const totalVolume = rows.reduce((s,r)=>s+r.volume,0);
   const totalResultado = rows.reduce((s,r)=>s+r.resultado,0);
   const totalDesconto = rows.reduce((s,r)=>s+r.desconto,0);
   const totalComissao = rows.reduce((s,r)=>s+r.comissao,0);
+  const totalParceria = rows.reduce((s,r)=>s+r.parceria,0);
   const totalLiquido = rows.reduce((s,r)=>s+r.liquido,0);
   const allTickets = rows.flatMap(r=>r.tickets);
 
   const resumoResultado = -totalResultado;
   const resumoLiquido = -totalLiquido;
+  const resumoParceria = -totalParceria; // perspectiva sua: negativo = você paga ao parceiro
 
   return `
     <div class="card">
@@ -60,6 +64,7 @@ function renderDashboardTab(){
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${resumoResultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(resumoResultado)}</div></div>
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Desconto</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px">${fmtBRL(totalDesconto)}</div></div>
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Comissão</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px;color:var(--gold)">${fmtBRL(totalComissao)}</div></div>
+        ${Math.abs(totalParceria)>=0.005 ? `<div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Parceria</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${resumoParceria>=0?'profit-pos':'profit-neg'}">${fmtBRL(resumoParceria)}</div></div>` : ''}
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${resumoLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(resumoLiquido)}</div></div>
       </div>
     </div>
@@ -68,7 +73,7 @@ function renderDashboardTab(){
       ${rows.length===0 ? '<div class="empty">Nenhuma aposta nessa semana.</div>' : `
       <div style="overflow-x:auto">
       <table>
-        <tr><th>Cliente</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Comissão</th><th>Perf.</th><th>Líquido</th></tr>
+        <tr><th>Cliente</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Comissão</th><th>Parceria</th><th>Perf.</th><th>Líquido</th></tr>
         ${rows.map(r=>`
           <tr>
             <td class="left">${r.name} <a href="${window.location.href.split('#')[0]}#cliente=${r.code}" target="_blank" title="Abrir relatório do cliente" style="text-decoration:none;color:var(--gold);font-size:12px">↗</a> <button class="btn-ghost btn-sm" style="padding:2px 6px;font-size:10px" onclick="gerarFechamento('${r.id}')" title="Gerar imagem de fechamento">🧾</button></td>
@@ -77,6 +82,7 @@ function renderDashboardTab(){
             <td class="num ${r.resultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.resultado)}</td>
             <td class="num">${r.desconto>0 ? fmtBRL(r.desconto) : '—'}</td>
             <td class="num" style="${r.comissao>0?'color:var(--gold)':''}">${r.comissao>0 ? fmtBRL(r.comissao) : '—'}</td>
+            <td class="num ${Math.abs(r.parceria)>=0.005?(r.parceria>0?'profit-neg':'profit-pos'):''}">${Math.abs(r.parceria)>=0.005 ? fmtBRL(-r.parceria) : '—'}</td>
             <td class="num">${r.perf.toFixed(1)}%</td>
             <td class="num ${r.liquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(r.liquido)}</td>
           </tr>
@@ -88,6 +94,7 @@ function renderDashboardTab(){
           <td class="num ${totalResultado>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalResultado)}</td>
           <td class="num">${totalDesconto>0 ? fmtBRL(totalDesconto) : '—'}</td>
           <td class="num" style="${totalComissao>0?'color:var(--gold)':''}">${totalComissao>0 ? fmtBRL(totalComissao) : '—'}</td>
+          <td class="num ${Math.abs(totalParceria)>=0.005?(totalParceria>0?'profit-neg':'profit-pos'):''}">${Math.abs(totalParceria)>=0.005 ? fmtBRL(-totalParceria) : '—'}</td>
           <td class="num">${totalVolume>0 ? ((totalResultado/totalVolume)*100).toFixed(1) : '0.0'}%</td>
           <td class="num ${totalLiquido>=0?'profit-pos':'profit-neg'}">${fmtBRL(totalLiquido)}</td>
         </tr>

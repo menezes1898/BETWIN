@@ -4,7 +4,7 @@ function renderParceirosTab(){
     <div class="card">
       <h3>Novo comissionado</h3>
       <label>Nome</label>
-      <input type="text" id="new-commissioner-name" placeholder="Ex: João Parceiro">
+      <input type="text" id="new-commissioner-name" placeholder="Ex: João Silva">
       <label>Telefone (opcional)</label>
       <input type="text" id="new-commissioner-phone" placeholder="Ex: (11) 91234-5678">
       <div style="margin-top:14px"><button class="btn-primary" onclick="addCommissioner()">Cadastrar</button></div>
