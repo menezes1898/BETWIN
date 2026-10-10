@@ -4,6 +4,8 @@ function render(){
   if(m){ renderClientView(m[1]); return; }
   const mc = hash.match(/comissionado=([a-zA-Z0-9]+)/);
   if(mc){ renderCommissionerView(mc[1]); return; }
+  const mp = hash.match(/parceiro=([a-zA-Z0-9]+)/);
+  if(mp){ renderPartnerView(mp[1]); return; }
   document.title = 'Boletim — Consultoria';
   if(!SESSION){ renderLogin(); return; }
   renderAdmin();
@@ -60,7 +62,8 @@ function renderAdmin(){
       <div class="tab ${ADMIN_TAB==='conferencia'?'active':''}" onclick="setTab('conferencia')">Conferência${conferenciaCount?' ('+conferenciaCount+')':''}</div>
       <div class="tab ${ADMIN_TAB==='clientes'?'active':''}" onclick="setTab('clientes')">Clientes</div>
       <div class="tab ${ADMIN_TAB==='financeiro'?'active':''}" onclick="setTab('financeiro')">Financeiro</div>
-      <div class="tab ${ADMIN_TAB==='parceiros'?'active':''}" onclick="setTab('parceiros')">Parceiros</div>
+      <div class="tab ${ADMIN_TAB==='parceiros'?'active':''}" onclick="setTab('parceiros')">Comissionados</div>
+      <div class="tab ${ADMIN_TAB==='parcerias'?'active':''}" onclick="setTab('parcerias')">Parcerias</div>
       <div class="tab ${ADMIN_TAB==='destaques'?'active':''}" onclick="setTab('destaques')">Destaques do Dia</div>
       <div class="tab ${ADMIN_TAB==='config'?'active':''}" onclick="setTab('config')">Configurações</div>
     </div>
@@ -74,6 +77,7 @@ function renderAdmin(){
   if(ADMIN_TAB==='dashboard') c.innerHTML = renderDashboardTab();
   if(ADMIN_TAB==='financeiro') c.innerHTML = renderFinanceiroTab();
   if(ADMIN_TAB==='parceiros') c.innerHTML = renderParceirosTab();
+  if(ADMIN_TAB==='parcerias') c.innerHTML = renderParceriasTab();
   if(ADMIN_TAB==='destaques') c.innerHTML = renderDestaquesTab();
   if(ADMIN_TAB==='config') c.innerHTML = renderConfigTab();
 }

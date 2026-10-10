@@ -10,6 +10,14 @@ function getAllSettlementsForClient(clientId){
 function getComissaoPagaSemana(commissionerId, weekStart){
   return STATE.transactions.filter(t=>t.type==='despesa' && t.commissionerId===commissionerId && t.weekStart===weekStart && !t.excluded).reduce((s,x)=>s+x.amount,0);
 }
+// Quanto já foi acertado com um parceiro (Parceria) numa semana, do ponto de vista do parceiro:
+// despesas (você pagou a ele) menos receitas (ele pagou a você). Mesmo mecanismo das comissões.
+function getParceriaAcertadaSemana(partnerId, weekStart){
+  const list = STATE.transactions.filter(t=>t.partnerId===partnerId && t.weekStart===weekStart && !t.excluded);
+  const pago = list.filter(t=>t.type==='despesa').reduce((s,x)=>s+x.amount,0);
+  const recebido = list.filter(t=>t.type==='receita').reduce((s,x)=>s+x.amount,0);
+  return pago - recebido;
+}
 // Saldo contínuo (perspectiva admin, positivo = cliente deve) de todas as apostas já
 // resolvidas + saldo em aberto, descontando tudo que já foi pago em qualquer semana.
 // excludeWeek (opcional) tira uma semana específica do cálculo das apostas — usado no

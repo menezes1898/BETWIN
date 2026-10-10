@@ -55,3 +55,37 @@ function grossLossForWeek(clientId, weekStart){
 function computeCommissionAmount(clientId, percent, weekStart){
   return grossLossForWeek(clientId, weekStart) * (percent/100);
 }
+
+// ---------- PARCERIAS (sócio do resultado do cliente) ----------
+// Parceiros ativos de um cliente numa semana, pela linha do tempo dos vínculos (cada mudança de %
+// vale só a partir da semana em que foi feita; semanas passadas mantêm a % antiga).
+function getActivePartnersForWeek(clientId, weekStart){
+  const applicable = STATE.partnerClients.filter(l=>l.clientId===clientId && (!l.effectiveFromWeek || l.effectiveFromWeek<=weekStart));
+  const byPartner = {};
+  applicable.forEach(l=>{
+    const existing = byPartner[l.partnerId];
+    if(!existing || (l.effectiveFromWeek||'0000-00-00') > (existing.effectiveFromWeek||'0000-00-00')){
+      byPartner[l.partnerId] = l;
+    }
+  });
+  return Object.values(byPartner).map(l=>({partnerId:l.partnerId, percent:l.percent}));
+}
+// Parte do parceiro no resultado da semana, já com o desconto do cliente.
+// Positivo = você paga pro parceiro (o cliente perdeu: ele leva a % do que sobrou pra você).
+// Negativo = o parceiro paga pra você (o cliente ganhou: ele banca a mesma % do ganho).
+function computePartnerShare(clientId, percent, weekStart){
+  return computeWeekOwedAmount(clientId, weekStart) * (percent/100);
+}
+// Detalhe da parte do parceiro numa semana, no ponto de vista DELE (positivo = ele recebe):
+//  - resultadoCliente: resultado do cliente na semana (negativo = cliente perdeu)
+//  - bruto: a % dele em cima do resultado bruto (cliente perdeu 1.000 a 30% => +300; ganhou 1.000 => -300)
+//  - desconto: a parte dele no desconto dado ao cliente (só existe quando o cliente perde)
+//  - liquido: bruto - desconto (é o mesmo valor de computePartnerShare)
+function computePartnerBreakdown(clientId, percent, weekStart){
+  const tickets = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekStart && ticketResult(t)!=='pending' && ticketResult(t)!=='void');
+  const resultadoCliente = tickets.reduce((s,t)=>s+ticketProfit(t),0);
+  const bruto = -resultadoCliente * (percent/100);
+  const liquido = computePartnerShare(clientId, percent, weekStart);
+  const desconto = bruto - liquido;
+  return {resultadoCliente, bruto, desconto, liquido, volume: tickets.reduce((s,t)=>s+t.stake,0)};
+}

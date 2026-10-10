@@ -22,7 +22,7 @@ async function fetchAllRows(table, orderColumn){
 
 async function loadState(){
   try{
-    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}, {data: discountHistory, error: err10}, {data: profiles, error: err11}, {data: whatsappGroups, error: err12}] = await Promise.all([
+    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}, {data: discountHistory, error: err10}, {data: profiles, error: err11}, {data: whatsappGroups, error: err12}, {data: partners, error: err13}, {data: partnerClients, error: err14}] = await Promise.all([
       fetchAllRows('clients', 'created_at'),
       fetchAllRows('tickets', 'created_at'),
       fetchAllRows('settlements', 'paid_at'),
@@ -34,7 +34,9 @@ async function loadState(){
       fetchAllRows('client_week_commissioners'),
       fetchAllRows('client_discount_history'),
       fetchAllRows('profiles'),
-      fetchAllRows('whatsapp_groups', 'created_at')
+      fetchAllRows('whatsapp_groups', 'created_at'),
+      fetchAllRows('partners', 'created_at'),
+      fetchAllRows('partner_clients', 'created_at')
     ]);
     if(err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10){
       showToast('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9||err10).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
@@ -44,6 +46,9 @@ async function loadState(){
     // — não travam o sistema se ainda não existirem.
     STATE.profiles = (!err11 && profiles) ? profiles.map(p=>({id:p.id, name:p.name})) : [];
     STATE.whatsappGroups = (!err12 && whatsappGroups) ? whatsappGroups.map(g=>({id:g.id, name:g.name})) : [];
+    // partners / partner_clients (Parcerias) também são opcionais até rodar a migração.
+    STATE.partners = (!err13 && partners) ? partners.map(p=>({id:p.id, name:p.name, phone:p.phone||'', code:p.code||''})) : [];
+    STATE.partnerClients = (!err14 && partnerClients) ? partnerClients.map(pc=>({id:pc.id, partnerId:pc.partner_id, clientId:pc.client_id, percent:parseFloat(pc.percent)||0, effectiveFromWeek:pc.effective_from_week||null})) : [];
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false}));
     STATE.tickets = (tickets||[]).map(t=>({
       id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,
@@ -58,7 +63,7 @@ async function loadState(){
       id:w.id, amount:parseFloat(w.amount), description:w.description||'', createdAt:w.created_at, excluded:w.excluded||false, createdBy:w.created_by||null
     }));
     STATE.transactions = (transactions||[]).map(t=>({
-      id:t.id, type:t.type, category:t.category||'', description:t.description||'', amount:parseFloat(t.amount), date:t.date, createdAt:t.created_at, clientId:t.client_id||null, excluded:t.excluded||false, createdBy:t.created_by||null, commissionerId:t.commissioner_id||null, weekStart:t.week_start||null
+      id:t.id, type:t.type, category:t.category||'', description:t.description||'', amount:parseFloat(t.amount), date:t.date, createdAt:t.created_at, clientId:t.client_id||null, excluded:t.excluded||false, createdBy:t.created_by||null, commissionerId:t.commissioner_id||null, partnerId:t.partner_id||null, weekStart:t.week_start||null
     }));
     STATE.commissioners = (commissioners||[]).map(c=>({id:c.id, name:c.name, phone:c.phone||'', code:c.code||''}));
     STATE.commissionerClients = (commissionerClients||[]).map(cc=>({
