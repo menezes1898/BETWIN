@@ -22,7 +22,7 @@ async function fetchAllRows(table, orderColumn){
 
 async function loadState(){
   try{
-    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}, {data: discountHistory, error: err10}, {data: profiles, error: err11}, {data: whatsappGroups, error: err12}, {data: partners, error: err13}, {data: partnerClients, error: err14}] = await Promise.all([
+    const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}, {data: discountHistory, error: err10}, {data: profiles, error: err11}, {data: whatsappGroups, error: err12}, {data: partners, error: err13}, {data: partnerClients, error: err14}, {data: botValidators, error: err15}] = await Promise.all([
       fetchAllRows('clients', 'created_at'),
       fetchAllRows('tickets', 'created_at'),
       fetchAllRows('settlements', 'paid_at'),
@@ -36,7 +36,8 @@ async function loadState(){
       fetchAllRows('profiles'),
       fetchAllRows('whatsapp_groups', 'created_at'),
       fetchAllRows('partners', 'created_at'),
-      fetchAllRows('partner_clients', 'created_at')
+      fetchAllRows('partner_clients', 'created_at'),
+      fetchAllRows('bot_validators', 'created_at')
     ]);
     if(err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10){
       showToast('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9||err10).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
@@ -46,6 +47,9 @@ async function loadState(){
     // — não travam o sistema se ainda não existirem.
     STATE.profiles = (!err11 && profiles) ? profiles.map(p=>({id:p.id, name:p.name})) : [];
     STATE.whatsappGroups = (!err12 && whatsappGroups) ? whatsappGroups.map(g=>({id:g.id, name:g.name})) : [];
+    // validadores do robô de WhatsApp (opcional até rodar o SQL do robô)
+    STATE.botValidatorsOk = !err15;
+    STATE.botValidators = (!err15 && botValidators) ? botValidators.map(v=>({id:v.id, name:v.name||'', phone:v.phone||''})) : [];
     // partners / partner_clients (Parcerias) também são opcionais até rodar a migração.
     STATE.partners = (!err13 && partners) ? partners.map(p=>({id:p.id, name:p.name, phone:p.phone||'', code:p.code||''})) : [];
     STATE.partnerClients = (!err14 && partnerClients) ? partnerClients.map(pc=>({id:pc.id, partnerId:pc.partner_id, clientId:pc.client_id, percent:parseFloat(pc.percent)||0, effectiveFromWeek:pc.effective_from_week||null})) : [];

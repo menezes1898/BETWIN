@@ -5,7 +5,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Tf4F0bAvZsHyevsy0JUa0g_q8G4_-dW';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 
-let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [], partners: [], partnerClients: [], clientWeekDiscounts: [], clientWeekCommissioners: [], clientDiscountHistory: [], profiles: [], whatsappGroups: [] };
+let STATE = { clients: [], tickets: [], settlements: [], withdrawals: [], transactions: [], commissioners: [], commissionerClients: [], partners: [], partnerClients: [], clientWeekDiscounts: [], clientWeekCommissioners: [], clientDiscountHistory: [], profiles: [], whatsappGroups: [], botValidators: [], botValidatorsOk: false };
 let ADMIN_TAB = 'dashboard';
 let ADMIN_SUBVIEW = 'list'; // 'list' | 'wizard'
 let DASH_WEEK = null;
