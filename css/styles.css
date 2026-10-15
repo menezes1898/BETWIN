@@ -452,7 +452,8 @@
   /* ---- Dashboard (layout da referência: Semana + Resumo, tabela de clientes) ---- */
   .dash-top{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;margin-bottom:16px;align-items:stretch;}
   .dash-top .card{margin-bottom:0;}
-  .dash-card-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--text);margin-bottom:16px;}
+  .dash-card-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px;}
+  .dct-l{display:flex;align-items:center;gap:8px;}
   .dash-card-title svg{color:var(--text-muted);}
   .wk-nav{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:10px;background:#0f151d;overflow:hidden;}
   .wk-btn{width:48px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:0;color:var(--text);padding:0;}
@@ -462,7 +463,12 @@
   .wk-num{font-size:30px;font-weight:700;line-height:1.1;color:var(--text);}
   .wk-num small{font-size:15px;color:var(--text-muted);margin-right:2px;font-weight:600;}
   .wk-range{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);text-align:center;}
-  .wk-today{margin-top:14px;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px;}
+  .kpi{display:flex;flex-direction:column;gap:3px;min-width:0;padding:12px 14px;background:#0f151d;border:1px solid var(--line);border-radius:10px;}
+  .k-l{font-size:11.5px;color:var(--text-muted);}
+  .k-v{font-size:18px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .k-v.profit-pos{color:var(--green);} .k-v.profit-neg{color:var(--red);}
+  .k-s{font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
   .rs-card{padding:0 !important;overflow:hidden;}
   .rs-title{display:flex;align-items:center;justify-content:space-between;flex-direction:row-reverse;padding:16px 18px;font-size:16px;font-weight:700;color:var(--text);}
@@ -505,6 +511,9 @@
     .dash-top{grid-template-columns:minmax(0,1fr);}
   }
   @media (max-width:600px){
+    .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    .kpi{padding:10px 12px;}
+    .k-v{font-size:16px;}
     .dash-table th,.dash-table td{padding:11px 12px;}
     .wk-num{font-size:26px;}
     .wk-range{font-size:11px;}
