@@ -149,6 +149,24 @@ function renderConfigTab(){
   const logoHidden = localStorage.getItem(LOGO_HIDDEN_KEY)==='true';
   return `
     <div class="card">
+      <h3>Validadores do robô (WhatsApp)</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:0">Só os números cadastrados aqui conseguem validar um print no grupo (respondendo ao print com o valor). Qualquer outro número é ignorado pelo robô.</p>
+      ${!STATE.botValidatorsOk ? '<div class="empty" style="text-align:left;padding:0 0 4px">Ainda não existe a tabela de validadores no Supabase — rode o SQL do robô (tabela bot_validators) e atualize a página.</div>' : `
+      ${STATE.botValidators.length===0 ? '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhum validador cadastrado ainda.</div>' : `
+      <div style="margin-bottom:14px">
+        ${STATE.botValidators.map(v=>`
+          <div class="match-row" style="gap:10px">
+            <div class="match-desc" style="flex:1;min-width:0"><span class="teams">${v.name||'Sem nome'}</span><span class="meta">${formatBotPhone(v.phone)}</span></div>
+            <button class="icon-btn icon-danger" title="Remover validador" onclick="removeBotValidator('${v.id}')">🗑</button>
+          </div>`).join('')}
+      </div>`}
+      <div class="row" style="margin-top:0;align-items:flex-end">
+        <div><label style="margin-top:0">Nome</label><input type="text" id="new-validator-name" placeholder="Ex: Rafita" onkeydown="if(event.key==='Enter') document.getElementById('new-validator-phone').focus()"></div>
+        <div><label style="margin-top:0">WhatsApp (com DDD)</label><input type="text" id="new-validator-phone" placeholder="Ex: 11 99999-9999" onkeydown="if(event.key==='Enter') addBotValidator()"></div>
+        <div style="flex:0 0 auto;min-width:0"><button class="btn-primary" onclick="addBotValidator()">Adicionar</button></div>
+      </div>`}
+    </div>
+    <div class="card">
       <h3>Logo da Dashboard</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-top:0">Aparece no topo do seu painel administrativo e na tela de login, no lugar do texto "BET WIN".</p>
       ${savedDashboardLogo ? `<div style="height:48px;margin-bottom:14px;display:flex;align-items:center"><img src="${savedDashboardLogo}" style="max-height:100%;max-width:220px;object-fit:contain;display:block;"></div>` : '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhuma logo configurada ainda — será usado o texto "BET WIN".</div>'}
@@ -187,3 +205,36 @@ function renderConfigTab(){
   `;
 }
 
+
+
+// ---------- Validadores do robô de WhatsApp ----------
+function normalizeBotPhone(raw){
+  let d = String(raw||'').replace(/\D/g,'');
+  if(d.length===10 || d.length===11) d = '55'+d; // sem código do país: assume Brasil
+  return d;
+}
+function formatBotPhone(p){
+  const d = String(p||'').replace(/\D/g,'');
+  if(d.length===13 && d.startsWith('55')) return `+55 (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`;
+  if(d.length===12 && d.startsWith('55')) return `+55 (${d.slice(2,4)}) ${d.slice(4,8)}-${d.slice(8)}`;
+  return d ? '+'+d : '';
+}
+async function addBotValidator(){
+  const name = document.getElementById('new-validator-name').value.trim();
+  const phone = normalizeBotPhone(document.getElementById('new-validator-phone').value);
+  if(phone.length<12){ showToast('Informe o WhatsApp com DDD (ex: 11 99999-9999).'); return; }
+  const dupe = STATE.botValidators.find(v=>String(v.phone).replace(/\D/g,'').slice(-8)===phone.slice(-8));
+  if(dupe){ showToast('Esse número já está cadastrado.'); return; }
+  const {data, error} = await supabaseClient.from('bot_validators').insert({name, phone}).select().single();
+  if(error){ showToast('Erro ao cadastrar: '+error.message); return; }
+  STATE.botValidators.push({id:data.id, name:data.name||'', phone:data.phone||''});
+  showToast('Validador cadastrado.');
+  render();
+}
+async function removeBotValidator(id){
+  if(!confirm('Remover este validador? Ele não poderá mais validar prints.')) return;
+  const {error} = await supabaseClient.from('bot_validators').delete().eq('id', id);
+  if(error){ showToast('Erro ao remover: '+error.message); return; }
+  STATE.botValidators = STATE.botValidators.filter(v=>v.id!==id);
+  render();
+}
