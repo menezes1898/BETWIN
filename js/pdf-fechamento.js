@@ -61,10 +61,10 @@ async function gerarFechamentoPDF(clientId){
 
     // ===================== VISUAL (só apresentação; os números acima não mudam) =====================
     const C = {
-      navy:[13,20,32], ink:[24,32,46], gray:[107,118,134], line:[227,232,239], soft:[247,249,252],
-      blue:[27,143,192], cyan:[62,193,243],
-      green:[31,157,107], greenBg:[230,246,239], red:[209,74,85], redBg:[252,235,236],
-      amber:[183,121,31], amberBg:[251,243,220], voidc:[107,118,134], voidBg:[238,241,245]
+      navy:[9,14,25], ink:[238,242,248], gray:[135,148,172], line:[40,53,76], soft:[19,28,44], card2:[26,38,62], gold:[226,178,70],
+      blue:[96,190,240], cyan:[62,193,243],
+      green:[52,211,153], greenBg:[22,52,50], red:[255,100,106], redBg:[58,34,46],
+      amber:[226,178,70], amberBg:[56,48,30], voidc:[150,162,184], voidBg:[34,44,62]
     };
     const colorOf = v => v>=0 ? C.green : C.red;
     const statusInfo = (r)=>({
@@ -91,6 +91,8 @@ async function gerarFechamentoPDF(clientId){
       if(f){ logoData = saved; logoFmt = f[1].toUpperCase().replace('JPG','JPEG'); }
     }catch(e){}
 
+    const pageBg = ()=>{ doc.setFillColor(...C.navy); doc.rect(0, 0, PW, 297, 'F'); };
+    pageBg();
     const label = (txt, x, y, opts={})=>{
       doc.setFont('helvetica','bold'); doc.setFontSize(opts.size||7); doc.setTextColor(...(opts.color||C.gray));
       doc.text(String(txt).toUpperCase(), x, y, {align:opts.align||'left', charSpace:opts.cs==null?0.35:opts.cs});
@@ -121,8 +123,8 @@ async function gerarFechamentoPDF(clientId){
     };
 
     // ---- cabeçalho da 1ª página (compacto) ----
-    doc.setFillColor(...C.navy); doc.rect(0, 0, PW, 41, 'F');
-    doc.setFillColor(...C.cyan); doc.rect(0, 41, PW, 0.8, 'F');
+    doc.setFillColor(15,23,40); doc.rect(0, 0, PW, 41, 'F');
+    doc.setFillColor(...C.gold); doc.rect(0, 41, PW, 0.8, 'F');
     let logoDrawn = false;
     if(!logoHidden && logoData){
       try{
@@ -153,7 +155,7 @@ async function gerarFechamentoPDF(clientId){
     const gap = 4, cw = (CW-gap*(cards.length-1))/cards.length, ch = 18;
     cards.forEach((cd,i)=>{
       const x = M+i*(cw+gap);
-      doc.setFillColor(255,255,255); doc.setDrawColor(...C.line); doc.setLineWidth(0.3);
+      doc.setFillColor(...C.soft); doc.setDrawColor(...C.line); doc.setLineWidth(0.3);
       doc.roundedRect(x, y, cw, ch, 2.5, 2.5, 'FD');
       label(cd.l, x+4.5, y+6);
       let fs = 12; doc.setFont('helvetica','bold');
@@ -164,8 +166,8 @@ async function gerarFechamentoPDF(clientId){
 
     // saldo final (card grande)
     const bigH = 22;
-    doc.setFillColor(...C.navy); doc.roundedRect(M, y, CW, bigH, 3.5, 3.5, 'F');
-    doc.setFillColor(...C.cyan); doc.roundedRect(M, y+4.5, 1.6, bigH-9, 0.8, 0.8, 'F');
+    doc.setFillColor(...C.card2); doc.setDrawColor(...C.gold); doc.setLineWidth(0.4); doc.roundedRect(M, y, CW, bigH, 3.5, 3.5, 'FD');
+    doc.setFillColor(...C.gold); doc.roundedRect(M, y+4.5, 1.6, bigH-9, 0.8, 0.8, 'F');
     label('Saldo final', M+8, y+8, {color:[143,179,220], size:7.5, cs:0.8});
     const saldoTxt = pdfSigned(saldoTotal);
     let sfs = 24; doc.setFont('helvetica','bold');
@@ -188,7 +190,7 @@ async function gerarFechamentoPDF(clientId){
     const nV = allWeek.length - tickets.length;
     label('Resumo das apostas', M, y); y += 3.5;
     const stats = [
-      {n:tickets.length, l:'Apostas', c:C.navy},
+      {n:tickets.length, l:'Apostas', c:[200,210,228]},
       {n:nG, l:'Green', c:C.green},
       {n:nR, l:'Red', c:C.red},
       {n:nP, l:'Pendentes', c:C.amber}
@@ -243,12 +245,12 @@ async function gerarFechamentoPDF(clientId){
 
     // ---- páginas seguintes: cabeçalho pequeno ----
     const runningHeader = ()=>{
-      wordmark(M, 13, 11, false);
+      wordmark(M, 13, 11, true);
       doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.gray);
       doc.text(pdfSafe(`Fechamento ${cl.name}  |  ${periodo}`), PW-M, 13, {align:'right'});
       doc.setDrawColor(...C.line); doc.setLineWidth(0.3); doc.line(M, 17, PW-M, 17);
     };
-    const newPage = ()=>{ doc.addPage(); runningHeader(); return TOP_NEXT; };
+    const newPage = ()=>{ doc.addPage(); pageBg(); runningHeader(); return TOP_NEXT; };
 
     // ---- LISTA DE APOSTAS (mesmo desenho da página do cliente: fundo escuro, linhas tingidas) ----
     const D = {
@@ -390,7 +392,7 @@ async function gerarFechamentoPDF(clientId){
     for(let i=1;i<=total;i++){
       doc.setPage(i);
       doc.setDrawColor(...C.line); doc.setLineWidth(0.3); doc.line(M, 286, PW-M, 286);
-      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.navy);
+      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.gold);
       doc.text('BETWIN', M, 291);
       const bw = doc.getTextWidth('BETWIN');
       doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
