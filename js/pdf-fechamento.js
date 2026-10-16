@@ -258,9 +258,9 @@ async function gerarFechamentoPDF(clientId){
       red:[255,93,98], green:[52,211,153], pend:[226,178,70], voidc:[160,170,190],
       rowRed:[53,40,55], rowGreen:[25,56,62]
     };
-    const COL = {dateX:M+6, valR:M+43, oddC:M+52, detX:M+61, resR:PW-M-5};
-    const DET_W = (PW-M-5-26) - (M+61);
-    const HEAD_H = 7, TAB_H = 12, ROW_MIN = 10.6, LH = 3.2;
+    const COL = {dateX:M+1, valR:M+38, oddC:M+47, detX:M+56, resR:PW-M-1};
+    const DET_W = (PW-M-1-26) - (M+56);
+    const HEAD_H = 7, TAB_H = 0, ROW_MIN = 10.8, LH = 3.2;
 
     const measure = (t)=>{
       doc.setFont('helvetica','normal'); doc.setFontSize(6.9);
@@ -269,7 +269,7 @@ async function gerarFechamentoPDF(clientId){
         const teams = m.away ? `${m.home} x ${m.away}` : m.home;
         const odd = m.odd>0 ? ' @ '+Number(m.odd).toFixed(2) : '';
         const txt = pdfSafe(`${teams} - ${m.market} - ${m.selection}${odd}`).toUpperCase();
-        const parts = doc.splitTextToSize(txt, DET_W-3.2);
+        const parts = doc.splitTextToSize(txt, DET_W);
         parts.forEach((ln, i)=>lines.push({ln, first:i===0, gapBefore: (i===0 && mi>0) ? 0.9 : 0}));
       });
       const textH = lines.reduce((s,l)=>s+LH+l.gapBefore, 0);
@@ -277,49 +277,49 @@ async function gerarFechamentoPDF(clientId){
     };
     const drawRow = (t, y0, m)=>{
       const r = ticketResult(t), profit = ticketProfit(t);
-      doc.setFillColor(...(r==='red' ? D.rowRed : (r==='green' ? D.rowGreen : D.bg)));
-      doc.rect(M, y0, CW, m.h, 'F');
       const acc = r==='green' ? D.green : (r==='red' ? D.red : (r==='pending' ? D.pend : D.voidc));
-      doc.setFillColor(...acc); doc.rect(M, y0, 1.1, m.h, 'F');
-      doc.setDrawColor(...D.sep); doc.setLineWidth(0.2); doc.line(M, y0+m.h, PW-M, y0+m.h);
+      doc.setDrawColor(...C.line); doc.setLineWidth(0.2); doc.line(M, y0+m.h, PW-M, y0+m.h);
       // data / número
       doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...D.text);
       doc.text(pdfSafe(fmtDate(t.date)+(t.time?' '+String(t.time).slice(0,5):'')), COL.dateX, y0+5.4);
-      doc.setFontSize(6.8); doc.setTextColor(...D.muted);
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.8); doc.setTextColor(...D.muted);
       doc.text('#'+(t.ticketNumber||'-'), COL.dateX, y0+9.4);
       // valor / odds
       doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...D.text);
       doc.text(fmtNum(t.stake), COL.valR, y0+5.6, {align:'right'});
+      doc.setFont('helvetica','normal'); doc.setTextColor(...D.detail);
       doc.text(ticketOddTotal(t)>0 ? effectiveOdds(t).toFixed(2) : '-', COL.oddC, y0+5.6, {align:'center'});
-      // detalhes
-      doc.setFont('helvetica','normal'); doc.setFontSize(6.9); doc.setTextColor(...D.detail);
+      // detalhes (texto limpo, sem ícones por jogo)
+      doc.setFontSize(6.9);
       let ty = y0+5.3;
       m.lines.forEach(l=>{
         ty += l.gapBefore;
-        if(l.first){ doc.setFillColor(...acc); doc.circle(COL.detX+0.9, ty-0.9, 0.85, 'F'); }
         const ai = l.ln.lastIndexOf('@ ');
         doc.setFont('helvetica','normal'); doc.setTextColor(...D.detail);
         if(ai>0 && /^@ [0-9.]+$/.test(l.ln.slice(ai).trim())){
           const pre = l.ln.slice(0, ai);
-          doc.text(pre, COL.detX+3.2, ty);
+          doc.text(pre, COL.detX, ty);
           doc.setFont('helvetica','bold'); doc.setTextColor(...D.text);
-          doc.text(l.ln.slice(ai), COL.detX+3.2+doc.getTextWidth(pre), ty);
-        } else doc.text(l.ln, COL.detX+3.2, ty);
+          doc.text(l.ln.slice(ai), COL.detX+doc.getTextWidth(pre), ty);
+        } else doc.text(l.ln, COL.detX, ty);
         ty += LH;
       });
-      // resultado + status da aposta completa
+      // resultado + etiqueta de status da aposta completa
       doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
       if(r==='green' || r==='red'){ doc.setTextColor(...(profit>=0?D.green:D.red)); doc.text(fmtNum(profit), COL.resR, y0+5.6, {align:'right'}); }
-      else { doc.setTextColor(...D.muted); doc.text(r==='pending' ? '-' : '-', COL.resR, y0+5.6, {align:'right'}); }
-      const stCol = r==='green' ? D.green : (r==='red' ? D.red : (r==='pending' ? D.pend : D.voidc));
-      doc.setFont('helvetica','bold'); doc.setFontSize(6.2); doc.setTextColor(...stCol);
-      doc.text(statusInfo(r).label, COL.resR, y0+9.6, {align:'right', charSpace:0.3});
+      else { doc.setTextColor(...D.muted); doc.text('-', COL.resR, y0+5.6, {align:'right'}); }
+      const lab = statusInfo(r).label;
+      doc.setFont('helvetica','bold'); doc.setFontSize(5.8);
+      const pw = doc.getTextWidth(lab)+lab.length*0.25+5;
+      const bgc = r==='green' ? C.greenBg : (r==='red' ? C.redBg : (r==='pending' ? C.amberBg : C.voidBg));
+      doc.setFillColor(...bgc); doc.roundedRect(COL.resR-pw, y0+6.7, pw, 3.4, 1.7, 1.7, 'F');
+      doc.setFillColor(...acc); doc.circle(COL.resR-pw+2, y0+8.4, 0.6, 'F');
+      doc.setTextColor(...acc); doc.text(lab, COL.resR-pw+3.5, y0+9.2, {charSpace:0.25});
     };
-    const drawHead = (y0, hasTab)=>{
-      doc.setFillColor(...D.head); if(hasTab) doc.rect(M, y0, CW, HEAD_H, 'F');
-      if(!hasTab){ doc.roundedRect(M, y0, CW, HEAD_H, 3, 3, 'F'); doc.rect(M, y0+3, CW, HEAD_H-3, 'F'); }
-      const hl = (txt, x, al)=>{ doc.setFont('helvetica','bold'); doc.setFontSize(6.3); doc.setTextColor(...D.muted); doc.text(txt, x, y0+4.6, {align:al||'left', charSpace:0.35}); };
-      hl('DATA', COL.dateX); hl('VALOR', COL.valR, 'right'); hl('ODDS', COL.oddC, 'center'); hl('DETALHES', COL.detX); hl('RESULTADO', COL.resR, 'right');
+    const drawHead = (y0)=>{
+      const hl = (txt, x, al)=>{ doc.setFont('helvetica','bold'); doc.setFontSize(6.3); doc.setTextColor(...D.muted); doc.text(txt, x, y0+4.4, {align:al||'left', charSpace:0.35}); };
+      hl('DATA', COL.dateX); hl('VALOR', COL.valR-1.6, 'right'); hl('ODDS', COL.oddC, 'center'); hl('DETALHES', COL.detX); hl('RESULTADO', COL.resR-3, 'right');
+      doc.setDrawColor(...C.gold); doc.setLineWidth(0.35); doc.line(M, y0+HEAD_H-0.6, PW-M, y0+HEAD_H-0.6);
     };
 
     // pass 1: simula a paginação (cada aposta fica inteira numa página)
@@ -354,21 +354,8 @@ async function gerarFechamentoPDF(clientId){
         doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.gray);
         doc.text(`${allWeek.length} aposta${allWeek.length===1?'':'s'} no periodo`, PW-M, sg.y0-3, {align:'right'});
       }
-      doc.setFillColor(...D.bg); doc.roundedRect(M, sg.y0, CW, Math.max(sg.y1-sg.y0, HEAD_H+4)+3, 3, 3, 'F');
-      let hy = sg.y0;
-      if(sg.isFirst){
-        doc.setFillColor(...D.tab); doc.roundedRect(M+4, sg.y0+2.4, 38, 7.8, 2, 2, 'F');
-        doc.setFont('helvetica','bold'); doc.setFontSize(7.6); doc.setTextColor(...D.text);
-        doc.text(`Apostas (${allWeek.length})`, M+7.5, sg.y0+6.2);
-        doc.setFontSize(6.6); doc.setTextColor(...(subtotal>=0?D.green:D.red));
-        doc.text(fmtNum(subtotal), M+7.5, sg.y0+9.2);
-        hy = sg.y0 + TAB_H;
-      }
-      drawHead(hy, sg.isFirst);
+      drawHead(sg.y0);
       sg.rows.forEach(rw=>drawRow(rw.t, rw.y, rw.m));
-      // acabamento arredondado do cartão (cobre as pontas das linhas tingidas)
-      doc.setFillColor(...D.head); doc.roundedRect(M, sg.y1-0.2, CW, 3.2, 1.6, 1.6, 'F'); doc.rect(M, sg.y1-0.2, CW, 1.6, 'F');
-      sg.y1 += 3;
     });
     // total da semana
     {
