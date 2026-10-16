@@ -110,69 +110,69 @@ async function gerarFechamentoPDF(clientId){
       doc.setTextColor(...st.fg); doc.text(st.label, x+5.7, yMid+0.9, {charSpace:0.25});
     };
 
-    // ---- cabeçalho da 1ª página ----
-    doc.setFillColor(...C.navy); doc.rect(0, 0, PW, 50, 'F');
-    doc.setFillColor(...C.cyan); doc.rect(0, 50, PW, 0.9, 'F');
+    // ---- cabeçalho da 1ª página (compacto) ----
+    doc.setFillColor(...C.navy); doc.rect(0, 0, PW, 42, 'F');
+    doc.setFillColor(...C.cyan); doc.rect(0, 42, PW, 0.8, 'F');
     let logoDrawn = false;
     if(!logoHidden && logoData){
-      try{ doc.addImage(logoData, logoFmt, M, 9, 17, 17); logoDrawn = true; }catch(e){ logoDrawn = false; }
+      try{ doc.addImage(logoData, logoFmt, M, 7, 15, 15); logoDrawn = true; }catch(e){ logoDrawn = false; }
     }
-    if(!logoHidden && !logoDrawn) wordmark(M, 21, 23, true);
-    label('Fechamento semanal', PW-M, 15, {align:'right', color:[143,179,220], size:8, cs:0.8});
-    label('Período', PW-M, 29, {align:'right', color:[143,179,220], size:7});
-    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(255,255,255);
-    doc.text(periodo, PW-M, 35.5, {align:'right'});
-    label('Cliente', M, 34, {color:[143,179,220], size:7});
-    let tSize = 22; doc.setFont('helvetica','bold');
-    do{ doc.setFontSize(tSize); if(doc.getTextWidth(nome) <= CW-62 || tSize<=12) break; tSize -= 1; } while(true);
-    doc.setTextColor(255,255,255); doc.text(nome, M, 43.5);
+    if(!logoHidden && !logoDrawn) wordmark(M, 18, 21, true);
+    label('Fechamento semanal', PW-M, 14, {align:'right', color:[143,179,220], size:8, cs:0.3});
+    label('Período', PW-M, 26, {align:'right', color:[143,179,220], size:6.8});
+    doc.setFont('helvetica','bold'); doc.setFontSize(11.5); doc.setTextColor(255,255,255);
+    doc.text(periodo, PW-M, 32, {align:'right'});
+    label('Cliente', M, 27, {color:[143,179,220], size:6.8});
+    let tSize = 20; doc.setFont('helvetica','bold');
+    do{ doc.setFontSize(tSize); if(doc.getTextWidth(nome) <= CW-60 || tSize<=12) break; tSize -= 1; } while(true);
+    doc.setTextColor(255,255,255); doc.text(nome, M, 36.5);
 
     // ---- RESUMO FINANCEIRO ----
-    let y = 60;
-    label('Resumo financeiro', M, y); y += 4;
+    let y = 50;
+    label('Resumo financeiro', M, y); y += 3.5;
     const cards = [
       {l:'Valor jogado', v:'- '+pdfMoney(valorJogado), c:C.red},
       {l:'Acertos', v:'+ '+pdfMoney(acertos), c:C.green},
       {l:'Subtotal', v:pdfSigned(subtotal), c:colorOf(subtotal)}
     ];
     if(temDesconto) cards.push({l:'Desconto'+(descontoPct?' ('+descontoPct+'%)':''), v:'+ '+pdfMoney(desconto), c:C.blue});
-    const gap = 4, cw = (CW-gap*(cards.length-1))/cards.length, ch = 22;
+    const gap = 4, cw = (CW-gap*(cards.length-1))/cards.length, ch = 18;
     cards.forEach((cd,i)=>{
       const x = M+i*(cw+gap);
       doc.setFillColor(255,255,255); doc.setDrawColor(...C.line); doc.setLineWidth(0.3);
       doc.roundedRect(x, y, cw, ch, 2.5, 2.5, 'FD');
-      label(cd.l, x+4.5, y+7);
-      let fs = 13; doc.setFont('helvetica','bold');
+      label(cd.l, x+4.5, y+6);
+      let fs = 12; doc.setFont('helvetica','bold');
       do{ doc.setFontSize(fs); if(doc.getTextWidth(cd.v) <= cw-9 || fs<=8) break; fs -= 0.5; } while(true);
-      doc.setTextColor(...cd.c); doc.text(cd.v, x+4.5, y+16);
+      doc.setTextColor(...cd.c); doc.text(cd.v, x+4.5, y+13.5);
     });
     y += ch + 4;
 
     // saldo final (card grande)
-    const bigH = 32;
+    const bigH = 26;
     doc.setFillColor(...C.navy); doc.roundedRect(M, y, CW, bigH, 3.5, 3.5, 'F');
-    doc.setFillColor(...C.cyan); doc.roundedRect(M, y+5, 1.6, bigH-10, 0.8, 0.8, 'F');
-    label('Saldo final', M+8, y+10, {color:[143,179,220], size:8, cs:0.8});
+    doc.setFillColor(...C.cyan); doc.roundedRect(M, y+4.5, 1.6, bigH-9, 0.8, 0.8, 'F');
+    label('Saldo final', M+8, y+8, {color:[143,179,220], size:7.5, cs:0.8});
     const saldoTxt = pdfSigned(saldoTotal);
-    let sfs = 27; doc.setFont('helvetica','bold');
+    let sfs = 24; doc.setFont('helvetica','bold');
     do{ doc.setFontSize(sfs); if(doc.getTextWidth(saldoTxt) <= (temSaldoAnterior?92:CW-20) || sfs<=14) break; sfs -= 1; } while(true);
-    doc.setTextColor(...(saldoTotal>=0 ? [74,222,128] : [255,123,130])); doc.text(saldoTxt, M+8, y+24.5);
+    doc.setTextColor(...(saldoTotal>=0 ? [74,222,128] : [255,123,130])); doc.text(saldoTxt, M+8, y+20);
     if(temSaldoAnterior){
       const rx = PW-M-8;
-      [['Saldo da semana', saldoSemana, y+13], ['Saldo anterior', saldoAnterior, y+24]].forEach(([l,v,yy])=>{
-        label(l, rx, yy-4.2, {align:'right', color:[143,179,220], size:6.5});
-        doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(255,255,255);
-        doc.text(pdfSigned(v), rx, yy+1, {align:'right'});
+      [['Saldo da semana', saldoSemana, y+11], ['Saldo anterior', saldoAnterior, y+21]].forEach(([l,v,yy])=>{
+        label(l, rx, yy-3.6, {align:'right', color:[143,179,220], size:6.3});
+        doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
+        doc.text(pdfSigned(v), rx, yy+0.8, {align:'right'});
       });
     }
-    y += bigH + 11;
+    y += bigH + 9;
 
     // ---- RESUMO DAS APOSTAS ----
     const nG = tickets.filter(t=>ticketResult(t)==='green').length;
     const nR = tickets.filter(t=>ticketResult(t)==='red').length;
     const nP = tickets.filter(t=>ticketResult(t)==='pending').length;
     const nV = allWeek.length - tickets.length;
-    label('Resumo das apostas', M, y); y += 4;
+    label('Resumo das apostas', M, y); y += 3.5;
     const stats = [
       {n:tickets.length, l:'Apostas', c:C.navy},
       {n:nG, l:'Green', c:C.green},
@@ -180,17 +180,17 @@ async function gerarFechamentoPDF(clientId){
       {n:nP, l:'Pendentes', c:C.amber}
     ];
     if(nV>0) stats.push({n:nV, l:'Anuladas', c:C.voidc});
-    const sw = (CW-gap*(stats.length-1))/stats.length, sh = 20;
+    const sw = (CW-gap*(stats.length-1))/stats.length, sh = 15;
     stats.forEach((st,i)=>{
       const x = M+i*(sw+gap);
       doc.setFillColor(...C.soft); doc.setDrawColor(...C.line); doc.setLineWidth(0.3);
       doc.roundedRect(x, y, sw, sh, 2.5, 2.5, 'FD');
-      doc.setFont('helvetica','bold'); doc.setFontSize(19); doc.setTextColor(...C.ink);
-      doc.text(String(st.n), x+5, y+11.5);
-      doc.setFillColor(...st.c); doc.circle(x+5.6, y+15.6, 0.9, 'F');
-      label(st.l, x+8, y+16.3, {size:6.8});
+      doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...C.ink);
+      doc.text(String(st.n), x+5, y+7.6);
+      doc.setFillColor(...st.c); doc.circle(x+5.8, y+11.6, 0.9, 'F');
+      label(st.l, x+8.2, y+12.4, {size:6.6});
     });
-    y += sh + 8;
+    y += sh + 7;
 
     // ---- performance (barra proporcional) ----
     const totalBar = nG+nR+nP+nV;
@@ -199,33 +199,33 @@ async function gerarFechamentoPDF(clientId){
     const taxa = resolved>0 ? (nG/resolved*100) : null;
     doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
     doc.text(taxa==null ? 'Sem apostas resolvidas' : 'Taxa de acerto  '+taxa.toFixed(1).replace('.',',')+'%', PW-M, y, {align:'right'});
-    y += 3.5;
-    doc.setFillColor(...C.line); doc.roundedRect(M, y, CW, 4.6, 2.3, 2.3, 'F');
+    y += 3;
+    const BH = 3.8;
+    doc.setFillColor(...C.line); doc.roundedRect(M, y, CW, BH, 1.9, 1.9, 'F');
     if(totalBar>0){
       const segs = [[nG,C.green],[nR,C.red],[nP,[226,178,70]],[nV,[170,179,192]]].filter(sg=>sg[0]>0);
-      // desenha as fatias; as pontas ficam arredondadas porque a base já é arredondada
       let x = M;
       segs.forEach(([n,col],i)=>{
         const w = CW*n/totalBar;
         doc.setFillColor(...col);
-        if(segs.length===1) doc.roundedRect(x, y, w, 4.6, 2.3, 2.3, 'F');
-        else if(i===0){ doc.roundedRect(x, y, w, 4.6, 2.3, 2.3, 'F'); doc.rect(x+w-3, y, 3, 4.6, 'F'); }
-        else if(i===segs.length-1){ doc.roundedRect(x, y, w, 4.6, 2.3, 2.3, 'F'); doc.rect(x, y, 3, 4.6, 'F'); }
-        else doc.rect(x, y, w, 4.6, 'F');
+        if(segs.length===1) doc.roundedRect(x, y, w, BH, 1.9, 1.9, 'F');
+        else if(i===0){ doc.roundedRect(x, y, w, BH, 1.9, 1.9, 'F'); doc.rect(x+w-3, y, 3, BH, 'F'); }
+        else if(i===segs.length-1){ doc.roundedRect(x, y, w, BH, 1.9, 1.9, 'F'); doc.rect(x, y, 3, BH, 'F'); }
+        else doc.rect(x, y, w, BH, 'F');
         x += w;
       });
     }
-    y += 4.6 + 5;
+    y += BH + 4.6;
     let lx = M;
     [['Green',nG,C.green],['Red',nR,C.red],['Pendentes',nP,[226,178,70]],['Anuladas',nV,[170,179,192]]].forEach(([l,n,col])=>{
       if(l==='Anuladas' && n===0) return;
       doc.setFillColor(...col); doc.circle(lx+1, y-1, 1, 'F');
-      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.gray);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.8); doc.setTextColor(...C.gray);
       const txt = totalBar>0 ? `${l}: ${n} (${(n/totalBar*100).toFixed(1).replace('.',',')}%)` : `${l}: 0`;
       doc.text(txt, lx+3.4, y);
       lx += doc.getTextWidth(txt)+10;
     });
-    y += 11;
+    y += 9;
 
     // ---- páginas seguintes: cabeçalho pequeno ----
     const runningHeader = ()=>{
@@ -236,93 +236,124 @@ async function gerarFechamentoPDF(clientId){
     };
     const newPage = ()=>{ doc.addPage(); runningHeader(); return TOP_NEXT; };
 
-    // ---- card de uma aposta (altura calculada antes de desenhar, nunca é cortado) ----
-    const PADX = 6;
-    const measureBet = (t)=>{
-      const legsInfo = t.matches.map(m=>{
-        const teams = pdfSafe((m.away ? `${m.home} x ${m.away}` : m.home).toUpperCase());
-        const odd = m.odd>0 ? '  @ '+Number(m.odd).toFixed(2) : '';
-        const detail = pdfSafe(`${m.market}: ${m.selection}${odd}`);
-        doc.setFont('helvetica','bold'); doc.setFontSize(9);
-        const tl = doc.splitTextToSize(teams, CW-PADX*2-30);
-        doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
-        const dl = doc.splitTextToSize(detail, CW-PADX*2-30);
-        return {tl, dl, st:statusInfo(m.result==='green'||m.result==='red'||m.result==='void' ? m.result : 'pending'), h: tl.length*4.1 + dl.length*3.8 + 3.4};
-      });
-      const legsH = legsInfo.reduce((s,l)=>s+l.h,0);
-      return {legsInfo, h: 10 + 15 + 2.5 + legsH + 0.8};
+    // ---- LISTA DE APOSTAS (mesmo desenho da página do cliente: fundo escuro, linhas tingidas) ----
+    const D = {
+      bg:[24,33,47], head:[32,43,61], tab:[43,56,80], sep:[34,45,62], muted:[147,160,186], text:[245,247,250], detail:[174,186,208],
+      red:[255,93,98], green:[52,211,153], pend:[226,178,70], voidc:[160,170,190],
+      rowRed:[53,40,55], rowGreen:[25,56,62]
     };
-    const drawBet = (t, y0, info)=>{
-      const r = ticketResult(t), st = statusInfo(r), profit = ticketProfit(t);
-      const h = info.h;
-      doc.setFillColor(255,255,255); doc.setDrawColor(...C.line); doc.setLineWidth(0.3);
-      doc.roundedRect(M, y0, CW, h, 3, 3, 'FD');
-      doc.setFillColor(...st.fg); doc.roundedRect(M, y0+3, 1.3, h-6, 0.65, 0.65, 'F');
-      // linha 1: número, data/hora, status
-      doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...C.ink);
-      doc.text('#'+(t.ticketNumber||'-'), M+PADX, y0+7);
-      const nw = doc.getTextWidth('#'+(t.ticketNumber||'-'));
-      doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.gray);
-      doc.text(pdfSafe(fmtDate(t.date)+(t.time?'  |  '+String(t.time).slice(0,5):'')), M+PADX+nw+4, y0+7);
-      badge(PW-M-PADX, y0+6.1, st);
-      // linha 2: valor, odd, resultado
-      const ry = y0+12.5;
-      label('Valor', M+PADX, ry+2.2, {size:6.3});
-      doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...C.ink);
-      doc.text(pdfMoney(t.stake), M+PADX, ry+8.6);
-      label('Odd', M+78, ry+2.2, {size:6.3});
-      doc.setFont('helvetica','bold'); doc.setFontSize(11.5); doc.setTextColor(...C.ink);
-      doc.text(ticketOddTotal(t)>0 ? effectiveOdds(t).toFixed(2) : '-', M+78, ry+8.4);
-      label('Resultado', PW-M-PADX, ry+2.2, {size:6.3, align:'right'});
-      doc.setFont('helvetica','bold'); doc.setFontSize(13);
-      if(r==='green' || r==='red'){ doc.setTextColor(...(profit>=0?C.green:C.red)); doc.text(pdfSigned(profit), PW-M-PADX, ry+8.6, {align:'right'}); }
-      else { doc.setTextColor(...C.gray); doc.text('-', PW-M-PADX, ry+8.6, {align:'right'}); }
-      // jogos
-      let ly = y0+10+15+1;
-      doc.setDrawColor(...C.line); doc.setLineWidth(0.25);
-      doc.line(M+PADX, ly-1.2, PW-M-PADX, ly-1.2);
-      info.legsInfo.forEach((lg, i)=>{
-        if(i>0){ doc.setDrawColor(238,241,245); doc.line(M+PADX, ly-1.6, PW-M-PADX, ly-1.6); }
-        let ty = ly+3.2;
-        doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-        lg.tl.forEach(line=>{ doc.text(line, M+PADX, ty); ty += 4.1; });
-        doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.gray);
-        lg.dl.forEach(line=>{ doc.text(line, M+PADX, ty); ty += 3.8; });
-        badge(PW-M-PADX, ly+2.6, lg.st, 6.2);
-        ly += lg.h;
+    const COL = {dateX:M+5, valR:M+44, oddC:M+53, detX:M+62, resR:PW-M-5};
+    const DET_W = (PW-M-5-27) - (M+62);
+    const HEAD_H = 7, TAB_H = 12, ROW_MIN = 11.5, LH = 3.35;
+
+    const measure = (t)=>{
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.9);
+      const lines = [];
+      t.matches.forEach((m, mi)=>{
+        const teams = m.away ? `${m.home} x ${m.away}` : m.home;
+        const odd = m.odd>0 ? ' @ '+Number(m.odd).toFixed(2) : '';
+        const txt = pdfSafe(`${teams} - ${m.market} - ${m.selection}${odd}`).toUpperCase();
+        const parts = doc.splitTextToSize(txt, DET_W);
+        parts.forEach((ln, i)=>lines.push({ln, gapBefore: (i===0 && mi>0) ? 1.1 : 0}));
       });
-      return y0 + h;
+      const textH = lines.reduce((s,l)=>s+LH+l.gapBefore, 0);
+      return {lines, h: Math.max(ROW_MIN, textH + 6.2)};
+    };
+    const drawRow = (t, y0, m)=>{
+      const r = ticketResult(t), profit = ticketProfit(t);
+      doc.setFillColor(...(r==='red' ? D.rowRed : (r==='green' ? D.rowGreen : D.bg)));
+      doc.rect(M, y0, CW, m.h, 'F');
+      doc.setDrawColor(...D.sep); doc.setLineWidth(0.2); doc.line(M, y0+m.h, PW-M, y0+m.h);
+      // data / número
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...D.text);
+      doc.text(pdfSafe(fmtDate(t.date)+(t.time?' '+String(t.time).slice(0,5):'')), COL.dateX, y0+5.4);
+      doc.setFontSize(6.8); doc.setTextColor(...D.muted);
+      doc.text('#'+(t.ticketNumber||'-'), COL.dateX, y0+9.4);
+      // valor / odds
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...D.text);
+      doc.text(fmtNum(t.stake), COL.valR, y0+5.6, {align:'right'});
+      doc.text(ticketOddTotal(t)>0 ? effectiveOdds(t).toFixed(2) : '-', COL.oddC, y0+5.6, {align:'center'});
+      // detalhes
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.9); doc.setTextColor(...D.detail);
+      let ty = y0+5.3;
+      m.lines.forEach(l=>{ ty += l.gapBefore; doc.text(l.ln, COL.detX, ty); ty += LH; });
+      // resultado + status da aposta completa
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+      if(r==='green' || r==='red'){ doc.setTextColor(...(profit>=0?D.green:D.red)); doc.text(fmtNum(profit), COL.resR, y0+5.6, {align:'right'}); }
+      else { doc.setTextColor(...D.muted); doc.text(r==='pending' ? '-' : '-', COL.resR, y0+5.6, {align:'right'}); }
+      const stCol = r==='green' ? D.green : (r==='red' ? D.red : (r==='pending' ? D.pend : D.voidc));
+      doc.setFont('helvetica','bold'); doc.setFontSize(6.2); doc.setTextColor(...stCol);
+      doc.text(statusInfo(r).label, COL.resR, y0+9.6, {align:'right', charSpace:0.3});
+    };
+    const drawHead = (y0)=>{
+      doc.setFillColor(...D.head); doc.rect(M, y0, CW, HEAD_H, 'F');
+      const hl = (txt, x, al)=>{ doc.setFont('helvetica','bold'); doc.setFontSize(6.3); doc.setTextColor(...D.muted); doc.text(txt, x, y0+4.6, {align:al||'left', charSpace:0.35}); };
+      hl('DATA', COL.dateX); hl('VALOR', COL.valR, 'right'); hl('ODDS', COL.oddC, 'center'); hl('DETALHES', COL.detX); hl('RESULTADO', COL.resR, 'right');
     };
 
-    // ---- JOGOS DA SEMANA ----
-    const bets = allWeek.map(t=>({t, info:measureBet(t)}));
-    const needFirst = 12 + (bets.length ? bets[0].info.h : 14);
-    if(y + needFirst > BOTTOM){ y = newPage(); }
-    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...C.ink);
-    doc.text('Jogos da semana', M, y+4);
-    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.gray);
-    doc.text(`${allWeek.length} aposta${allWeek.length===1?'':'s'} no periodo`, PW-M, y+4, {align:'right'});
-    y += 10;
-    if(!bets.length){
-      doc.setFontSize(10); doc.text('Nenhuma aposta nessa semana.', M, y+4); y += 10;
-    }
-    bets.forEach(({t, info})=>{
-      if(y + info.h > BOTTOM) y = newPage();
-      y = drawBet(t, y, info) + 4;
+    // pass 1: simula a paginação (cada aposta fica inteira numa página)
+    const items = allWeek.map(t=>({t, m:measure(t)}));
+    const segs = [];            // {first, y0, rows:[{t,m,y}], y1}
+    let seg = null, cy = 0, pageOffset = 0;
+    const startSeg = (isFirst, yStart)=>{
+      seg = {isFirst, y0:yStart, rows:[], pageOffset};
+      segs.push(seg);
+      cy = yStart + (isFirst ? TAB_H : 0) + HEAD_H;
+    };
+    // cabeçalho da seção
+    const SEC_H = 9;
+    const firstH = items.length ? items[0].m.h : 12;
+    let secY = y;
+    if(secY + SEC_H + TAB_H + HEAD_H + firstH > BOTTOM){ pageOffset = 1; secY = TOP_NEXT; }
+    startSeg(true, secY + SEC_H);
+    items.forEach(it=>{
+      if(cy + it.m.h > BOTTOM){ seg.y1 = cy; pageOffset += 1; startSeg(false, TOP_NEXT); }
+      seg.rows.push({t:it.t, m:it.m, y:cy});
+      cy += it.m.h;
     });
+    seg.y1 = cy;
 
-    // ---- total da semana ----
-    const totH = 17;
-    if(y + totH > BOTTOM) y = newPage();
-    doc.setFillColor(...C.soft); doc.setDrawColor(...C.line); doc.setLineWidth(0.3);
-    doc.roundedRect(M, y, CW, totH, 3, 3, 'FD');
-    label(`Total da semana (${tickets.length} apostas, sem anuladas)`, M+PADX, y+6.5, {size:6.8});
-    label('Valor jogado', M+PADX, y+11.2, {size:6.3, cs:0.2});
-    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...C.ink);
-    doc.text(pdfMoney(valorJogado), M+PADX+24, y+11.4);
-    label('Resultado', PW-M-PADX-40, y+11.2, {size:6.3, cs:0.2, align:'right'});
-    doc.setFont('helvetica','bold'); doc.setFontSize(11.5); doc.setTextColor(...colorOf(subtotal));
-    doc.text(pdfSigned(subtotal), PW-M-PADX, y+11.4, {align:'right'});
+    // pass 2: desenha
+    let curOffset = 0;
+    segs.forEach((sg, si)=>{
+      while(curOffset < sg.pageOffset){ newPage(); curOffset += 1; }
+      if(sg.isFirst){
+        doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...C.ink);
+        doc.text('Jogos da semana', M, sg.y0-3);
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.gray);
+        doc.text(`${allWeek.length} aposta${allWeek.length===1?'':'s'} no periodo`, PW-M, sg.y0-3, {align:'right'});
+      }
+      doc.setFillColor(...D.bg); doc.roundedRect(M, sg.y0, CW, Math.max(sg.y1-sg.y0, HEAD_H+4), 3, 3, 'F');
+      let hy = sg.y0;
+      if(sg.isFirst){
+        doc.setFillColor(...D.tab); doc.roundedRect(M+4, sg.y0+2.4, 38, 7.8, 2, 2, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(7.6); doc.setTextColor(...D.text);
+        doc.text(`Apostas (${allWeek.length})`, M+7.5, sg.y0+6.2);
+        doc.setFontSize(6.6); doc.setTextColor(...(subtotal>=0?D.green:D.red));
+        doc.text(fmtNum(subtotal), M+7.5, sg.y0+9.2);
+        hy = sg.y0 + TAB_H;
+      }
+      drawHead(hy);
+      sg.rows.forEach(rw=>drawRow(rw.t, rw.y, rw.m));
+      // acabamento arredondado do cartão (cobre as pontas das linhas tingidas)
+      doc.setDrawColor(255,255,255); doc.setLineWidth(1.2);
+    });
+    // total da semana
+    {
+      const last = segs[segs.length-1];
+      let ty = last.y1 + 5;
+      const totH = 15;
+      if(ty + totH > BOTTOM){ newPage(); ty = TOP_NEXT; }
+      doc.setFillColor(...C.soft); doc.setDrawColor(...C.line); doc.setLineWidth(0.3);
+      doc.roundedRect(M, ty, CW, totH, 3, 3, 'FD');
+      label(`Total da semana (${tickets.length} apostas, sem anuladas)`, M+6, ty+6, {size:6.6});
+      label('Valor jogado', M+6, ty+10.8, {size:6.2, cs:0.2});
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...C.ink);
+      doc.text(pdfMoney(valorJogado), M+6+23, ty+11);
+      label('Resultado', PW-M-6-38, ty+10.8, {size:6.2, cs:0.2, align:'right'});
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...colorOf(subtotal));
+      doc.text(pdfSigned(subtotal), PW-M-6, ty+11, {align:'right'});
+    }
 
     // ---- rodapé com numeração ----
     const total = doc.getNumberOfPages();
