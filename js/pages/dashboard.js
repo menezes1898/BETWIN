@@ -63,6 +63,7 @@ function renderDashboardTab(){
   const ICO_CAL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
   const ICO_EXT = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
   const ICO_RECEIPT = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>';
+  const ICO_PDF = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9.5 14.5 12 17l2.5-2.5"/></svg>';
   const ICO_PREV = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>';
   const ICO_NEXT = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
 
@@ -119,7 +120,7 @@ function renderDashboardTab(){
         <tbody>
         ${rows.map(r=>`
           <tr>
-            <td class="left"><div class="cl-cell"><span class="cl-name">${r.name}</span><a class="ic-act" href="${baseUrl}#cliente=${r.code}" target="_blank" title="Abrir relatório do cliente">${ICO_EXT}</a><button class="ic-act" onclick="gerarFechamento('${r.id}')" title="Gerar imagem de fechamento">${ICO_RECEIPT}</button></div></td>
+            <td class="left"><div class="cl-cell"><span class="cl-name">${r.name}</span><a class="ic-act" href="${baseUrl}#cliente=${r.code}" target="_blank" title="Abrir relatório do cliente">${ICO_EXT}</a><button class="ic-act" onclick="gerarFechamento('${r.id}')" title="Gerar imagem de fechamento">${ICO_RECEIPT}</button><button class="ic-act" onclick="gerarFechamentoPDF('${r.id}')" title="Baixar fechamento em PDF (com os jogos da semana)">${ICO_PDF}</button></div></td>
             <td>${countBadges(r.tickets)}</td>
             <td class="num strong">${fmtNum(r.volume)}</td>
             <td class="num ${cls(r.resultado)}">${num(r.resultado)}</td>
