@@ -46,18 +46,60 @@ const EVT_SPORTS_KEY = 'bw_evt_sports';
 const _evtNm = (t)=> (t && t.name) ? String(t.name) : '';
 const _evtGen = (it)=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.away), league:(it.league&&it.league.name)||'',
   ts: it.timestamp ? it.timestamp*1000 : Date.parse(it.date)});
+const _num = (v)=> (v===null || v===undefined || v==='' || isNaN(Number(v))) ? null : Number(v);
+const _pair = (h,a)=> (_num(h)===null || _num(a)===null) ? null : {h:_num(h), a:_num(a)};
+const _sum2 = (o)=> (o && _num(o.quarter_1)!==null && _num(o.quarter_2)!==null) ? _num(o.quarter_1)+_num(o.quarter_2) : null;
+const _v1Score = (finishedShort)=> (it)=>{
+  const st = (it.status && it.status.short) || '';
+  const sh = it.scores && it.scores.home, sa = it.scores && it.scores.away;
+  const hh = _sum2(sh), ha = _sum2(sa);
+  return {st, finished: finishedShort.includes(st), void: ['CANC','ABD','AWD','WO'].includes(st), postponed: ['PST','SUSP','INT'].includes(st),
+    ft: _pair(sh && sh.total, sa && sa.total), ht: (hh===null||ha===null) ? null : {h:hh, a:ha}};
+};
+// extrai { id, home, away, league, ts } e o placar normalizado (score) de cada esporte
 const EVT_SPORTS = [
   {id:'football', label:'Futebol', host:'v3.football.api-sports.io', path:'fixtures', tz:true,
-    parse:it=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.away), league:(it.league&&it.league.name)||'', ts:Date.parse(it.fixture&&it.fixture.date)})},
-  {id:'basketball', label:'Basquete', host:'v1.basketball.api-sports.io', path:'games', tz:true, parse:_evtGen},
-  {id:'nba', label:'NBA', host:'v2.nba.api-sports.io', path:'games', tz:false,
-    parse:it=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.visitors), league:'NBA', ts:Date.parse(it.date&&it.date.start)})},
-  {id:'nfl', label:'NFL', host:'v1.american-football.api-sports.io', path:'games', tz:false,
+    itemId:it=>it.fixture&&it.fixture.id,
+    parse:it=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.away), league:(it.league&&it.league.name)||'', ts:Date.parse(it.fixture&&it.fixture.date)}),
+    score:it=>{
+      const st = (it.fixture && it.fixture.status && it.fixture.status.short) || '';
+      const sc = it.score || {};
+      const ft = _pair(sc.fulltime&&sc.fulltime.home, sc.fulltime&&sc.fulltime.away) || _pair(it.goals&&it.goals.home, it.goals&&it.goals.away);
+      return {st, finished:['FT','AET','PEN'].includes(st), void:['CANC','ABD','AWD','WO'].includes(st), postponed:['PST','SUSP','INT'].includes(st),
+        ft, ht:_pair(sc.halftime&&sc.halftime.home, sc.halftime&&sc.halftime.away), teamIds:{h:it.teams&&it.teams.home&&it.teams.home.id, a:it.teams&&it.teams.away&&it.teams.away.id}};
+    }},
+  {id:'basketball', label:'Basquete', host:'v1.basketball.api-sports.io', path:'games', tz:true, itemId:it=>it.id, parse:_evtGen, score:_v1Score(['FT','AOT'])},
+  {id:'nba', label:'NBA', host:'v2.nba.api-sports.io', path:'games', tz:false, itemId:it=>it.id,
+    parse:it=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.visitors), league:'NBA', ts:Date.parse(it.date&&it.date.start)}),
+    score:it=>{
+      const stl = String((it.status && (it.status.long||it.status.short)) || '');
+      const sh = it.scores && it.scores.home, sv = it.scores && it.scores.visitors;
+      const ls = (o)=> (o && Array.isArray(o.linescore) && o.linescore.length>=2 && _num(o.linescore[0])!==null && _num(o.linescore[1])!==null) ? _num(o.linescore[0])+_num(o.linescore[1]) : null;
+      const hh = ls(sh), ha = ls(sv);
+      return {st:stl, finished:/finish/i.test(stl) || (it.status && it.status.short===3), void:/cancel/i.test(stl), postponed:/postpon|suspend/i.test(stl),
+        ft:_pair(sh&&sh.points, sv&&sv.points), ht:(hh===null||ha===null)?null:{h:hh,a:ha}};
+    }},
+  {id:'nfl', label:'NFL', host:'v1.american-football.api-sports.io', path:'games', tz:false, itemId:it=>it.game&&it.game.id,
     parse:it=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.away), league:(it.league&&it.league.name)||'NFL',
-      ts: it.game&&it.game.date&&it.game.date.timestamp ? it.game.date.timestamp*1000 : NaN})},
-  {id:'mma', label:'MMA', host:'v1.mma.api-sports.io', path:'fights', tz:false,
+      ts: it.game&&it.game.date&&it.game.date.timestamp ? it.game.date.timestamp*1000 : NaN}),
+    score:it=>{
+      const st = (it.game && it.game.status && it.game.status.short) || '';
+      const sh = it.scores && it.scores.home, sa = it.scores && it.scores.away;
+      const hh = _sum2(sh), ha = _sum2(sa);
+      return {st, finished:['FT','AOT','OT'].includes(st), void:['CANC','ABD'].includes(st), postponed:['PST','SUSP'].includes(st),
+        ft:_pair(sh&&sh.total, sa&&sa.total), ht:(hh===null||ha===null)?null:{h:hh,a:ha}};
+    }},
+  {id:'mma', label:'MMA', host:'v1.mma.api-sports.io', path:'fights', tz:false, itemId:it=>it.id,
     parse:it=>({home:_evtNm(it.fighters&&it.fighters.first), away:_evtNm(it.fighters&&it.fighters.second), league:it.slug||it.category||'MMA',
-      ts: it.timestamp ? it.timestamp*1000 : Date.parse(it.date)})}
+      ts: it.timestamp ? it.timestamp*1000 : Date.parse(it.date)}),
+    score:it=>{
+      const st = (it.status && it.status.short) || '';
+      const f = it.fighters || {};
+      const w1 = f.first && f.first.winner, w2 = f.second && f.second.winner;
+      const winner = w1===true ? 'H' : (w2===true ? 'A' : null);
+      return {st, finished: winner!==null || ['FT','EOF'].includes(st), void:['CANC','ABD'].includes(st), postponed:['PST'].includes(st), ft:null, ht:null, winner,
+        draw: (['FT','EOF'].includes(st) && winner===null)};
+    }}
 ];
 function evtSelectedSports(){
   try{
@@ -74,7 +116,7 @@ async function evtLoadSportDate(sport, date){
   if(EVT_FIX[mk]) return EVT_FIX[mk];
   const key = evtGetKey();
   if(!key) return [];
-  const cacheKey = 'bw_fix_'+sport.id+'_'+date;
+  const cacheKey = 'bw_fix2_'+sport.id+'_'+date;
   try{
     const c = JSON.parse(localStorage.getItem(cacheKey)||'null');
     if(c && Date.now()-c.at < 3*3600*1000){ EVT_FIX[mk] = c.list; return c.list; }
@@ -89,7 +131,7 @@ async function evtLoadSportDate(sport, date){
   (json.response||[]).forEach(it=>{
     let g; try{ g = sport.parse(it); }catch(e){ return; }
     if(!g || !g.home || !g.away) return;
-    list.push({home:g.home, away:g.away, league:g.league||'', sport:sport.label, when: isNaN(g.ts) ? '' : evtFixtureTime(g.ts)});
+    list.push({home:g.home, away:g.away, league:g.league||'', sport:sport.label, sid:sport.id, qd:date, id: sport.itemId ? sport.itemId(it) : null, when: isNaN(g.ts) ? '' : evtFixtureTime(g.ts)});
   });
   EVT_FIX[mk] = list;
   try{ localStorage.setItem(cacheKey, JSON.stringify({at:Date.now(), list})); }catch(e){}
@@ -153,4 +195,16 @@ function evtSuggest(text){
     });
   }
   return out.slice(0,10);
+}
+
+// Procura, nos jogos já carregados da API, o jogo com exatamente esses dois times -> referência para buscar o resultado depois
+function evtFindRef(home, away){
+  const h = evtNorm(home), a = evtNorm(away);
+  if(!h || !a) return null;
+  for(const list of Object.values(EVT_FIX)){
+    for(const f of list){
+      if(f.id!=null && evtNorm(f.home)===h && evtNorm(f.away)===a) return {sport:f.sid, id:f.id, qd:f.qd};
+    }
+  }
+  return null;
 }

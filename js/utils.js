@@ -63,6 +63,10 @@ function ticketOddTotal(ticket){
   return ticket.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
 }
 function effectiveOdds(ticket){
+  // Seleção anulada não conta para o prêmio: se houver alguma anulada, a odd é recalculada só com as demais
+  // (a odd total digitada à mão deixa de valer, pois ela incluía a seleção anulada).
+  const hasVoid = ticket.matches.some(m=>m.result==='void');
+  if(hasVoid) return ticketOddTotal(ticket);
   return (ticket.odds && ticket.odds>0) ? ticket.odds : ticketOddTotal(ticket);
 }
 function ticketProfit(ticket){
