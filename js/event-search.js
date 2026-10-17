@@ -41,34 +41,57 @@ function evtHistory(){
   return {events:[...events.values()], teams:[...teams.values()]};
 }
 
-function evtFixtureTime(iso){
+// ---- Esportes disponíveis na API-Sports (a mesma chave vale para todos) ----
+const EVT_SPORTS_KEY = 'bw_evt_sports';
+const _evtNm = (t)=> (t && t.name) ? String(t.name) : '';
+const _evtGen = (it)=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.away), league:(it.league&&it.league.name)||'',
+  ts: it.timestamp ? it.timestamp*1000 : Date.parse(it.date)});
+const EVT_SPORTS = [
+  {id:'football', label:'Futebol', host:'v3.football.api-sports.io', path:'fixtures', tz:true,
+    parse:it=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.away), league:(it.league&&it.league.name)||'', ts:Date.parse(it.fixture&&it.fixture.date)})},
+  {id:'basketball', label:'Basquete', host:'v1.basketball.api-sports.io', path:'games', tz:true, parse:_evtGen},
+  {id:'nba', label:'NBA', host:'v2.nba.api-sports.io', path:'games', tz:false,
+    parse:it=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.visitors), league:'NBA', ts:Date.parse(it.date&&it.date.start)})},
+  {id:'nfl', label:'NFL', host:'v1.american-football.api-sports.io', path:'games', tz:false,
+    parse:it=>({home:_evtNm(it.teams&&it.teams.home), away:_evtNm(it.teams&&it.teams.away), league:(it.league&&it.league.name)||'NFL',
+      ts: it.game&&it.game.date&&it.game.date.timestamp ? it.game.date.timestamp*1000 : NaN})},
+  {id:'mma', label:'MMA', host:'v1.mma.api-sports.io', path:'fights', tz:false,
+    parse:it=>({home:_evtNm(it.fighters&&it.fighters.first), away:_evtNm(it.fighters&&it.fighters.second), league:it.slug||it.category||'MMA',
+      ts: it.timestamp ? it.timestamp*1000 : Date.parse(it.date)})}
+];
+function evtSelectedSports(){
   try{
-    const d = new Date(iso);
-    const dd = d.toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit'});
-    const hh = d.toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'});
-    return dd+', '+hh;
-  }catch(e){ return ''; }
+    const v = JSON.parse(localStorage.getItem(EVT_SPORTS_KEY)||'null');
+    if(Array.isArray(v)) return EVT_SPORTS.filter(sp=>v.includes(sp.id));
+  }catch(e){}
+  return EVT_SPORTS.slice();   // padrão: todos
 }
+function evtSetSelectedSports(ids){ try{ localStorage.setItem(EVT_SPORTS_KEY, JSON.stringify(ids)); }catch(e){} }
 
-// Carrega os jogos de uma data (com cache do dia no navegador para poupar o limite gratuito da API)
-async function evtLoadDate(date){
-  if(EVT_FIX[date]) return EVT_FIX[date];
+// Carrega os jogos de um esporte em uma data (com cache no navegador para poupar o limite gratuito)
+async function evtLoadSportDate(sport, date){
+  const mk = sport.id+'|'+date;
+  if(EVT_FIX[mk]) return EVT_FIX[mk];
   const key = evtGetKey();
   if(!key) return [];
-  const cacheKey = 'bw_fix_'+date;
+  const cacheKey = 'bw_fix_'+sport.id+'_'+date;
   try{
     const c = JSON.parse(localStorage.getItem(cacheKey)||'null');
-    if(c && Date.now()-c.at < 3*3600*1000){ EVT_FIX[date] = c.list; return c.list; }
+    if(c && Date.now()-c.at < 3*3600*1000){ EVT_FIX[mk] = c.list; return c.list; }
   }catch(e){}
-  const resp = await fetch('https://v3.football.api-sports.io/fixtures?date='+date+'&timezone=America/Sao_Paulo', {headers:{'x-apisports-key':key}});
+  const url = 'https://'+sport.host+'/'+sport.path+'?date='+date+(sport.tz?'&timezone=America/Sao_Paulo':'');
+  const resp = await fetch(url, {headers:{'x-apisports-key':key}});
   const json = await resp.json();
   const errs = json && json.errors;
   const errTxt = Array.isArray(errs) ? errs.join(' ') : (errs ? Object.values(errs).join(' ') : '');
   if(errTxt) throw new Error(errTxt);
-  const list = (json.response||[]).map(f=>({
-    home: f.teams.home.name, away: f.teams.away.name, league: f.league.name, when: evtFixtureTime(f.fixture.date)
-  }));
-  EVT_FIX[date] = list;
+  const list = [];
+  (json.response||[]).forEach(it=>{
+    let g; try{ g = sport.parse(it); }catch(e){ return; }
+    if(!g || !g.home || !g.away) return;
+    list.push({home:g.home, away:g.away, league:g.league||'', sport:sport.label, when: isNaN(g.ts) ? '' : evtFixtureTime(g.ts)});
+  });
+  EVT_FIX[mk] = list;
   try{ localStorage.setItem(cacheKey, JSON.stringify({at:Date.now(), list})); }catch(e){}
   return list;
 }
@@ -77,18 +100,26 @@ async function evtPrefetch(){
   const base = (DRAFT && DRAFT.date) || todaySP();
   const d2 = new Date(base+'T12:00:00'); d2.setDate(d2.getDate()+1);
   const next = d2.toISOString().slice(0,10);
+  const sports = evtSelectedSports();
   EVT_STATUS = 'Carregando jogos…'; evtShowStatus();
-  try{
-    const a = await evtLoadDate(base), b = await evtLoadDate(next);
-    EVT_STATUS = (a.length+b.length)+' jogos online carregados ('+fmtDate(base)+' e '+fmtDate(next)+').';
-  }catch(e){
-    EVT_STATUS = 'Busca online indisponível: '+e.message+' — usando só o histórico.';
-  }
+  const jobs = [];
+  sports.forEach(sp=>[base,next].forEach(d=>jobs.push(evtLoadSportDate(sp,d).then(l=>({ok:true,n:l.length}),e=>({ok:false,sp:sp.label,msg:e.message})))));
+  const res = await Promise.all(jobs);
+  const n = res.reduce((t,r)=>t+(r.ok?r.n:0),0);
+  const bad = res.filter(r=>!r.ok);
+  EVT_STATUS = n+' jogos online carregados ('+fmtDate(base)+' e '+fmtDate(next)+')'+(bad.length ? ' · falhou: '+[...new Set(bad.map(b=>b.sp))].join(', ')+' ('+bad[0].msg+')' : '')+'.';
   evtShowStatus();
 }
 function evtShowStatus(){
   const el = document.getElementById('evt-status');
   if(el) el.textContent = EVT_STATUS;
+}
+function evtFixtureTime(ts){
+  try{
+    const d = new Date(ts);
+    return d.toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit'})+', '+
+      d.toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'});
+  }catch(e){ return ''; }
 }
 
 // Sugestões para o texto digitado no campo Evento
@@ -107,7 +138,7 @@ function evtSuggest(text){
   };
   const seen = new Set();
   const push = (s)=>{ const k = evtNorm(s.home)+'|'+evtNorm(s.away); if(seen.has(k)) return; seen.add(k); out.push(s); };
-  Object.values(EVT_FIX).forEach(list=>list.forEach(f=>{ if(matchEvent(f.home,f.away)) push({kind:'event', home:f.home, away:f.away, sub:f.league+' · '+f.when}); }));
+  Object.values(EVT_FIX).forEach(list=>list.forEach(f=>{ if(matchEvent(f.home,f.away)) push({kind:'event', home:f.home, away:f.away, sub:[f.sport, (f.league && f.league!==f.sport ? f.league : ''), f.when].filter(Boolean).join(' · ')}); }));
   evtHistory().events.forEach(e=>{ if(matchEvent(e.home,e.away)) push({kind:'event', home:e.home, away:e.away, sub:'já lançado antes'}); });
   // completar nome do time que está sendo digitado
   const last = p.hasSep ? (p.away || '') : p.home;
