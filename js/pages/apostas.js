@@ -5,8 +5,9 @@ function renderPendentesTab(){
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <h3 style="margin:0">Apostas pendentes</h3>
-        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span>
+        <span style="display:flex;align-items:center;gap:12px"><button class="btn-primary btn-sm btn-buscar-res" onclick="buscarResultados()">🔄 Buscar resultados</button><span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span></span>
       </div>
+      <p style="font-size:12.5px;color:var(--text-muted);margin:10px 0 0">Consulta a API pelos jogos já encerrados e marca Green, Red ou Anulada nas partidas que tiverem resultado seguro. O que não der fica pendente, com o motivo no relatório.</p>
     </div>
     <div class="card">
       ${pendentes.length===0 ? '<div class="empty">Nenhuma aposta pendente no momento.</div>' : pendentes.map(renderTicketCard).join('')}
@@ -91,7 +92,7 @@ function renderApostasTab(){
   ];
 
   return `
-    <button class="btn-primary btn-full" onclick="startNewTicket()">+ Nova Aposta</button>
+    <div style="display:flex;gap:10px"><button class="btn-primary btn-full" onclick="startNewTicket()">+ Nova Aposta</button><button class="btn-ghost btn-buscar-res" style="white-space:nowrap" onclick="buscarResultados()">🔄 Buscar resultados</button></div>
     <div style="height:16px"></div>
     <div class="card" style="cursor:pointer" onclick="SHOW_PENDENTES=!SHOW_PENDENTES;render()">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -274,6 +275,7 @@ function startNewTicket(){
   EDITING_TICKET_ID = null;
   ADMIN_SUBVIEW='wizard';
   render();
+  refreshSelOptions();
   focusEl('new-client-search');
   evtPrefetch();
 }
@@ -290,6 +292,7 @@ function editTicket(ticketId){
   ADMIN_TAB = 'apostas';
   ADMIN_SUBVIEW='wizard';
   render();
+  refreshSelOptions();
   focusEl('match-event');
   evtPrefetch();
 }
@@ -314,12 +317,16 @@ function cancelWizard(){
   DRAFT=null; EDITING_TICKET_ID=null; ADMIN_SUBVIEW='list'; render();
 }
 function parseNum(v){ const n = parseFloat(String(v==null?'':v).trim().replace(/\./g,function(m,o,str){ return /,/.test(str)?'':'.'; }).replace(',','.')); return n; }
+function draftEffectiveOdds(){
+  if(DRAFT.matches.some(m=>m.result==='void')) return draftMatchesOddTotal();
+  return parseNum(DRAFT.odds) || draftMatchesOddTotal();
+}
 function draftMatchesOddTotal(){
   return DRAFT.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
 }
 function updateWizardTotals(){
   const stake = parseNum(DRAFT.stake) || 0;
-  const odds = parseNum(DRAFT.odds) || draftMatchesOddTotal();
+  const odds = draftEffectiveOdds();
   const display = document.getElementById('ticket-retorno-display');
   if(display) display.value = (stake>0 && odds>0) ? fmtBRL(stake*odds - stake) : '';
 }
@@ -367,9 +374,8 @@ async function saveTicket(){
 
 function renderWizard(){
   const oddTotal = DRAFT.matches.reduce((p,m)=>p*m.odd,1);
-  const marketList = MARKETS.filter(m=>m.v!=='Outro').map(m=>`<option value="${m.l}"></option>`).join('');
   const sem = !!DRAFT.semEvento;
-  const lucro = (parseNum(DRAFT.stake)>0 && (parseNum(DRAFT.odds)>0 || draftMatchesOddTotal()>0)) ? fmtBRL(parseNum(DRAFT.stake)*(parseNum(DRAFT.odds)||draftMatchesOddTotal())-parseNum(DRAFT.stake)) : '';
+  const lucro = (parseNum(DRAFT.stake)>0 && draftEffectiveOdds()>0) ? fmtBRL(parseNum(DRAFT.stake)*draftEffectiveOdds()-parseNum(DRAFT.stake)) : '';
 
   const draftList = DRAFT.matches.map(m=>{
     const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
@@ -453,23 +459,30 @@ function renderWizard(){
 
       <div class="nd-chips">
         ${grp('RF', chip('1','Resultado Final','Casa','c-green')+chip('X','Resultado Final','Empate','c-amber')+chip('2','Resultado Final','Fora','c-blue'))}
-        ${grp('DP', chip('1X','Dupla Chance','Casa ou Empate')+chip('X2','Dupla Chance','Empate ou Fora')+chip('12','Dupla Chance','Casa ou Fora'))}
+        ${grp('DP', chip('1X','Dupla Possibilidade','Casa ou Empate')+chip('X2','Dupla Possibilidade','Empate ou Fora')+chip('12','Dupla Possibilidade','Casa ou Fora'))}
         ${grp('GOL', chip('+','Total de Gols','Over 2.5','c-purple')+chip('-','Total de Gols','Under 2.5','c-purple')+chip('=','Total de Gols','Exato ','c-purple',true))}
-        ${grp('GOL A', chip('Over','Total de Gols Asiatico','Over ','c-purple',true)+chip('Under','Total de Gols Asiatico','Under ','c-purple',true))}
-        ${grp('AH', chip('AH1','Handicap Asiatico','Casa -1','c-cyan')+chip('AH2','Handicap Asiatico','Fora -1','c-cyan'))}
+        ${grp('GOL A', chip('Over','Total de Gols - Asiático','Over ','c-purple',true)+chip('Under','Total de Gols - Asiático','Under ','c-purple',true))}
+        ${grp('AH', chip('AH1','Handicap - Asiático','Casa -1','c-cyan')+chip('AH2','Handicap - Asiático','Fora -1','c-cyan'))}
         ${grp('BTTS', chip('Sim','Ambas Marcam','Sim','c-green')+chip('Não','Ambas Marcam','Não','c-red'))}
-        ${grp('1º TEMPO', chip('1','Resultado Final HT','Casa','c-green')+chip('X','Resultado Final HT','Empate','c-amber')+chip('2','Resultado Final HT','Fora','c-blue')+chip('AH1','Handicap Asiatico HT','Casa -1','c-cyan')+chip('AH2','Handicap Asiatico HT','Fora -1','c-cyan')+chip('ESC +','Total de Escanteios HT','Over','c-purple',true)+chip('ESC -','Total de Escanteios HT','Under','c-purple',true))}
+        ${grp('OUTROS ESPORTES', chip('ML 1','Moneyline','Casa','c-green')+chip('ML 2','Moneyline','Fora','c-blue')+chip('HC 1','Handicap - Pontos','Casa ','c-cyan',true)+chip('HC 2','Handicap - Pontos','Fora ','c-cyan',true)+chip('PTS Over','Total de Pontos','Over ','c-purple',true)+chip('PTS Under','Total de Pontos','Under ','c-purple',true))}
+        ${grp('1º TEMPO', chip('1','Resultado - HT','Casa','c-green')+chip('X','Resultado - HT','Empate','c-amber')+chip('2','Resultado - HT','Fora','c-blue')+chip('AH1','Handicap - Asiático - HT','Casa -1','c-cyan')+chip('AH2','Handicap - Asiático - HT','Fora -1','c-cyan')+chip('ESC +','Escanteios - 1º Tempo','Over ','c-purple',true)+chip('ESC -','Escanteios - 1º Tempo','Under ','c-purple',true))}
       </div>
 
       <div class="nd-fields">
         <div><label>Tipo</label>
-          <input type="text" id="match-market" list="market-list" placeholder="Buscar tipo…" autocomplete="off" value="${evtEsc(DRAFT.marketText||'')}" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('match-selection');}">
-          <datalist id="market-list">${marketList}</datalist></div>
+          <div class="autocomplete-wrap">
+            <input type="text" id="match-market" placeholder="Buscar tipo…" autocomplete="off" value="${evtEsc(DRAFT.marketText||'')}"
+              oninput="onMarketInput()" onfocus="onMarketInput()" onkeydown="marketKeydown(event)"
+              onblur="setTimeout(()=>{const b=document.getElementById('market-options'); if(b) b.style.display='none';},150)">
+            <div id="market-options" class="autocomplete-list" style="max-height:260px"></div>
+          </div></div>
         <div><label>Seleção</label>
           <input type="text" id="match-selection" placeholder="Ex: Casa, Over 2.5, Sim" autocomplete="off" value="${evtEsc(DRAFT.selectionText||'')}" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('match-odd');}"></div>
         <div><label>Odds</label>
           <input type="text" inputmode="decimal" id="match-odd" placeholder="Odds (ex: 2,50 ou 2.50)" autocomplete="off" value="${DRAFT.oddText||''}" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarDetalhe();}"></div>
       </div>
+
+      <div class="nd-selopts"><span class="nd-grp-l">SELEÇÃO</span><div id="sel-options" class="nd-selopts-list"></div></div>
 
       <div class="nd-foot">
         <div class="nd-foot-l">
@@ -523,6 +536,7 @@ function onEventInput(){
   DRAFT.eventText = input.value;
   const sub = document.getElementById('nd-sub');
   if(sub) sub.textContent = input.value.trim() || 'Digite o jogo ou escolha na lista';
+  refreshSelOptions();
   EVT_SUGG = evtSuggest(input.value);
   if(!EVT_SUGG.length){ box.style.display='none'; box.innerHTML=''; return; }
   box.innerHTML = EVT_SUGG.map((s,i)=>`<div class="autocomplete-item" data-i="${i}" onmousedown="pickEventSuggestion(${i})">
@@ -545,6 +559,7 @@ function pickEventSuggestion(i){
   DRAFT.eventText = input.value;
   const sub = document.getElementById('nd-sub');
   if(sub) sub.textContent = input.value+(s.sub && s.sub!=='já lançado antes' ? ' · '+s.sub : '');
+  refreshSelOptions();
   focusEl('match-market');
 }
 function eventKeydown(e){
@@ -585,13 +600,14 @@ function resolveMarket(text){
   if(!t) return '';
   const exact = MARKETS.find(m=>evtNorm(m.l)===t || evtNorm(m.v)===t);
   if(exact) return exact.v;
-  const part = MARKETS.filter(m=>m.v!=='Outro' && (evtNorm(m.l).includes(t) || evtNorm(m.v).includes(t)));
+  const part = MARKETS.filter(m=>m.v!=='Outro' && !m.hidden && (evtNorm(m.l).includes(t) || evtNorm(m.v).includes(t)));
   if(part.length===1) return part[0].v;
   return String(text).trim();   // texto livre
 }
 function quickMarket(market, selection, focusSel){
   document.getElementById('match-market').value = marketLabelOf(market);
   document.getElementById('match-selection').value = selection;
+  refreshSelOptions();
   if(focusSel){
     const f = document.getElementById('match-selection');
     f.focus(); const n = f.value.length; try{ f.setSelectionRange(n,n); }catch(e){}
@@ -608,11 +624,117 @@ function autoFillSelectionTeamNames(selection, home, away){
   return out;
 }
 
+
+
+// ----- campo Tipo: lista própria de mercados (digite para filtrar) -----
+let MKT_SUGG = [];
+function onMarketInput(){
+  const input = document.getElementById('match-market'), box = document.getElementById('market-options');
+  if(!input || !box) return;
+  DRAFT.marketText = input.value;
+  refreshSelOptions();
+  const toks = evtNorm(input.value).split(' ').filter(Boolean);
+  MKT_SUGG = MARKETS.filter(m=>m.v!=='Outro' && !m.hidden && toks.every(t=>evtNorm(m.l).includes(t)));
+  if(!MKT_SUGG.length || MARKETS.some(m=>evtNorm(m.l)===evtNorm(input.value))){ box.style.display='none'; box.innerHTML=''; return; }
+  box.innerHTML = MKT_SUGG.map((m,i)=>`<div class="autocomplete-item" data-i="${i}" onmousedown="pickMarket(${i})">${evtEsc(m.l)}</div>`).join('');
+  box.style.display='block';
+}
+function pickMarket(i){
+  const m = MKT_SUGG[i]; if(!m) return;
+  const input = document.getElementById('match-market'), box = document.getElementById('market-options');
+  input.value = m.l; DRAFT.marketText = m.l;
+  if(box){ box.style.display='none'; }
+  refreshSelOptions();
+  focusEl('match-selection');
+}
+function marketKeydown(e){
+  const box = document.getElementById('market-options');
+  const open = box && box.style.display!=='none' && box.querySelector('.autocomplete-item');
+  if(e.key==='ArrowDown' || e.key==='ArrowUp' || e.key==='Escape'){ handleAutocompleteKeydown(e,'market-options'); return; }
+  if(e.key==='Enter' || (e.key==='Tab' && !e.shiftKey)){
+    if(open){
+      const active = box.querySelector('.autocomplete-active') || box.querySelector('.autocomplete-item');
+      const typedExact = MARKETS.some(m=>evtNorm(m.l)===evtNorm(e.target.value));
+      if(box.querySelector('.autocomplete-active') || !typedExact){ e.preventDefault(); active.dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); return; }
+    }
+    if(e.key==='Enter'){ e.preventDefault(); focusEl('match-selection'); }
+  }
+}
+
+// ----- opções de seleção com o nome dos times (conforme o tipo do mercado) -----
+let SEL_OPTS = [];
+function marketKindOfText(text){
+  const v = resolveMarket(text);
+  const m = MARKETS.find(x=>x.v===v);
+  return m ? (m.k||'') : '';
+}
+function eventTeamsNow(){
+  const ev = document.getElementById('match-event');
+  const p = ev ? evtParse(ev.value) : {home:'',away:''};
+  return {home: p.home || 'Casa', away: p.away || 'Fora'};
+}
+function selectionOptions(kind, home, away){
+  const o = (t, line)=>({t, line: !!line});
+  const R = [home, 'Empate', away];
+  switch(kind){
+    case '1x2': return R.map(t=>o(t));
+    case 'dc': return [o(home+' ou Empate'), o('Empate ou '+away), o(home+' ou '+away)];
+    case 'ml': case 'team': return [o(home), o(away)];
+    case 'yn': return [o('Sim'), o('Não')];
+    case 'ou': return [o('Over ',true), o('Under ',true)];
+    case 'hcp': return [o(home+' ',true), o(away+' ',true)];
+    case 'hcp3': return R.map(t=>o(t+' ',true));
+    case 'htft': { const out=[]; R.forEach(a=>R.forEach(b=>out.push(o(a+' / '+b)))); return out; }
+    case 'score': return ['1-0','2-0','2-1','3-0','3-1','3-2','0-0','1-1','2-2','3-3','0-1','0-2','1-2','0-3','1-3','2-3'].map(t=>o(t));
+    case 'rbtts': { const out=[]; R.forEach(r=>['Sim','Não'].forEach(b=>out.push(o(r+' e '+b)))); return out; }
+    case 'rbttsg': { const out=[]; R.forEach(r=>['Sim','Não'].forEach(b=>['Over','Under'].forEach(g=>out.push(o(r+' e '+b+' e '+g+' ',true))))); return out; }
+    case 'rou': { const out=[]; R.forEach(r=>['Over','Under'].forEach(g=>out.push(o(r+' e '+g+' ',true)))); return out; }
+    case 'oubtts': { const out=[]; ['Over','Under'].forEach(g=>['Sim','Não'].forEach(b=>out.push(o(g+' e '+b+' ',true)))); return out; }
+  }
+  return [];
+}
+function refreshSelOptions(){
+  const box = document.getElementById('sel-options');
+  if(!box) return;
+  const mk = document.getElementById('match-market');
+  const kind = mk ? marketKindOfText(mk.value) : '';
+  const t = eventTeamsNow();
+  SEL_OPTS = kind ? selectionOptions(kind, t.home, t.away) : [];
+  box.innerHTML = SEL_OPTS.length
+    ? SEL_OPTS.map((x,i)=>`<button type="button" tabindex="-1" class="nd-chip" onclick="pickSelection(${i})">${evtEsc(x.t.trim())}${x.line?' …':''}</button>`).join('')
+    : '<span class="nd-hint">Escolha o Tipo para ver as opções com o nome dos times.</span>';
+}
+function pickSelection(i){
+  const o = SEL_OPTS[i]; if(!o) return;
+  const f = document.getElementById('match-selection');
+  f.value = o.t;
+  if(o.line){ f.focus(); try{ f.setSelectionRange(f.value.length, f.value.length); }catch(e){} }
+  else focusEl('match-odd');
+}
+// atalhos de digitação: 1 / x / 2, 1x / x2 / 12, s / n, o 2.5 / u 2.5
+function normalizeSelection(kind, text, home, away){
+  const raw = String(text).trim(); const t = raw.toLowerCase();
+  const rx = (re)=>raw.match(re);
+  if(kind==='1x2' || kind==='hcp3'){
+    const m = rx(/^([1x2])(?:\s+(.*))?$/i); if(m){ const n = m[1].toLowerCase()==='1'?home:(m[1].toLowerCase()==='2'?away:'Empate'); return n+(m[2]?' '+m[2]:''); }
+  }
+  if(kind==='dc'){ if(t==='1x') return home+' ou Empate'; if(t==='x2') return 'Empate ou '+away; if(t==='12') return home+' ou '+away; }
+  if(kind==='ml' || kind==='team'){ if(t==='1') return home; if(t==='2') return away; }
+  if(kind==='hcp'){ const m = rx(/^([12])(?:\s+(.*))?$/); if(m) return (m[1]==='1'?home:away)+(m[2]?' '+m[2]:''); }
+  if(kind==='yn'){ if(/^(s|sim|y|yes)$/.test(t)) return 'Sim'; if(/^(n|nao|não|no)$/.test(t)) return 'Não'; }
+  if(kind==='ou'){
+    const m = rx(/^(over|mais|o|\+)\s*(.*)$/i); if(m) return 'Over '+m[2].trim();
+    const u = rx(/^(under|menos|u|-)\s*(.*)$/i); if(u) return 'Under '+u[2].trim();
+  }
+  return raw;
+}
+
 function limparDetalhe(){
   DRAFT.eventText=''; DRAFT.manualDesc=''; DRAFT.marketText=''; DRAFT.selectionText=''; DRAFT.oddText='';
   ['match-event','match-manual-desc','match-market','match-selection','match-odd'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const sub = document.getElementById('nd-sub'); if(sub) sub.textContent = DRAFT.semEvento ? 'Aposta de longo prazo' : 'Digite o jogo ou escolha na lista';
   const box = document.getElementById('event-options'); if(box) box.style.display='none';
+  refreshSelOptions();
   focusEl(DRAFT.semEvento ? 'match-manual-desc' : 'match-event');
 }
 
@@ -639,11 +761,16 @@ function addDraftMatch(opts){
   if(!market){ showToast('Informe o tipo da aposta (ex: Resultado Final).'); focusEl('match-market'); return false; }
   if(!selection){ showToast('Informe a seleção (ex: Casa, Over 2.5, Sim).'); focusEl('match-selection'); return false; }
   if(isNaN(odd) || odd<=0){ showToast('Informe a odd da seleção.'); focusEl('match-odd'); return false; }
+  selection = normalizeSelection(marketKindOfText(marketText), selection, semEvento ? 'Casa' : home, semEvento ? 'Fora' : away);
   if(!semEvento) selection = autoFillSelectionTeamNames(selection, home, away);
 
-  DRAFT.matches.push({id:uid(), home, away, date: DRAFT.date || todaySP(), time: DRAFT.time || null, market, selection, odd, result:'pending'});
+  const leg = {id:uid(), home, away, date: DRAFT.date || todaySP(), time: DRAFT.time || null, market, selection, odd, result:'pending'};
+  const ref = (!semEvento && evtFindRef(home, away)) || (DRAFT.editRef && DRAFT.editRefTeams===evtNorm(home)+'|'+evtNorm(away) ? DRAFT.editRef : null);
+  if(ref) leg.ref = ref;
+  DRAFT.editRef = null; DRAFT.editRefTeams = null;
+  DRAFT.matches.push(leg);
   DRAFT.eventText=''; DRAFT.manualDesc=''; DRAFT.marketText=''; DRAFT.selectionText=''; DRAFT.oddText='';
-  if(!opts.noRender){ render(); focusEl(semEvento ? 'match-manual-desc' : 'match-event'); }
+  if(!opts.noRender){ render(); refreshSelOptions(); focusEl(semEvento ? 'match-manual-desc' : 'match-event'); }
   return true;
 }
 function salvarDetalhe(){ addDraftMatch(); }
@@ -661,6 +788,7 @@ function editDraftMatch(matchId){
   if(idx<0) return;
   const m = DRAFT.matches[idx];
   DRAFT.matches.splice(idx,1);
+  DRAFT.editRef = m.ref || null; DRAFT.editRefTeams = evtNorm(m.home)+'|'+evtNorm(m.away);
   const semEvento = !m.away;
   DRAFT.semEvento = semEvento;
   DRAFT.eventText = semEvento ? '' : m.home+' x '+m.away;
@@ -669,6 +797,7 @@ function editDraftMatch(matchId){
   DRAFT.selectionText = m.selection;
   DRAFT.oddText = String(m.odd);
   render();
+  refreshSelOptions();
   focusEl('match-odd');
 }
 

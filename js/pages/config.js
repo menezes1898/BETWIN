@@ -149,11 +149,15 @@ function renderConfigTab(){
   const logoHidden = localStorage.getItem(LOGO_HIDDEN_KEY)==='true';
   return `
     <div class="card">
-      <h3>Busca automática de jogos (futebol)</h3>
-      <p style="font-size:13px;color:var(--text-muted);margin-top:0">No cadastro de apostas, ao digitar o evento o sistema sugere jogos reais da data (ex: “Bayern x Arsenal”). Sem chave, ele já sugere times e jogos que você lançou antes (vale para qualquer esporte). Para ativar os jogos online, crie uma conta grátis em <b>dashboard.api-football.com</b> (plano Free: 100 consultas por dia) e cole aqui a sua chave (API key). A chave fica salva só neste navegador.</p>
+      <h3>Busca automática de jogos (API-Sports)</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:0">No cadastro de apostas, ao digitar o evento o sistema sugere jogos reais do dia e do dia seguinte (ex: “Bayern x Arsenal”, “Chiefs x Bills”). Sem chave, ele já sugere times e jogos que você lançou antes. Para ativar os jogos online, cole abaixo a sua chave (API-KEY) da conta gratuita em <b>dashboard.api-football.com</b> → Profile → My Access. A mesma chave vale para todos os esportes. A chave fica salva só neste navegador.</p>
       <div class="row" style="margin-top:0;align-items:flex-end">
-        <div><label style="margin-top:0">Chave da API-Football</label><input type="text" id="apifootball-key" value="${(typeof evtGetKey==='function' ? evtGetKey() : '').replace(/"/g,'')}" placeholder="Cole aqui a sua chave" autocomplete="off"></div>
+        <div><label style="margin-top:0">Chave da API-Sports</label><input type="text" id="apifootball-key" value="${(typeof evtGetKey==='function' ? evtGetKey() : '').replace(/"/g,'')}" placeholder="Cole aqui a sua chave" autocomplete="off"></div>
         <div style="flex:0 0 auto;min-width:0;display:flex;gap:8px"><button class="btn-primary" onclick="saveApiFootballKey()">Salvar e testar</button><button class="btn-ghost" onclick="removeApiFootballKey()">Remover</button></div>
+      </div>
+      <label>Esportes na busca <span style="font-weight:400;color:var(--text-muted)">(cada esporte tem o seu limite grátis de 100 consultas por dia)</span></label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:6px">
+        ${typeof EVT_SPORTS!=='undefined' ? EVT_SPORTS.map(sp=>`<label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:500"><input type="checkbox" style="width:auto" class="evt-sport-cb" value="${sp.id}" ${evtSelectedSports().some(x=>x.id===sp.id)?'checked':''} onchange="saveEvtSports()">${sp.label}</label>`).join('') : ''}
       </div>
     </div>
     <div class="card">
@@ -248,15 +252,19 @@ async function removeBotValidator(id){
 }
 
 // ---------- Busca automática de jogos ----------
+function saveEvtSports(){
+  const ids = Array.from(document.querySelectorAll('.evt-sport-cb')).filter(c=>c.checked).map(c=>c.value);
+  evtSetSelectedSports(ids);
+}
 async function saveApiFootballKey(){
   const v = document.getElementById('apifootball-key').value.trim();
-  if(!v){ showToast('Cole a chave da API-Football.'); return; }
+  if(!v){ showToast('Cole a chave da API.'); return; }
   localStorage.setItem(EVT_KEY_STORAGE, v);
   EVT_FIX = {};
   try{
-    Object.keys(localStorage).filter(k=>k.startsWith('bw_fix_')).forEach(k=>localStorage.removeItem(k));
-    const list = await evtLoadDate(todaySP());
-    showToast('Chave funcionando: '+list.length+' jogos encontrados hoje.');
+    Object.keys(localStorage).filter(k=>k.startsWith('bw_fix')).forEach(k=>localStorage.removeItem(k));
+    const list = await evtLoadSportDate(EVT_SPORTS[0], todaySP());
+    showToast('Chave funcionando: '+list.length+' jogos de futebol encontrados hoje.');
   }catch(e){
     showToast('A chave foi salva, mas a API respondeu: '+e.message);
   }
