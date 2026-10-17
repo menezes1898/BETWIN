@@ -471,7 +471,7 @@ function renderWizard(){
       <div class="nd-fields">
         <div><label>Tipo</label>
           <div class="autocomplete-wrap">
-            <input type="text" id="match-market" placeholder="Buscar tipo…" autocomplete="off" value="${evtEsc(DRAFT.marketText||'')}"
+            <input type="text" id="match-market" placeholder="Buscar tipo… (ex: empate sem aposta, dnb)" autocomplete="off" value="${evtEsc(DRAFT.marketText||'')}"
               oninput="onMarketInput()" onfocus="onMarketInput()" onkeydown="marketKeydown(event)"
               onblur="setTimeout(()=>{const b=document.getElementById('market-options'); if(b) b.style.display='none';},150)">
             <div id="market-options" class="autocomplete-list" style="max-height:260px"></div>
@@ -628,14 +628,41 @@ function autoFillSelectionTeamNames(selection, home, away){
 
 // ----- campo Tipo: lista própria de mercados (digite para filtrar) -----
 let MKT_SUGG = [];
+// apelidos para achar o mercado digitando do jeito que se fala (dnb, 1t, btts, corners...)
+const MKT_ALIASES = [
+  [/Empate sem Aposta/, 'dnb draw no bet empate anula empate anulado'],
+  [/Dupla/, 'dc double chance dupla chance 1x x2 12'],
+  [/Ambos Marcam/, 'btts ambas marcam ambos marcam'],
+  [/Resultado Final/, '1x2 resultado final vencedor'],
+  [/Handicap/, 'hc ah handicap'],
+  [/Asi/, 'asiatico asian'],
+  [/HT|1º Tempo/, '1t 1o tempo primeiro tempo intervalo'],
+  [/2o Tempo|2º Tempo/, '2t segundo tempo'],
+  [/Escanteios|Corners/, 'escanteio corner corners'],
+  [/Cart|Cards/, 'cartao cartoes card cards'],
+  [/Finaliza/, 'chute chutes remates shots'],
+  [/Total de Gols|Goals/, 'gols over under mais menos'],
+  [/Moneyline/, 'ml vencedor'],
+  [/Total de Pontos/, 'pontos over under'],
+  [/Placar Exato/, 'resultado exato correct score']
+];
+function mktSearch(text){
+  const toks = evtNorm(text).split(' ').filter(Boolean);
+  return MARKETS.filter(m=>{
+    if(m.v==='Outro' || m.hidden) return false;
+    let hay = evtNorm(m.l)+' '+evtNorm(m.v);
+    MKT_ALIASES.forEach(([re,al])=>{ if(re.test(m.l)) hay += ' '+evtNorm(al); });
+    return toks.every(t=>hay.includes(t));
+  });
+}
 function onMarketInput(){
   const input = document.getElementById('match-market'), box = document.getElementById('market-options');
   if(!input || !box) return;
   DRAFT.marketText = input.value;
   refreshSelOptions();
-  const toks = evtNorm(input.value).split(' ').filter(Boolean);
-  MKT_SUGG = MARKETS.filter(m=>m.v!=='Outro' && !m.hidden && toks.every(t=>evtNorm(m.l).includes(t)));
-  if(!MKT_SUGG.length || MARKETS.some(m=>evtNorm(m.l)===evtNorm(input.value))){ box.style.display='none'; box.innerHTML=''; return; }
+  const q = evtNorm(input.value);
+  MKT_SUGG = mktSearch(input.value);
+  if(!MKT_SUGG.length || (q && MARKETS.some(m=>evtNorm(m.l)===q))){ box.style.display='none'; box.innerHTML=''; return; }
   box.innerHTML = MKT_SUGG.map((m,i)=>`<div class="autocomplete-item" data-i="${i}" onmousedown="pickMarket(${i})">${evtEsc(m.l)}</div>`).join('');
   box.style.display='block';
 }
