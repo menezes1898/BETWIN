@@ -62,6 +62,7 @@ const MARKETS = [
   {v:'Dupla Chance', l:'Dupla Chance'},
   {v:'Ambas Marcam', l:'Ambas Marcam'},
   {v:'Total de Gols', l:'Total de Gols (Over/Under)'},
+  {v:'Total de Gols Asiatico', l:'Total de Gols Asiático'},
   {v:'Handicap Asiatico', l:'Handicap Asiático'},
   {v:'Handicap Asiatico HT', l:'Handicap Asiático HT (1º Tempo)'},
   {v:'Total de Escanteios', l:'Total de Escanteios'},
