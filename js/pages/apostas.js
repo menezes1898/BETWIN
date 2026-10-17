@@ -274,6 +274,8 @@ function startNewTicket(){
   EDITING_TICKET_ID = null;
   ADMIN_SUBVIEW='wizard';
   render();
+  focusEl('new-client-search');
+  evtPrefetch();
 }
 function editTicket(ticketId){
   const ticket = STATE.tickets.find(t=>t.id===ticketId);
@@ -288,6 +290,8 @@ function editTicket(ticketId){
   ADMIN_TAB = 'apostas';
   ADMIN_SUBVIEW='wizard';
   render();
+  focusEl('match-event');
+  evtPrefetch();
 }
 async function duplicateTicket(ticketId){
   const ticket = STATE.tickets.find(t=>t.id===ticketId);
@@ -309,12 +313,13 @@ function cancelWizard(){
   if(DRAFT.matches.length && !confirm('Descartar esta aposta em edição?')) return;
   DRAFT=null; EDITING_TICKET_ID=null; ADMIN_SUBVIEW='list'; render();
 }
+function parseNum(v){ const n = parseFloat(String(v==null?'':v).trim().replace(/\./g,function(m,o,str){ return /,/.test(str)?'':'.'; }).replace(',','.')); return n; }
 function draftMatchesOddTotal(){
   return DRAFT.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
 }
 function updateWizardTotals(){
-  const stake = parseFloat(DRAFT.stake) || 0;
-  const odds = parseFloat(DRAFT.odds) || draftMatchesOddTotal();
+  const stake = parseNum(DRAFT.stake) || 0;
+  const odds = parseNum(DRAFT.odds) || draftMatchesOddTotal();
   const display = document.getElementById('ticket-retorno-display');
   if(display) display.value = (stake>0 && odds>0) ? fmtBRL(stake*odds - stake) : '';
 }
@@ -323,9 +328,9 @@ async function saveTicket(){
   const clientId = document.getElementById('new-client-id').value;
   const date = document.getElementById('ticket-date').value;
   const time = document.getElementById('ticket-time').value;
-  const stake = parseFloat(document.getElementById('ticket-stake').value);
+  const stake = parseNum(document.getElementById('ticket-stake').value);
   const oddsRaw = document.getElementById('ticket-odds').value;
-  const odds = oddsRaw ? parseFloat(oddsRaw) : null;
+  const odds = oddsRaw ? parseNum(oddsRaw) : null;
   if(!clientId){ showToast('Digite e selecione o cliente na lista.'); return; }
   if(!date || !time){ showToast('Informe a data e o horário do bilhete.'); return; }
   if(!stake || stake<=0){ showToast('Informe o valor da aposta.'); return; }
@@ -362,8 +367,9 @@ async function saveTicket(){
 
 function renderWizard(){
   const oddTotal = DRAFT.matches.reduce((p,m)=>p*m.odd,1);
-  const stakeNum = parseFloat(DRAFT.stake)||0;
-  const marketOptions = MARKETS.map(m=>`<option value="${m.v}">${m.l}</option>`).join('');
+  const marketList = MARKETS.filter(m=>m.v!=='Outro').map(m=>`<option value="${m.l}"></option>`).join('');
+  const sem = !!DRAFT.semEvento;
+  const lucro = (parseNum(DRAFT.stake)>0 && (parseNum(DRAFT.odds)>0 || draftMatchesOddTotal()>0)) ? fmtBRL(parseNum(DRAFT.stake)*(parseNum(DRAFT.odds)||draftMatchesOddTotal())-parseNum(DRAFT.stake)) : '';
 
   const draftList = DRAFT.matches.map(m=>{
     const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
@@ -373,92 +379,108 @@ function renderWizard(){
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <div>
             <strong>${teamsLabel}</strong> — ${marketLabel}: ${m.selection}
-            <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:11.5px">${m.away ? fmtDate(m.date)+(m.time?' '+m.time:'')+' · ' : ''}odd ${m.odd.toFixed(2)}</div>
+            <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:11.5px">odd ${m.odd.toFixed(2)}</div>
           </div>
           <div style="display:flex;gap:6px">
-            <button class="btn-ghost btn-sm" onclick="editDraftMatch('${m.id}')">Editar</button>
-            <button class="btn-ghost btn-sm" onclick="removeDraftMatch('${m.id}')">Remover</button>
+            <button class="btn-ghost btn-sm" tabindex="-1" onclick="editDraftMatch('${m.id}')">Editar</button>
+            <button class="btn-ghost btn-sm" tabindex="-1" onclick="removeDraftMatch('${m.id}')">Remover</button>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${resultChip(m.result)}
-          <button class="btn-ghost btn-sm" onclick="setDraftMatchResult('${m.id}','pending')">Pendente</button>
-          <button class="btn-ghost btn-sm" onclick="setDraftMatchResult('${m.id}','green')">Green</button>
-          <button class="btn-ghost btn-sm" onclick="setDraftMatchResult('${m.id}','red')">Red</button>
-          <button class="btn-ghost btn-sm" onclick="setDraftMatchResult('${m.id}','void')">Anular</button>
+          <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','pending')">Pendente</button>
+          <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','green')">Green</button>
+          <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','red')">Red</button>
+          <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','void')">Anular</button>
         </div>
       </div>
     `;
   }).join('') || '<div class="empty">Nenhuma partida adicionada ainda.</div>';
 
+  const chip = (label, market, sel, cls, focusSel)=>`<button type="button" tabindex="-1" class="nd-chip ${cls||''}" onclick="quickMarket('${market}','${sel}',${focusSel?'true':'false'})">${label}</button>`;
+  const grp = (name, chips)=>`<div class="nd-grp"><span class="nd-grp-l">${name}</span>${chips}</div>`;
+
   return `
-    <div class="card">
-      <h3>${EDITING_TICKET_ID ? 'Editar Aposta' : 'Nova Aposta'} — dados do bilhete</h3>
-      <label>Cliente</label>
-      <div class="autocomplete-wrap">
-        <input type="text" id="new-client-search" value="${DRAFT.clientName||''}" placeholder="Buscar cliente…" autocomplete="off"
-          oninput="filterClientOptions()" onfocus="filterClientOptions()" onkeydown="handleAutocompleteKeydown(event,'client-options')"
-          onblur="setTimeout(()=>{const b=document.getElementById('client-options'); if(b) b.style.display='none';},150)">
-        <input type="hidden" id="new-client-id" value="${DRAFT.clientId||''}">
-        <div id="client-options" class="autocomplete-list"></div>
-      </div>
-      <div class="row">
-        <div><label>Data</label><input type="date" id="ticket-date" value="${DRAFT.date||''}" onchange="DRAFT.date=this.value"></div>
-        <div><label>Hora</label><input type="time" id="ticket-time" value="${DRAFT.time||''}" onchange="DRAFT.time=this.value"></div>
-      </div>
-      <label>Valor</label>
-      <input type="number" id="ticket-stake" step="0.01" value="${DRAFT.stake||''}" oninput="DRAFT.stake=this.value;updateWizardTotals()" placeholder="Valor (ex: 100,00 ou 100.00)">
-      <div class="row">
-        <div><label>Odds (opcional)</label><input type="number" id="ticket-odds" step="0.01" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" placeholder="Em branco = multiplica as odds dos jogos"></div>
-        <div><label>Retorno (lucro)</label><input type="text" id="ticket-retorno-display" value="${(parseFloat(DRAFT.stake)>0 && (parseFloat(DRAFT.odds)>0 || draftMatchesOddTotal()>0)) ? fmtBRL(parseFloat(DRAFT.stake)*(parseFloat(DRAFT.odds)||draftMatchesOddTotal())-parseFloat(DRAFT.stake)) : ''}" placeholder="Calculado automaticamente" disabled></div>
+    <div class="card nd-ticket">
+      <h3>${EDITING_TICKET_ID ? 'Editar Aposta' : 'Nova Aposta'}</h3>
+      <div class="nd-top">
+        <div class="nd-f-client">
+          <label>Cliente</label>
+          <div class="autocomplete-wrap">
+            <input type="text" id="new-client-search" value="${DRAFT.clientName||''}" placeholder="Digite o nome do cliente…" autocomplete="off"
+              oninput="filterClientOptions()" onfocus="filterClientOptions()" onkeydown="clientKeydown(event)"
+              onblur="setTimeout(()=>{const b=document.getElementById('client-options'); if(b) b.style.display='none';},150)">
+            <input type="hidden" id="new-client-id" value="${DRAFT.clientId||''}">
+            <div id="client-options" class="autocomplete-list"></div>
+          </div>
+        </div>
+        <div class="nd-f-stake"><label>Valor</label>
+          <input type="text" inputmode="decimal" id="ticket-stake" value="${DRAFT.stake||''}" oninput="DRAFT.stake=this.value;updateWizardTotals()" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('match-event');}" placeholder="0,00"></div>
+        <div class="nd-f-small"><label>Data</label><input type="date" id="ticket-date" tabindex="-1" value="${DRAFT.date||''}" onchange="DRAFT.date=this.value"></div>
+        <div class="nd-f-small"><label>Hora</label><input type="time" id="ticket-time" tabindex="-1" value="${DRAFT.time||''}" onchange="DRAFT.time=this.value"></div>
+        <div class="nd-f-small"><label>Odds (opcional)</label><input type="text" inputmode="decimal" id="ticket-odds" tabindex="-1" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" placeholder="auto"></div>
+        <div class="nd-f-small"><label>Lucro</label><input type="text" id="ticket-retorno-display" tabindex="-1" value="${lucro}" placeholder="—" disabled></div>
       </div>
     </div>
 
-    <div class="card draft-card">
-      <h3>Adicionar partida</h3>
-      <div class="row" style="align-items:center;gap:10px;margin-top:0">
-        <span style="font-size:13px;font-weight:600">Com Evento</span>
-        <input type="checkbox" id="match-sem-evento" onchange="toggleEventoFields()" style="width:auto">
-        <span style="font-size:13px;font-weight:600">Sem Evento (Longo Prazo)</span>
-      </div>
-      <div id="evento-fields">
-        <div class="row">
-          <div><label>Time da casa</label><input type="text" id="match-home" placeholder="Ex: Flamengo"></div>
-          <div><label>Time visitante</label><input type="text" id="match-away" placeholder="Ex: Palmeiras"></div>
+    <div class="card nd-card">
+      <div class="nd-head">
+        <div>
+          <div class="nd-title">Novo Detalhe</div>
+          <div class="nd-sub" id="nd-sub">${sem ? 'Aposta de longo prazo' : (DRAFT.eventText ? evtEsc(DRAFT.eventText) : 'Digite o jogo ou escolha na lista')}</div>
         </div>
       </div>
-      <div id="sem-evento-fields" style="display:none">
-        <label>Descrição (longo prazo)</label>
-        <input type="text" id="match-manual-desc" placeholder="Ex: Campeão Brasileiro 2026 — Flamengo">
+      <div class="nd-toggle-row">
+        <span class="nd-tl">Com Evento</span>
+        <label class="nd-switch"><input type="checkbox" id="match-sem-evento" tabindex="-1" ${sem?'checked':''} onchange="toggleEventoFields()"><span></span></label>
+        <span class="nd-tl">Sem Evento (Longo Prazo)</span>
+        <span class="nd-status" id="evt-status">${evtEsc(EVT_STATUS)}</span>
       </div>
-      <label>Mercados rápidos</label>
-      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:0">
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final','Casa')">RF 1</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final','Empate')">RF X</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final','Fora')">RF 2</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Dupla Chance','Casa ou Empate')">DP 1X</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Dupla Chance','Empate ou Fora')">DP X2</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Dupla Chance','Casa ou Fora')">DP 12</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Gols','Over 2.5')">GOL +</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Gols','Under 2.5')">GOL -</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico','Casa -1')">AH1</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico','Fora -1')">AH2</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Ambas Marcam','Sim')">BTTS Sim</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Ambas Marcam','Não')">BTTS Não</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final HT','Casa')">RF HT 1</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final HT','Empate')">RF HT X</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Resultado Final HT','Fora')">RF HT 2</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Escanteios HT','Over')">ESC HT +</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Total de Escanteios HT','Under')">ESC HT -</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico HT','Casa -1')">AH1 HT</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="quickMarket('Handicap Asiatico HT','Fora -1')">AH2 HT</button>
+
+      <div id="evento-fields" style="${sem?'display:none':''}">
+        <label>Evento <span class="nd-hint">— digite “Time A x Time B” ou escolha na lista</span></label>
+        <div class="autocomplete-wrap">
+          <input type="text" id="match-event" value="${evtEsc(DRAFT.eventText||'')}" placeholder="Ex: Flamengo x Palmeiras" autocomplete="off"
+            oninput="onEventInput()" onfocus="onEventInput()" onkeydown="eventKeydown(event)"
+            onblur="setTimeout(()=>{const b=document.getElementById('event-options'); if(b) b.style.display='none';},150)">
+          <div id="event-options" class="autocomplete-list"></div>
+        </div>
       </div>
-      <div class="row">
-        <div><label>Mercado</label><select id="match-market">${marketOptions}</select></div>
-        <div><label>Seleção</label><input type="text" id="match-selection" placeholder="Ex: Casa, Over 2.5, Sim"></div>
-        <div><label>Odds da seleção</label><input type="number" id="match-odd" step="0.01" placeholder="1.85"></div>
+      <div id="sem-evento-fields" style="${sem?'':'display:none'}">
+        <label>Descrição Manual</label>
+        <input type="text" id="match-manual-desc" value="${evtEsc(DRAFT.manualDesc||'')}" placeholder="Ex: Campeão Brasileiro 2026 — Flamengo" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('match-market');}">
       </div>
-      <div style="margin-top:14px"><button class="btn-ghost" onclick="addDraftMatch()">Adicionar partida ao bilhete</button></div>
+
+      <div class="nd-chips">
+        ${grp('RF', chip('1','Resultado Final','Casa','c-green')+chip('X','Resultado Final','Empate','c-amber')+chip('2','Resultado Final','Fora','c-blue'))}
+        ${grp('DP', chip('1X','Dupla Chance','Casa ou Empate')+chip('X2','Dupla Chance','Empate ou Fora')+chip('12','Dupla Chance','Casa ou Fora'))}
+        ${grp('GOL', chip('+','Total de Gols','Over 2.5','c-purple')+chip('-','Total de Gols','Under 2.5','c-purple')+chip('=','Total de Gols','Exato ','c-purple',true))}
+        ${grp('GOL A', chip('Over','Total de Gols Asiatico','Over ','c-purple',true)+chip('Under','Total de Gols Asiatico','Under ','c-purple',true))}
+        ${grp('AH', chip('AH1','Handicap Asiatico','Casa -1','c-cyan')+chip('AH2','Handicap Asiatico','Fora -1','c-cyan'))}
+        ${grp('BTTS', chip('Sim','Ambas Marcam','Sim','c-green')+chip('Não','Ambas Marcam','Não','c-red'))}
+        ${grp('1º TEMPO', chip('1','Resultado Final HT','Casa','c-green')+chip('X','Resultado Final HT','Empate','c-amber')+chip('2','Resultado Final HT','Fora','c-blue')+chip('AH1','Handicap Asiatico HT','Casa -1','c-cyan')+chip('AH2','Handicap Asiatico HT','Fora -1','c-cyan')+chip('ESC +','Total de Escanteios HT','Over','c-purple',true)+chip('ESC -','Total de Escanteios HT','Under','c-purple',true))}
+      </div>
+
+      <div class="nd-fields">
+        <div><label>Tipo</label>
+          <input type="text" id="match-market" list="market-list" placeholder="Buscar tipo…" autocomplete="off" value="${evtEsc(DRAFT.marketText||'')}" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('match-selection');}">
+          <datalist id="market-list">${marketList}</datalist></div>
+        <div><label>Seleção</label>
+          <input type="text" id="match-selection" placeholder="Ex: Casa, Over 2.5, Sim" autocomplete="off" value="${evtEsc(DRAFT.selectionText||'')}" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('match-odd');}"></div>
+        <div><label>Odds</label>
+          <input type="text" inputmode="decimal" id="match-odd" placeholder="Odds (ex: 2,50 ou 2.50)" autocomplete="off" value="${DRAFT.oddText||''}" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarDetalhe();}"></div>
+      </div>
+
+      <div class="nd-foot">
+        <div class="nd-foot-l">
+          <button class="btn-ghost" type="button" tabindex="-1" onclick="limparDetalhe()">Limpar</button>
+          <button class="btn-ghost" type="button" tabindex="-1" onclick="cancelWizard()">Cancelar</button>
+        </div>
+        <div class="nd-foot-r">
+          <button class="btn-primary nd-save" type="button" onclick="salvarDetalhe()">Salvar <kbd>Enter</kbd></button>
+          <button class="btn-primary nd-save" type="button" onclick="salvarDetalheESair()">Salvar e sair</button>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -466,25 +488,114 @@ function renderWizard(){
       ${draftList}
       ${DRAFT.matches.length>0 ? `<div style="margin-top:10px" class="odd-total">Soma das odds das partidas (informativo): ${oddTotal.toFixed(2)}</div>` : ''}
     </div>
-
-    <div class="row">
-      <div><button class="btn-ghost btn-full" onclick="cancelWizard()">Cancelar</button></div>
-      <div><button class="btn-primary btn-full" onclick="saveTicket()">${EDITING_TICKET_ID ? 'Salvar alterações' : 'Salvar aposta'}</button></div>
-    </div>
   `;
+}
+
+function focusEl(id){
+  const el = document.getElementById(id);
+  if(el){ el.focus(); if(el.select && el.type!=='number') try{ el.select(); }catch(e){} }
+}
+
+// ----- cliente: Enter/Tab escolhem o primeiro resultado e seguem para o Valor -----
+function clientKeydown(e){
+  const box = document.getElementById('client-options');
+  const hasList = box && box.style.display!=='none' && box.querySelector('.autocomplete-item[onmousedown]');
+  if(e.key==='Enter' || (e.key==='Tab' && !e.shiftKey)){
+    const idHolder = document.getElementById('new-client-id');
+    if(idHolder && !idHolder.value && hasList){
+      e.preventDefault();
+      const active = box.querySelector('.autocomplete-active') || box.querySelector('.autocomplete-item[onmousedown]');
+      active.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));
+      focusEl('ticket-stake');
+      return;
+    }
+    if(e.key==='Enter'){ e.preventDefault(); if(idHolder && idHolder.value) focusEl('ticket-stake'); }
+    return;
+  }
+  handleAutocompleteKeydown(e, 'client-options');
+}
+
+// ----- evento: busca automática -----
+function onEventInput(){
+  const input = document.getElementById('match-event');
+  const box = document.getElementById('event-options');
+  if(!input || !box) return;
+  DRAFT.eventText = input.value;
+  const sub = document.getElementById('nd-sub');
+  if(sub) sub.textContent = input.value.trim() || 'Digite o jogo ou escolha na lista';
+  EVT_SUGG = evtSuggest(input.value);
+  if(!EVT_SUGG.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.innerHTML = EVT_SUGG.map((s,i)=>`<div class="autocomplete-item" data-i="${i}" onmousedown="pickEventSuggestion(${i})">
+      <div>${evtEsc(s.away ? s.home+' x '+s.away : s.home+' x …')}</div>${s.sub?`<div class="nd-opt-sub">${evtEsc(s.sub)}</div>`:''}</div>`).join('');
+  box.style.display='block';
+}
+function pickEventSuggestion(i){
+  const s = EVT_SUGG[i]; if(!s) return;
+  const input = document.getElementById('match-event');
+  const box = document.getElementById('event-options');
+  if(box){ box.style.display='none'; }
+  if(!s.away){            // só o primeiro time: continua digitando o adversário
+    input.value = s.home+' x ';
+    DRAFT.eventText = input.value;
+    input.focus();
+    setTimeout(onEventInput, 0);
+    return;
+  }
+  input.value = s.home+' x '+s.away;
+  DRAFT.eventText = input.value;
+  const sub = document.getElementById('nd-sub');
+  if(sub) sub.textContent = input.value+(s.sub && s.sub!=='já lançado antes' ? ' · '+s.sub : '');
+  focusEl('match-market');
+}
+function eventKeydown(e){
+  const box = document.getElementById('event-options');
+  const open = box && box.style.display!=='none' && box.querySelector('.autocomplete-item');
+  if(e.key==='ArrowDown' || e.key==='ArrowUp' || e.key==='Escape'){ handleAutocompleteKeydown(e,'event-options'); return; }
+  if(e.key==='Enter' || (e.key==='Tab' && !e.shiftKey)){
+    const input = e.target;
+    const p = evtParse(input.value);
+    const active = open && box.querySelector('.autocomplete-active');
+    if(active){ e.preventDefault(); active.dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); return; }
+    if(p.hasSep && p.away){               // texto completo digitado: segue
+      if(box) box.style.display='none';
+      if(e.key==='Enter'){ e.preventDefault(); focusEl('match-market'); }
+      return;
+    }
+    if(open){                              // só um time digitado: aceita a 1ª sugestão
+      e.preventDefault();
+      box.querySelector('.autocomplete-item').dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));
+      return;
+    }
+    if(e.key==='Enter') e.preventDefault();
+  }
 }
 
 function toggleEventoFields(){
   const semEvento = document.getElementById('match-sem-evento').checked;
+  DRAFT.semEvento = semEvento;
   document.getElementById('evento-fields').style.display = semEvento ? 'none' : 'block';
   document.getElementById('sem-evento-fields').style.display = semEvento ? 'block' : 'none';
+  const sub = document.getElementById('nd-sub');
+  if(sub) sub.textContent = semEvento ? 'Aposta de longo prazo' : (DRAFT.eventText || 'Digite o jogo ou escolha na lista');
+  focusEl(semEvento ? 'match-manual-desc' : 'match-event');
 }
-function quickMarket(market, selection){
-  document.getElementById('match-market').value = market;
+function marketLabelOf(v){ const m = MARKETS.find(x=>x.v===v); return m ? m.l : v; }
+function resolveMarket(text){
+  const t = evtNorm(text);
+  if(!t) return '';
+  const exact = MARKETS.find(m=>evtNorm(m.l)===t || evtNorm(m.v)===t);
+  if(exact) return exact.v;
+  const part = MARKETS.filter(m=>m.v!=='Outro' && (evtNorm(m.l).includes(t) || evtNorm(m.v).includes(t)));
+  if(part.length===1) return part[0].v;
+  return String(text).trim();   // texto livre
+}
+function quickMarket(market, selection, focusSel){
+  document.getElementById('match-market').value = marketLabelOf(market);
   document.getElementById('match-selection').value = selection;
-  const oddField = document.getElementById('match-odd');
-  oddField.focus();
-  oddField.select();
+  if(focusSel){
+    const f = document.getElementById('match-selection');
+    f.focus(); const n = f.value.length; try{ f.setSelectionRange(n,n); }catch(e){}
+  } else focusEl('match-odd');
 }
 
 // Troca as palavras genéricas "Casa"/"Fora" da seleção pelo nome de fato digitado no time da
@@ -497,29 +608,49 @@ function autoFillSelectionTeamNames(selection, home, away){
   return out;
 }
 
-function addDraftMatch(){
-  const semEvento = document.getElementById('match-sem-evento').checked;
-  const market = document.getElementById('match-market').value;
-  let selection = document.getElementById('match-selection').value.trim();
-  const odd = parseFloat(document.getElementById('match-odd').value);
-  if(!selection){ showToast('Informe a seleção (ex: Casa, Over 2.5, Sim).'); return; }
-  if(!odd && odd!==0 || isNaN(odd)){ showToast('Informe a odd da seleção.'); return; }
+function limparDetalhe(){
+  DRAFT.eventText=''; DRAFT.manualDesc=''; DRAFT.marketText=''; DRAFT.selectionText=''; DRAFT.oddText='';
+  ['match-event','match-manual-desc','match-market','match-selection','match-odd'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const sub = document.getElementById('nd-sub'); if(sub) sub.textContent = DRAFT.semEvento ? 'Aposta de longo prazo' : 'Digite o jogo ou escolha na lista';
+  const box = document.getElementById('event-options'); if(box) box.style.display='none';
+  focusEl(DRAFT.semEvento ? 'match-manual-desc' : 'match-event');
+}
 
-  let home, away, date, time;
+// Lê os campos do detalhe e inclui no bilhete. Retorna true se incluiu.
+function addDraftMatch(opts){
+  opts = opts || {};
+  const semEvento = document.getElementById('match-sem-evento').checked;
+  const marketText = document.getElementById('match-market').value;
+  let selection = document.getElementById('match-selection').value.trim();
+  const oddRaw = document.getElementById('match-odd').value;
+  const odd = parseNum(oddRaw);
+
+  let home, away;
   if(semEvento){
     const desc = document.getElementById('match-manual-desc').value.trim();
-    if(!desc){ showToast('Informe a descrição da aposta de longo prazo.'); return; }
+    if(!desc){ showToast('Informe a descrição da aposta de longo prazo.'); focusEl('match-manual-desc'); return false; }
     home = desc; away = '';
   } else {
-    home = document.getElementById('match-home').value.trim();
-    away = document.getElementById('match-away').value.trim();
-    if(!home || !away){ showToast('Informe os dois times.'); return; }
-    selection = autoFillSelectionTeamNames(selection, home, away);
+    const p = evtParse(document.getElementById('match-event').value);
+    if(!p.home || !p.away){ showToast('Digite os dois times (ex: Flamengo x Palmeiras) ou escolha na lista.'); focusEl('match-event'); return false; }
+    home = p.home; away = p.away;
   }
-  date = DRAFT.date || todaySP();
-  time = DRAFT.time || null;
-  DRAFT.matches.push({id:uid(), home, away, date, time, market, selection, odd, result:'pending'});
-  render();
+  const market = resolveMarket(marketText);
+  if(!market){ showToast('Informe o tipo da aposta (ex: Resultado Final).'); focusEl('match-market'); return false; }
+  if(!selection){ showToast('Informe a seleção (ex: Casa, Over 2.5, Sim).'); focusEl('match-selection'); return false; }
+  if(isNaN(odd) || odd<=0){ showToast('Informe a odd da seleção.'); focusEl('match-odd'); return false; }
+  if(!semEvento) selection = autoFillSelectionTeamNames(selection, home, away);
+
+  DRAFT.matches.push({id:uid(), home, away, date: DRAFT.date || todaySP(), time: DRAFT.time || null, market, selection, odd, result:'pending'});
+  DRAFT.eventText=''; DRAFT.manualDesc=''; DRAFT.marketText=''; DRAFT.selectionText=''; DRAFT.oddText='';
+  if(!opts.noRender){ render(); focusEl(semEvento ? 'match-manual-desc' : 'match-event'); }
+  return true;
+}
+function salvarDetalhe(){ addDraftMatch(); }
+async function salvarDetalheESair(){
+  const filled = ['match-event','match-manual-desc','match-selection','match-odd'].some(id=>{ const el=document.getElementById(id); return el && el.offsetParent!==null && el.value.trim(); });
+  if(filled){ if(!addDraftMatch({noRender:true})) return; }
+  await saveTicket();
 }
 function removeDraftMatch(matchId){
   DRAFT.matches = DRAFT.matches.filter(m=>m.id!==matchId);
@@ -530,20 +661,15 @@ function editDraftMatch(matchId){
   if(idx<0) return;
   const m = DRAFT.matches[idx];
   DRAFT.matches.splice(idx,1);
-  render();
   const semEvento = !m.away;
-  document.getElementById('match-sem-evento').checked = semEvento;
-  toggleEventoFields();
-  if(semEvento){
-    document.getElementById('match-manual-desc').value = m.home;
-  } else {
-    document.getElementById('match-home').value = m.home;
-    document.getElementById('match-away').value = m.away;
-  }
-  document.getElementById('match-market').value = m.market;
-  document.getElementById('match-selection').value = m.selection;
-  document.getElementById('match-odd').value = m.odd;
-  (semEvento ? document.getElementById('match-manual-desc') : document.getElementById('match-home'))?.scrollIntoView({behavior:'smooth', block:'center'});
+  DRAFT.semEvento = semEvento;
+  DRAFT.eventText = semEvento ? '' : m.home+' x '+m.away;
+  DRAFT.manualDesc = semEvento ? m.home : '';
+  DRAFT.marketText = marketLabelOf(m.market);
+  DRAFT.selectionText = m.selection;
+  DRAFT.oddText = String(m.odd);
+  render();
+  focusEl('match-odd');
 }
 
 // ---------- CLIENTES TAB ----------

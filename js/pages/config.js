@@ -149,6 +149,14 @@ function renderConfigTab(){
   const logoHidden = localStorage.getItem(LOGO_HIDDEN_KEY)==='true';
   return `
     <div class="card">
+      <h3>Busca automática de jogos (futebol)</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:0">No cadastro de apostas, ao digitar o evento o sistema sugere jogos reais da data (ex: “Bayern x Arsenal”). Sem chave, ele já sugere times e jogos que você lançou antes (vale para qualquer esporte). Para ativar os jogos online, crie uma conta grátis em <b>dashboard.api-football.com</b> (plano Free: 100 consultas por dia) e cole aqui a sua chave (API key). A chave fica salva só neste navegador.</p>
+      <div class="row" style="margin-top:0;align-items:flex-end">
+        <div><label style="margin-top:0">Chave da API-Football</label><input type="text" id="apifootball-key" value="${(typeof evtGetKey==='function' ? evtGetKey() : '').replace(/"/g,'')}" placeholder="Cole aqui a sua chave" autocomplete="off"></div>
+        <div style="flex:0 0 auto;min-width:0;display:flex;gap:8px"><button class="btn-primary" onclick="saveApiFootballKey()">Salvar e testar</button><button class="btn-ghost" onclick="removeApiFootballKey()">Remover</button></div>
+      </div>
+    </div>
+    <div class="card">
       <h3>Validadores do robô (WhatsApp)</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-top:0">Só os números cadastrados aqui conseguem validar um print no grupo (respondendo ao print com o valor). Qualquer outro número é ignorado pelo robô.</p>
       ${!STATE.botValidatorsOk ? '<div class="empty" style="text-align:left;padding:0 0 4px">Ainda não existe a tabela de validadores no Supabase — rode o SQL do robô (tabela bot_validators) e atualize a página.</div>' : `
@@ -236,5 +244,26 @@ async function removeBotValidator(id){
   const {error} = await supabaseClient.from('bot_validators').delete().eq('id', id);
   if(error){ showToast('Erro ao remover: '+error.message); return; }
   STATE.botValidators = STATE.botValidators.filter(v=>v.id!==id);
+  render();
+}
+
+// ---------- Busca automática de jogos ----------
+async function saveApiFootballKey(){
+  const v = document.getElementById('apifootball-key').value.trim();
+  if(!v){ showToast('Cole a chave da API-Football.'); return; }
+  localStorage.setItem(EVT_KEY_STORAGE, v);
+  EVT_FIX = {};
+  try{
+    Object.keys(localStorage).filter(k=>k.startsWith('bw_fix_')).forEach(k=>localStorage.removeItem(k));
+    const list = await evtLoadDate(todaySP());
+    showToast('Chave funcionando: '+list.length+' jogos encontrados hoje.');
+  }catch(e){
+    showToast('A chave foi salva, mas a API respondeu: '+e.message);
+  }
+}
+function removeApiFootballKey(){
+  localStorage.removeItem(EVT_KEY_STORAGE);
+  EVT_FIX = {};
+  showToast('Busca online desligada. O histórico continua funcionando.');
   render();
 }
