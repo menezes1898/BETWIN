@@ -58,10 +58,24 @@ function resEvalWithLine(fn, line){
 
 // ---------- avaliador de uma seleção ----------
 // S = placar normalizado do jogo; ctx.events()/ctx.stats() carregam dados extras sob demanda
+// nomes gravados de outras formas (ex: "Total de Gols (Over/Under)", "Resultado Final (1X2)") viram o nome padrão
+function resCanonMarket(raw){
+  let n = String(raw||'').replace(/\s*\([^)]*\)/g,' ').replace(/\s+/g,' ').trim();
+  const nn = evtNorm(n);
+  const hit = MARKETS.find(m=>evtNorm(m.v)===nn || evtNorm(m.l)===nn);
+  if(hit) return hit.v;
+  if(/^(1x2|vencedor|resultado)$/.test(nn) || /^resultado (da partida|do jogo|final)$/.test(nn)) return 'Resultado Final';
+  if(/^(over under|mais menos|total|total gols|gols|total de gols)$/.test(nn)) return 'Total de Gols';
+  if(/^(btts|ambas marcam|ambos marcam|ambos os times marcam|ambas as equipes marcam)$/.test(nn)) return 'Ambas Marcam';
+  if(/^(dupla chance|double chance)$/.test(nn)) return 'Dupla Possibilidade';
+  if(/^(dnb|draw no bet)$/.test(nn)) return 'Empate sem Aposta';
+  return n || String(raw||'');
+}
 async function resEvalLeg(leg, S, ctx){
-  const mk = MARKETS.find(m=>m.v===leg.market) || {k:_mkKind(String(leg.market||'')), v:leg.market};
+  const canon = resCanonMarket(leg.market);
+  const mk = MARKETS.find(m=>m.v===canon) || {k:_mkKind(canon), v:canon};
   const kind = mk.k || '';
-  const name = String(leg.market||'');
+  const name = canon;
   const home = leg.home, away = leg.away;
   const sel = String(leg.selection||'').trim();
   const isMMA = S.winner!==undefined && !S.ft;
