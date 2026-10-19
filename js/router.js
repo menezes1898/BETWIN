@@ -6,7 +6,7 @@ function render(){
   const mc = hash.match(/comissionado=([a-zA-Z0-9]+)/);
   if(mc){ renderCommissionerView(mc[1]); return; }
   const me = hash.match(/encontro=([a-zA-Z0-9]+)/);
-  if(me){ renderEncontroView(me[1]); return; }
+  if(me){ if(typeof renderEncontroView==='function'){ renderEncontroView(me[1]); } else { document.getElementById('app').innerHTML='<div class="empty">Arquivo js/views/encontro-view.js não encontrado no site.</div>'; } return; }
   const mp = hash.match(/parceiro=([a-zA-Z0-9]+)/);
   if(mp){ renderPartnerView(mp[1]); return; }
   document.title = 'Boletim — Consultoria';
