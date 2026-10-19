@@ -8,7 +8,7 @@ function renderFinanceiroTab(){
       <div class="tab ${FINANCE_TAB==='relatorios'?'active':''}" onclick="FINANCE_TAB='relatorios';render()">Relatórios</div>
       <div class="tab ${FINANCE_TAB==='encontro'?'active':''}" onclick="FINANCE_TAB='encontro';render()">Encontro de contas</div>
     </div>
-    ${FINANCE_TAB==='caixa' ? renderCaixaTab() : FINANCE_TAB==='clientes' ? renderClientesFinanceiroTab() : FINANCE_TAB==='encontro' ? renderEncontroTab() : renderRelatoriosFinanceiroTab()}
+    ${FINANCE_TAB==='caixa' ? renderCaixaTab() : FINANCE_TAB==='clientes' ? renderClientesFinanceiroTab() : FINANCE_TAB==='encontro' ? (typeof renderEncontroTab==='function' ? renderEncontroTab() : '<div class="card"><div class="empty">Arquivo js/pages/encontro.js não encontrado no site. Suba ele na pasta js/pages/ do GitHub, espere o deploy e aperte Ctrl+F5.</div></div>') : renderRelatoriosFinanceiroTab()}
   `;
 }
 
