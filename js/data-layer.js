@@ -57,7 +57,7 @@ async function loadState(){
     try{
       const {data: am, error: ame} = await fetchAllRows('account_meetings', 'created_at');
       STATE.accountMeetingsOk = !ame;
-      STATE.accountMeetings = (!ame && am) ? am.map(x=>({id:x.id, name:x.name||'', code:x.code||'', clientIds:Array.isArray(x.client_ids)?x.client_ids:[], createdAt:x.created_at})) : [];
+      STATE.accountMeetings = (!ame && am) ? am.map(x=>({id:x.id, name:x.name||'', code:x.code||'', clientIds:Array.isArray(x.client_ids)?x.client_ids:[], extras:Array.isArray(x.extras)?x.extras:[], createdAt:x.created_at})) : [];
     }catch(e){ STATE.accountMeetingsOk = false; STATE.accountMeetings = []; }
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false}));
     STATE.tickets = (tickets||[]).map(t=>({
