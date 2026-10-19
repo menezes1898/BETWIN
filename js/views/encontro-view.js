@@ -11,7 +11,7 @@ function renderEncontroView(code){
     app.innerHTML = `<div class="client-theme client-page-wrap" style="background:#0d1420"><div class="empty">Link inválido ou encontro não encontrado.</div></div>`;
     return;
   }
-  const s = encSummary(m.clientIds);
+  const s = encSummary(m.clientIds, m.extras);
   const pendTotal = s.rows.reduce((a,r)=>a+r.pendCount,0);
   const net = s.liquido, netLabel = Math.abs(net)<0.005 ? 'Contas zeradas' : (net>0 ? 'Saldo final a pagar' : 'Saldo final a receber');
   const netCls = Math.abs(net)<0.005 ? '' : (net>0 ? 'profit-neg' : 'profit-pos');
@@ -38,6 +38,7 @@ function renderEncontroView(code){
           </div>
           ${r.pendCount>0?`<div class="pv-meta"><span>${r.pendCount} aposta${r.pendCount===1?'':'s'} em aberto (${fmtBRL(r.pendValor)}) ainda fora da conta</span></div>`:''}
         </div>`).join('')}
+    ${s.extras.map(r=>`<div class="pv-row"><div class="pv-top"><span class="pv-name">${encEsc(r.label)} <span style="font-size:11px;color:var(--text-muted)">(por fora)</span></span><span class="pv-net ${r.saldo>0?'profit-neg':'profit-pos'}">${r.saldo>0?'Deve ':'A receber '}${fmtBRL(Math.abs(r.saldo))}</span></div></div>`).join('')}
     </div>
     <div style="max-width:1010px;margin:10px auto 24px;font-size:12px;color:var(--text-muted);text-align:center;padding:0 14px">
       Saldo acumulado de cada cliente, já descontados os pagamentos registrados.${pendTotal?' Apostas em aberto só entram depois de resolvidas.':''}
