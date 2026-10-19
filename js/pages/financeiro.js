@@ -6,8 +6,9 @@ function renderFinanceiroTab(){
       <div class="tab ${FINANCE_TAB==='caixa'?'active':''}" onclick="FINANCE_TAB='caixa';render()">Caixa</div>
       <div class="tab ${FINANCE_TAB==='clientes'?'active':''}" onclick="FINANCE_TAB='clientes';render()">Clientes</div>
       <div class="tab ${FINANCE_TAB==='relatorios'?'active':''}" onclick="FINANCE_TAB='relatorios';render()">Relatórios</div>
+      <div class="tab ${FINANCE_TAB==='encontro'?'active':''}" onclick="FINANCE_TAB='encontro';render()">Encontro de contas</div>
     </div>
-    ${FINANCE_TAB==='caixa' ? renderCaixaTab() : FINANCE_TAB==='clientes' ? renderClientesFinanceiroTab() : renderRelatoriosFinanceiroTab()}
+    ${FINANCE_TAB==='caixa' ? renderCaixaTab() : FINANCE_TAB==='clientes' ? renderClientesFinanceiroTab() : FINANCE_TAB==='encontro' ? renderEncontroTab() : renderRelatoriosFinanceiroTab()}
   `;
 }
 
