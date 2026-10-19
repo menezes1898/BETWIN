@@ -53,6 +53,12 @@ async function loadState(){
     // partners / partner_clients (Parcerias) também são opcionais até rodar a migração.
     STATE.partners = (!err13 && partners) ? partners.map(p=>({id:p.id, name:p.name, phone:p.phone||'', code:p.code||''})) : [];
     STATE.partnerClients = (!err14 && partnerClients) ? partnerClients.map(pc=>({id:pc.id, partnerId:pc.partner_id, clientId:pc.client_id, percent:parseFloat(pc.percent)||0, effectiveFromWeek:pc.effective_from_week||null})) : [];
+    // encontros de contas (opcional até rodar o SQL)
+    try{
+      const {data: am, error: ame} = await fetchAllRows('account_meetings', 'created_at');
+      STATE.accountMeetingsOk = !ame;
+      STATE.accountMeetings = (!ame && am) ? am.map(x=>({id:x.id, name:x.name||'', code:x.code||'', clientIds:Array.isArray(x.client_ids)?x.client_ids:[], createdAt:x.created_at})) : [];
+    }catch(e){ STATE.accountMeetingsOk = false; STATE.accountMeetings = []; }
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false}));
     STATE.tickets = (tickets||[]).map(t=>({
       id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,

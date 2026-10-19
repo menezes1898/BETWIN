@@ -5,6 +5,8 @@ function render(){
   if(m){ renderClientView(m[1]); return; }
   const mc = hash.match(/comissionado=([a-zA-Z0-9]+)/);
   if(mc){ renderCommissionerView(mc[1]); return; }
+  const me = hash.match(/encontro=([a-zA-Z0-9]+)/);
+  if(me){ renderEncontroView(me[1]); return; }
   const mp = hash.match(/parceiro=([a-zA-Z0-9]+)/);
   if(mp){ renderPartnerView(mp[1]); return; }
   document.title = 'Boletim — Consultoria';
