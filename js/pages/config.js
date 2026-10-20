@@ -176,7 +176,7 @@ function renderConfigTab(){
       </div>`}
       <div class="row" style="margin-top:0;align-items:flex-end">
         <div><label style="margin-top:0">Nome</label><input type="text" id="new-validator-name" placeholder="Ex: Rafita" onkeydown="if(event.key==='Enter') document.getElementById('new-validator-phone').focus()"></div>
-        <div><label style="margin-top:0">WhatsApp (com DDD)</label><input type="text" id="new-validator-phone" placeholder="Ex: 11 99999-9999" onkeydown="if(event.key==='Enter') addBotValidator()"></div>
+        <div><label style="margin-top:0">WhatsApp (com DDD; de outro país, comece com +)</label><input type="text" id="new-validator-phone" placeholder="Ex: 11 99999-9999 ou +44 7521 139416" onkeydown="if(event.key==='Enter') addBotValidator()"></div>
         <div style="flex:0 0 auto;min-width:0"><button class="btn-primary" onclick="addBotValidator()">Adicionar</button></div>
       </div>`}
     </div>
@@ -223,7 +223,9 @@ function renderConfigTab(){
 
 // ---------- Validadores do robô de WhatsApp ----------
 function normalizeBotPhone(raw){
-  let d = String(raw||'').replace(/\D/g,'');
+  const txt = String(raw||'').trim();
+  let d = txt.replace(/\D/g,'');
+  if(/^(\+|00)/.test(txt)) return d.replace(/^00/,'');   // começa com + (ou 00): já tem o código do país (ex.: +44 7521 139416)
   if(d.length===10 || d.length===11) d = '55'+d; // sem código do país: assume Brasil
   return d;
 }
@@ -236,7 +238,7 @@ function formatBotPhone(p){
 async function addBotValidator(){
   const name = document.getElementById('new-validator-name').value.trim();
   const phone = normalizeBotPhone(document.getElementById('new-validator-phone').value);
-  if(phone.length<12){ showToast('Informe o WhatsApp com DDD (ex: 11 99999-9999).'); return; }
+  if(phone.length<11 || phone.length>15){ showToast('Informe o WhatsApp com DDD (ex: 11 99999-9999) ou, de outro país, com + (ex: +44 7521 139416).'); return; }
   const dupe = STATE.botValidators.find(v=>String(v.phone).replace(/\D/g,'').slice(-8)===phone.slice(-8));
   if(dupe){ showToast('Esse número já está cadastrado.'); return; }
   const {data, error} = await supabaseClient.from('bot_validators').insert({name, phone}).select().single();
