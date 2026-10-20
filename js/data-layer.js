@@ -53,6 +53,11 @@ async function loadState(){
     // partners / partner_clients (Parcerias) também são opcionais até rodar a migração.
     STATE.partners = (!err13 && partners) ? partners.map(p=>({id:p.id, name:p.name, phone:p.phone||'', code:p.code||''})) : [];
     STATE.partnerClients = (!err14 && partnerClients) ? partnerClients.map(pc=>({id:pc.id, partnerId:pc.partner_id, clientId:pc.client_id, percent:parseFloat(pc.percent)||0, effectiveFromWeek:pc.effective_from_week||null})) : [];
+    // status do robô (opcional até rodar o SQL do status)
+    try{
+      const {data: bs, error: bse} = await supabaseClient.from('bot_status').select('*').eq('id','main').maybeSingle();
+      STATE.botStatusOk = !bse; STATE.botStatus = (!bse && bs) ? bs : null;
+    }catch(e){ STATE.botStatusOk = false; STATE.botStatus = null; }
     // grupos de WhatsApp que o robô enxerga (opcional até rodar o SQL do vínculo)
     try{
       const {data: bg, error: bge} = await fetchAllRows('bot_groups', 'name');
