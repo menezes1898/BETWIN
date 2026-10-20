@@ -147,7 +147,9 @@ function renderConfigTab(){
   const savedBg = localStorage.getItem(BG_STORAGE_KEY);
   const savedDashboardLogo = localStorage.getItem(DASHBOARD_LOGO_KEY);
   const logoHidden = localStorage.getItem(LOGO_HIDDEN_KEY)==='true';
+  setTimeout(startBotStatusPoll, 0);
   return `
+    <div class="card" id="bot-status-card">${renderBotStatusCard()}</div>
     <div class="card">
       <h3>Busca automática de jogos (API-Sports)</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-top:0">No cadastro de apostas, ao digitar o evento o sistema sugere jogos reais do dia e do dia seguinte (ex: “Bayern x Arsenal”, “Chiefs x Bills”). Sem chave, ele já sugere times e jogos que você lançou antes. Para ativar os jogos online, cole abaixo a sua chave (API-KEY) da conta gratuita em <b>dashboard.api-football.com</b> → Profile → My Access. A mesma chave vale para todos os esportes. A chave fica salva só neste navegador.</p>
@@ -274,4 +276,60 @@ function removeApiFootballKey(){
   EVT_FIX = {};
   showToast('Busca online desligada. O histórico continua funcionando.');
   render();
+}
+
+
+// ---------- STATUS DO ROBÔ DO WHATSAPP ----------
+// O robô envia um sinal a cada minuto. Mais de 3 minutos sem sinal = desligado (PC desligado, janela fechada, sem internet).
+function botStatusInfo(){
+  const s = STATE.botStatus;
+  if(!STATE.botStatusOk) return {tone:'warn', title:'Status indisponível', text:'Rode o SQL do status do robô no Supabase (te enviei no chat) e atualize a página.'};
+  if(!s) return {tone:'off', title:'Robô nunca ligou', text:'Ainda não recebi nenhum sinal. Abra o iniciar.bat no computador do robô.'};
+  const ageSec = Math.max(0, (Date.now() - Date.parse(s.last_seen||s.updated_at||0))/1000);
+  const ago = ageSec<90 ? 'agora há pouco' : (ageSec<3600 ? 'há '+Math.round(ageSec/60)+' min' : (ageSec<86400 ? 'há '+Math.round(ageSec/3600)+' h' : 'há '+Math.round(ageSec/86400)+' dia(s)'));
+  if(ageSec>180) return {tone:'off', title:'Robô desligado', text:'Sem sinal '+ago+' (computador desligado, janela fechada ou sem internet). Abra o iniciar.bat.', ago, num:s.wa_number};
+  switch(s.state){
+    case 'conectado': return {tone:'ok', title:'Conectado', text:'O robô está ligado e ouvindo os grupos.', ago, num:s.wa_number};
+    case 'aguardando_codigo': return {tone:'warn', title:'Aguardando conexão', text:'No celular do robô: WhatsApp → Aparelhos conectados → Conectar aparelho → "Conectar com número de telefone" e digite o código abaixo.', code:s.pair_code, ago};
+    case 'aguardando_qr': return {tone:'warn', title:'Aguardando conexão', text:'Escaneie o QR Code que aparece na janela do robô no computador.', ago};
+    case 'autenticado': return {tone:'warn', title:'Conectando…', text:'Autenticado, finalizando a conexão.', ago};
+    case 'desconectado': return {tone:'off', title:'Desconectado', text:(s.detail||'O WhatsApp desconectou o robô.')+' Abra o iniciar.bat para conectar de novo.', ago};
+    case 'parado': return {tone:'off', title:'Robô desligado', text:'O robô foi desligado '+ago+'. Abra o iniciar.bat para ligar.', ago};
+    default: return {tone:'warn', title:'Iniciando…', text:'O robô está ligando.', ago};
+  }
+}
+function renderBotStatusCard(){
+  const i = botStatusInfo();
+  const color = i.tone==='ok' ? 'var(--green)' : (i.tone==='warn' ? 'var(--gold)' : 'var(--red)');
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <h3 style="margin:0">Robô do WhatsApp</h3>
+      <button class="btn-ghost btn-sm" onclick="refreshBotStatus(true)">Atualizar</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin:12px 0 4px">
+      <span style="width:12px;height:12px;border-radius:50%;background:${color};box-shadow:0 0 0 4px color-mix(in srgb, ${color} 25%, transparent);flex-shrink:0"></span>
+      <span style="font-size:18px;font-weight:700;color:${color}">${i.title}</span>
+      ${i.num ? `<span style="font-size:12px;color:var(--text-muted)">· número ${String(i.num).replace(/</g,'&lt;')}</span>` : ''}
+    </div>
+    <div style="font-size:13px;color:var(--text-muted)">${i.text}</div>
+    ${i.code ? `<div style="margin-top:12px;font-family:var(--font-mono);font-size:28px;font-weight:700;letter-spacing:4px;color:var(--gold)">${String(i.code).replace(/</g,'&lt;')}</div>` : ''}
+    ${i.ago && i.tone!=='off' ? `<div style="font-size:11px;color:var(--text-muted);margin-top:8px">Último sinal: ${i.ago}</div>` : ''}`;
+}
+let BOT_POLL = null;
+async function refreshBotStatus(manual){
+  try{
+    const {data, error} = await supabaseClient.from('bot_status').select('*').eq('id','main').maybeSingle();
+    STATE.botStatusOk = !error; STATE.botStatus = (!error && data) ? data : null;
+  }catch(e){ STATE.botStatusOk = false; }
+  const el = document.getElementById('bot-status-card');
+  if(el) el.innerHTML = renderBotStatusCard();
+  if(manual) showToast('Status atualizado.');
+}
+function startBotStatusPoll(){
+  if(BOT_POLL) clearInterval(BOT_POLL);
+  refreshBotStatus(false);
+  BOT_POLL = setInterval(()=>{
+    if(!document.getElementById('bot-status-card')){ clearInterval(BOT_POLL); BOT_POLL = null; return; }   // saiu da tela: para
+    refreshBotStatus(false);
+  }, 15000);
 }
