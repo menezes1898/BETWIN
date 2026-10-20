@@ -119,7 +119,10 @@ async function evtLoadSportDate(sport, date){
   const cacheKey = 'bw_fix2_'+sport.id+'_'+date;
   try{
     const c = JSON.parse(localStorage.getItem(cacheKey)||'null');
-    if(c && Date.now()-c.at < 3*3600*1000){ EVT_FIX[mk] = c.list; return c.list; }
+    // jogos de dias já passados não mudam: ficam guardados 24h (assim dá para lançar manualmente um jogo de ontem);
+    // hoje/amanhã são renovados a cada 3h (horário e times podem mudar)
+    const ttl = date < todaySP() ? 24*3600*1000 : 3*3600*1000;
+    if(c && Date.now()-c.at < ttl){ EVT_FIX[mk] = c.list; return c.list; }
   }catch(e){}
   const url = 'https://'+sport.host+'/'+sport.path+'?date='+date+(sport.tz?'&timezone=America/Sao_Paulo':'');
   const resp = await fetch(url, {headers:{'x-apisports-key':key}});
@@ -142,14 +145,16 @@ async function evtPrefetch(){
   const base = (DRAFT && DRAFT.date) || todaySP();
   const d2 = new Date(base+'T12:00:00'); d2.setDate(d2.getDate()+1);
   const next = d2.toISOString().slice(0,10);
+  const d0 = new Date(base+'T12:00:00'); d0.setDate(d0.getDate()-1);
+  const prev = d0.toISOString().slice(0,10);      // ontem: para lançar à mão um jogo que já aconteceu
   const sports = evtSelectedSports();
   EVT_STATUS = 'Carregando jogos…'; evtShowStatus();
   const jobs = [];
-  sports.forEach(sp=>[base,next].forEach(d=>jobs.push(evtLoadSportDate(sp,d).then(l=>({ok:true,n:l.length}),e=>({ok:false,sp:sp.label,msg:e.message})))));
+  sports.forEach(sp=>[prev,base,next].forEach(d=>jobs.push(evtLoadSportDate(sp,d).then(l=>({ok:true,n:l.length}),e=>({ok:false,sp:sp.label,msg:e.message})))));
   const res = await Promise.all(jobs);
   const n = res.reduce((t,r)=>t+(r.ok?r.n:0),0);
   const bad = res.filter(r=>!r.ok);
-  EVT_STATUS = n+' jogos online carregados ('+fmtDate(base)+' e '+fmtDate(next)+')'+(bad.length ? ' · falhou: '+[...new Set(bad.map(b=>b.sp))].join(', ')+' ('+bad[0].msg+')' : '')+'.';
+  EVT_STATUS = n+' jogos online carregados ('+fmtDate(prev)+' a '+fmtDate(next)+')'+(bad.length ? ' · falhou: '+[...new Set(bad.map(b=>b.sp))].join(', ')+' ('+bad[0].msg+')' : '')+'.';
   evtShowStatus();
 }
 function evtShowStatus(){
