@@ -79,7 +79,7 @@ function renderClientView(code){
       <div class="cv-row ${rowCls}">
         <div class="cv-date">
           <div class="d1">${fmtDate(t.date)} ${t.time?String(t.time).slice(0,5):''}</div>
-          <div class="d2">#${t.ticketNumber||'—'} <span class="cv-tag"><svg viewBox="0 0 16 16" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 7h12M5 1.5v3M11 1.5v3"/></svg></span></div>
+          <div class="d2">#${t.ticketNumber||'—'} <span class="cv-tag"><svg viewBox="0 0 16 16" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 7h12M5 1.5v3M11 1.5v3"/></svg></span>${t.printPath ? `<button type="button" class="cv-print" onclick="verPrint('${t.id}')" title="Ver o print que você enviou" aria-label="Ver o print do bilhete"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.5" width="12.4" height="11" rx="2"/><circle cx="5.6" cy="6.3" r="1.2"/><path d="M2.6 12l3.4-3.4 2.4 2.4 2-2 3.2 3"/></svg></button>` : ''}</div>
         </div>
         <div class="cv-meta">
           <div class="cv-val" data-l="Valor">${fmtNum(t.stake)}</div>
