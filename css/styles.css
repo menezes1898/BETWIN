@@ -568,3 +568,8 @@ body.is-admin .nd-card{padding:0}
   .nd-top .nd-f-client{grid-column:1/-1}
   .nd-top .nd-f-small:nth-of-type(n){min-width:0}
 }
+
+.nd-selopts{display:flex;align-items:flex-start;gap:10px;margin-top:12px}
+.nd-selopts .nd-grp-l{margin-top:6px;white-space:nowrap}
+.nd-selopts-list{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+.nd-selopts-list .nd-chip{font-weight:500}
