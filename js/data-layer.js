@@ -53,13 +53,19 @@ async function loadState(){
     // partners / partner_clients (Parcerias) também são opcionais até rodar a migração.
     STATE.partners = (!err13 && partners) ? partners.map(p=>({id:p.id, name:p.name, phone:p.phone||'', code:p.code||''})) : [];
     STATE.partnerClients = (!err14 && partnerClients) ? partnerClients.map(pc=>({id:pc.id, partnerId:pc.partner_id, clientId:pc.client_id, percent:parseFloat(pc.percent)||0, effectiveFromWeek:pc.effective_from_week||null})) : [];
+    // grupos de WhatsApp que o robô enxerga (opcional até rodar o SQL do vínculo)
+    try{
+      const {data: bg, error: bge} = await fetchAllRows('bot_groups', 'name');
+      STATE.botGroupsOk = !bge;
+      STATE.botGroups = (!bge && bg) ? bg.map(g=>({id:g.wa_group_id, name:g.name||''})).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')) : [];
+    }catch(e){ STATE.botGroupsOk = false; STATE.botGroups = []; }
     // encontros de contas (opcional até rodar o SQL)
     try{
       const {data: am, error: ame} = await fetchAllRows('account_meetings', 'created_at');
       STATE.accountMeetingsOk = !ame;
       STATE.accountMeetings = (!ame && am) ? am.map(x=>({id:x.id, name:x.name||'', code:x.code||'', clientIds:Array.isArray(x.client_ids)?x.client_ids:[], extras:Array.isArray(x.extras)?x.extras:[], createdAt:x.created_at})) : [];
     }catch(e){ STATE.accountMeetingsOk = false; STATE.accountMeetings = []; }
-    STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false}));
+    STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false, waGroupId:c.wa_group_id||null}));
     STATE.tickets = (tickets||[]).map(t=>({
       id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,
       stake: parseFloat(t.stake), odds: t.odds!=null ? parseFloat(t.odds) : null, matches: t.matches||[],
