@@ -6,6 +6,7 @@ window.addEventListener('keydown', (e)=>{
   const typing = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
 
   if(e.key==='Escape'){
+    if(document.getElementById('print-overlay')){ fecharPrint(); return; }
     const overlays = ['week-comm-overlay','logo-preview-overlay','bg-preview-overlay'];
     for(const id of overlays){
       if(document.getElementById(id)){
