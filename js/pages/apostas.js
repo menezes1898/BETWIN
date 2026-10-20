@@ -220,6 +220,7 @@ function renderBetCard(ticket, opts){
           <span class="bet-client">${cl?cl.name:'Cliente removido'}</span>
         </div>
         <div class="bet-card-icons">
+          ${ticket.printPath ? `<button class="icon-btn" title="Ver print do bilhete" onclick="verPrint('${ticket.id}')">📎</button>` : ''}
           ${opts.showEdit!==false ? `<button class="icon-btn" title="Editar" onclick="editTicket('${ticket.id}')">✎</button>` : ''}
           ${opts.showDuplicate ? `<button class="icon-btn" title="Duplicar" onclick="duplicateTicket('${ticket.id}')">⧉</button>` : ''}
           ${opts.showDelete ? `<button class="icon-btn icon-danger" title="Excluir" onclick="deleteTicket('${ticket.id}')">🗑</button>` : ''}
