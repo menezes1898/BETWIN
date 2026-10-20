@@ -10,8 +10,9 @@ async function verPrint(ticketId){
   ov.id = 'print-overlay';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:12px';
   ov.onclick = (e)=>{ if(e.target===ov) fecharPrint(); };
-  ov.innerHTML = '<div id="print-body" style="color:#fff;font-size:14px">Carregando print…</div>';
+  ov.innerHTML = '<button type="button" onclick="fecharPrint()" aria-label="Fechar" style="position:absolute;top:12px;right:14px;width:38px;height:38px;border-radius:50%;border:0;background:rgba(255,255,255,.14);color:#fff;font-size:20px;line-height:1;cursor:pointer">✕</button><div id="print-body" style="color:#fff;font-size:14px">Carregando print…</div>';
   document.body.appendChild(ov);
+  const xb = ov.querySelector('button'); if(xb) xb.onclick = fecharPrint;
   try{
     const {data, error} = await supabaseClient.storage.from(PRINT_BUCKET).createSignedUrl(t.printPath, 600);
     if(error || !data || !data.signedUrl) throw new Error(error ? error.message : 'sem link');
