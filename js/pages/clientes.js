@@ -30,6 +30,7 @@ function renderClientListItems(list){
         <div>
           <div style="font-weight:600;font-size:15px">${cl.name} ${cl.isDescarga?'<span class="chip" style="background:var(--gold-dim);color:var(--gold);font-size:10px">DESCARGA</span>':''}</div>
           ${cl.phone ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${cl.phone}</div>` : ''}
+          ${cl.waGroupId ? `<div style="font-size:11px;color:var(--green);margin-top:2px">🔗 ${(STATE.botGroups.find(g=>g.id===cl.waGroupId)||{}).name||'grupo vinculado'}</div>` : ''}
         </div>
         <span style="color:var(--text-muted);font-size:18px">›</span>
       </div>
@@ -92,6 +93,8 @@ function renderClientDetail(id){
       <input type="text" id="detail-client-name" value="${cl.name}">
       <label>Telefone (opcional)</label>
       <input type="text" id="detail-client-phone" value="${cl.phone||''}" placeholder="Ex: (11) 91234-5678">
+      <label>Grupo do WhatsApp (robô)</label>
+      ${renderClientGroupSelect(cl)}
       <label>Desconto padrão em caso de perda (%)</label>
       <input type="number" id="detail-client-discount" min="0" max="100" step="1" value="${cl.discount||0}">
       <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">Mudar esse valor passa a valer <strong>a partir de agora</strong>, sem afetar semanas passadas. Pra mudar o desconto de uma semana específica no passado, usa a aba <strong>Semanas</strong>.</p>
@@ -444,9 +447,16 @@ async function saveClientDetail(id){
   const discount = Math.max(0, Math.min(100, parseFloat(document.getElementById('detail-client-discount').value)||0));
   const isDescarga = document.getElementById('detail-client-descarga').checked;
   if(!name){ showToast('Informe o nome do cliente.'); return; }
-  const {error} = await supabaseClient.from('clients').update({name, phone, discount, is_descarga: isDescarga}).eq('id', id);
-  if(error){ showToast('Erro ao salvar cliente: '+error.message); return; }
+  const cl0 = STATE.clients.find(c=>c.id===id);
+  const upd = {name, phone, discount, is_descarga: isDescarga};
+  const gSel = document.getElementById('detail-client-group');
+  const newGroup = gSel ? (gSel.value || null) : undefined;
+  const groupChanged = gSel && (newGroup||null) !== ((cl0 && cl0.waGroupId)||null);
+  if(groupChanged) upd.wa_group_id = newGroup;       // só mexe nessa coluna quando você troca o grupo
+  const {error} = await supabaseClient.from('clients').update(upd).eq('id', id);
+  if(error){ showToast('Erro ao salvar cliente: '+error.message+(groupChanged?' (rodou o SQL do vínculo de grupo?)':'')); return; }
   const cl = STATE.clients.find(c=>c.id===id);
+  if(cl && groupChanged) cl.waGroupId = newGroup;
   const discountChanged = cl && cl.discount !== discount;
   if(cl){ cl.name=name; cl.phone=phone; cl.discount=discount; cl.isDescarga=isDescarga; }
   if(discountChanged){
@@ -528,3 +538,20 @@ function selectClientOption(id){
 
 // Desconto efetivo de um cliente numa semana: sobrescrita manual daquela semana,
 // senão o desconto padrão atual do cliente.
+
+
+// Lista de grupos do WhatsApp que o robô enxerga; cada grupo só pode ficar em UM cliente.
+function renderClientGroupSelect(cl){
+  if(!STATE.botGroupsOk){
+    return '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Ainda não disponível: rode o SQL do vínculo de grupos (te enviei no chat) e deixe o robô ligado.</div>';
+  }
+  const takenBy = {};
+  STATE.clients.forEach(c=>{ if(c.waGroupId && c.id!==cl.id) takenBy[c.waGroupId] = c.name; });
+  const known = STATE.botGroups.some(g=>g.id===cl.waGroupId);
+  return `<select id="detail-client-group">
+      <option value="">— sem grupo vinculado —</option>
+      ${cl.waGroupId && !known ? `<option value="${cl.waGroupId}" selected>(grupo atual — não está na lista do robô)</option>` : ''}
+      ${STATE.botGroups.map(g=>`<option value="${g.id}" ${g.id===cl.waGroupId?'selected':''} ${takenBy[g.id]?'disabled':''}>${String(g.name||'(sem nome)').replace(/</g,'&lt;')}${takenBy[g.id]?' — já é de '+String(takenBy[g.id]).replace(/</g,'&lt;'):''}</option>`).join('')}
+    </select>
+    <div style="font-size:12px;color:var(--text-muted);margin:4px 0 0">O robô só lança neste cliente as validações feitas nesse grupo (${STATE.botGroups.length} grupo${STATE.botGroups.length===1?'':'s'} na lista). Não achou o grupo? Deixe o robô ligado e recarregue.</div>`;
+}
