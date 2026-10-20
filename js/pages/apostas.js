@@ -461,8 +461,8 @@ function renderWizard(){
       <div class="nd-chips">
         ${grp('RF', chip('1','Resultado Final','Casa','c-green')+chip('X','Resultado Final','Empate','c-amber')+chip('2','Resultado Final','Fora','c-blue'))}
         ${grp('DP', chip('1X','Dupla Possibilidade','Casa ou Empate')+chip('X2','Dupla Possibilidade','Empate ou Fora')+chip('12','Dupla Possibilidade','Casa ou Fora'))}
-        ${grp('GOL', chip('+','Total de Gols','Over 2.5','c-purple')+chip('-','Total de Gols','Under 2.5','c-purple')+chip('=','Total de Gols','Exato ','c-purple',true))}
-        ${grp('GOL A', chip('Over','Total de Gols - Asiático','Over ','c-purple',true)+chip('Under','Total de Gols - Asiático','Under ','c-purple',true))}
+        ${grp('GOL', chip('+','Total de Gols','Mais de 2.5','c-purple')+chip('-','Total de Gols','Menos de 2.5','c-purple')+chip('=','Total de Gols','Exato ','c-purple',true))}
+        ${grp('GOL A', chip('Mais','Total de Gols - Asiático','Mais de ','c-purple',true)+chip('Menos','Total de Gols - Asiático','Menos de ','c-purple',true))}
         ${grp('AH', chip('AH1','Handicap - Asiático','Casa -1','c-cyan')+chip('AH2','Handicap - Asiático','Fora -1','c-cyan'))}
         ${grp('BTTS', chip('Sim','Ambas Marcam','Sim','c-green')+chip('Não','Ambas Marcam','Não','c-red'))}
         ${grp('OUTROS ESPORTES', chip('ML 1','Moneyline','Casa','c-green')+chip('ML 2','Moneyline','Fora','c-blue')+chip('HC 1','Handicap - Pontos','Casa ','c-cyan',true)+chip('HC 2','Handicap - Pontos','Fora ','c-cyan',true)+chip('PTS Over','Total de Pontos','Over ','c-purple',true)+chip('PTS Under','Total de Pontos','Under ','c-purple',true))}
@@ -478,7 +478,7 @@ function renderWizard(){
             <div id="market-options" class="autocomplete-list" style="max-height:260px"></div>
           </div></div>
         <div><label>Seleção</label>
-          <input type="text" id="match-selection" placeholder="Ex: Casa, Over 2.5, Sim" autocomplete="off" value="${evtEsc(DRAFT.selectionText||'')}" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('match-odd');}"></div>
+          <input type="text" id="match-selection" placeholder="Ex: Casa, Mais de 2.5, Sim" autocomplete="off" value="${evtEsc(DRAFT.selectionText||'')}" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('match-odd');}"></div>
         <div><label>Odds</label>
           <input type="text" inputmode="decimal" id="match-odd" placeholder="Odds (ex: 2,50 ou 2.50)" autocomplete="off" value="${DRAFT.oddText||''}" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarDetalhe();}"></div>
       </div>
@@ -709,15 +709,15 @@ function selectionOptions(kind, home, away){
     case 'dc': return [o(home+' ou Empate'), o('Empate ou '+away), o(home+' ou '+away)];
     case 'ml': case 'team': return [o(home), o(away)];
     case 'yn': return [o('Sim'), o('Não')];
-    case 'ou': return [o('Over ',true), o('Under ',true)];
+    case 'ou': return [o('Mais de ',true), o('Menos de ',true)];
     case 'hcp': return [o(home+' ',true), o(away+' ',true)];
     case 'hcp3': return R.map(t=>o(t+' ',true));
     case 'htft': { const out=[]; R.forEach(a=>R.forEach(b=>out.push(o(a+' / '+b)))); return out; }
     case 'score': return ['1-0','2-0','2-1','3-0','3-1','3-2','0-0','1-1','2-2','3-3','0-1','0-2','1-2','0-3','1-3','2-3'].map(t=>o(t));
     case 'rbtts': { const out=[]; R.forEach(r=>['Sim','Não'].forEach(b=>out.push(o(r+' e '+b)))); return out; }
-    case 'rbttsg': { const out=[]; R.forEach(r=>['Sim','Não'].forEach(b=>['Over','Under'].forEach(g=>out.push(o(r+' e '+b+' e '+g+' ',true))))); return out; }
-    case 'rou': { const out=[]; R.forEach(r=>['Over','Under'].forEach(g=>out.push(o(r+' e '+g+' ',true)))); return out; }
-    case 'oubtts': { const out=[]; ['Over','Under'].forEach(g=>['Sim','Não'].forEach(b=>out.push(o(g+' e '+b+' ',true)))); return out; }
+    case 'rbttsg': { const out=[]; R.forEach(r=>['Sim','Não'].forEach(b=>['Mais de','Menos de'].forEach(g=>out.push(o(r+' e '+b+' e '+g+' ',true))))); return out; }
+    case 'rou': { const out=[]; R.forEach(r=>['Mais de','Menos de'].forEach(g=>out.push(o(r+' e '+g+' ',true)))); return out; }
+    case 'oubtts': { const out=[]; ['Mais','Menos'].forEach(g=>['Sim','Não'].forEach(b=>out.push(o(g+' e '+b+' ',true)))); return out; }
   }
   return [];
 }
@@ -751,8 +751,8 @@ function normalizeSelection(kind, text, home, away){
   if(kind==='hcp'){ const m = rx(/^([12])(?:\s+(.*))?$/); if(m) return (m[1]==='1'?home:away)+(m[2]?' '+m[2]:''); }
   if(kind==='yn'){ if(/^(s|sim|y|yes)$/.test(t)) return 'Sim'; if(/^(n|nao|não|no)$/.test(t)) return 'Não'; }
   if(kind==='ou'){
-    const m = rx(/^(over|mais|o|\+)\s*(.*)$/i); if(m) return 'Over '+m[2].trim();
-    const u = rx(/^(under|menos|u|-)\s*(.*)$/i); if(u) return 'Under '+u[2].trim();
+    const m = rx(/^(over|mais|o|\+)(?:\s+de)?\s*(.*)$/i); if(m) return 'Mais de '+m[2].trim();
+    const u = rx(/^(under|menos|u|-)(?:\s+de)?\s*(.*)$/i); if(u) return 'Menos de '+u[2].trim();
   }
   return raw;
 }
@@ -787,7 +787,7 @@ function addDraftMatch(opts){
   }
   const market = resolveMarket(marketText);
   if(!market){ showToast('Informe o tipo da aposta (ex: Resultado Final).'); focusEl('match-market'); return false; }
-  if(!selection){ showToast('Informe a seleção (ex: Casa, Over 2.5, Sim).'); focusEl('match-selection'); return false; }
+  if(!selection){ showToast('Informe a seleção (ex: Casa, Mais de 2.5, Sim).'); focusEl('match-selection'); return false; }
   if(isNaN(odd) || odd<=0){ showToast('Informe a odd da seleção.'); focusEl('match-odd'); return false; }
   selection = normalizeSelection(marketKindOfText(marketText), selection, semEvento ? 'Casa' : home, semEvento ? 'Fora' : away);
   if(!semEvento) selection = autoFillSelectionTeamNames(selection, home, away);
