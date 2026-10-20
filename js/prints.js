@@ -9,7 +9,7 @@ async function verPrint(ticketId){
   if(!t || !t.printPath){ showToast('Esta aposta não tem print guardado.'); return; }
   fecharPrint();
 
-  // números do bilhete: valor validado, odd e retorno
+  // números da aposta: valor validado, odd e retorno
   const stake = Number(t.stake)||0;
   const odd = (typeof effectiveOdds==='function') ? Number(effectiveOdds(t))||0 : 0;
   const retorno = stake*odd;
@@ -33,11 +33,11 @@ async function verPrint(ticketId){
     <div style="width:min(94vw,430px);max-height:94vh;display:flex;flex-direction:column;background:#111827;border:1px solid #263049;border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.6);color:#f5f7fa;font-family:inherit">
       <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #263049">
         <div style="min-width:0;flex:1">
-          <div style="font-size:14px;font-weight:700">Bilhete #${printEsc(t.ticketNumber||'—')}</div>
+          <div style="font-size:14px;font-weight:700">Aposta #${printEsc(t.ticketNumber||'—')}</div>
           <div style="font-size:11px;color:#8b97b0;margin-top:1px">${printEsc(dataTxt)}</div>
         </div>
         <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;color:${badge[1]};background:${badge[2]}">${badge[0]}</span>
-        <button type="button" id="print-x" aria-label="Fechar" style="width:32px;height:32px;border-radius:50%;border:0;background:rgba(255,255,255,.08);color:#f5f7fa;font-size:16px;line-height:1;cursor:pointer;flex-shrink:0">✕</button>
+        <button type="button" id="print-x" aria-label="Fechar" style="all:unset;box-sizing:border-box;width:30px;height:30px;flex:0 0 30px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.1);color:#f5f7fa;font-size:14px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent">✕</button>
       </div>
       <div id="print-body" style="flex:1;min-height:120px;overflow:auto;background:#0b1019;display:flex;align-items:flex-start;justify-content:center;padding:12px"><div style="color:#8b97b0;font-size:13px;margin:40px 0">Carregando print…</div></div>
       <div style="display:flex;border-top:1px solid #263049;background:#141c2c">
@@ -55,7 +55,7 @@ async function verPrint(ticketId){
     if(error || !data || !data.signedUrl) throw new Error(error ? error.message : 'sem link');
     const url = data.signedUrl;
     const body = document.getElementById('print-body');
-    if(body) body.innerHTML = `<img src="${url}" alt="Print do bilhete" style="max-width:100%;height:auto;border-radius:10px;display:block">`;
+    if(body) body.innerHTML = `<img src="${url}" alt="Print da aposta" style="max-width:100%;height:auto;border-radius:10px;display:block">`;
     const dl = document.getElementById('print-dl'); if(dl){ dl.href = url; dl.style.display = ''; }
   }catch(e){
     const b = document.getElementById('print-body');
