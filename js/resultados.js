@@ -71,13 +71,17 @@ function resCanonMarket(raw){
   if(/^(dnb|draw no bet)$/.test(nn)) return 'Empate sem Aposta';
   return n || String(raw||'');
 }
+// "Mais de 2.5" / "Menos de 2.5" (português) -> "Over"/"Under" só aqui dentro, para as regras de conferência abaixo
+function resOuToEn(s){
+  return String(s==null?'':s).replace(/(^|\s)(mais|menos)(?:\s+de)?(?=\s+(?:\d|e\s+(?:sim|n[aã]o)\b))/gi, (m,p,w)=> p+(/^mais/i.test(w)?'Over':'Under'));
+}
 async function resEvalLeg(leg, S, ctx){
   const canon = resCanonMarket(leg.market);
   const mk = MARKETS.find(m=>m.v===canon) || {k:_mkKind(canon), v:canon};
   const kind = mk.k || '';
   const name = canon;
   const home = leg.home, away = leg.away;
-  const sel = String(leg.selection||'').trim();
+  const sel = resOuToEn(String(leg.selection||'').trim());   // "Mais de 2.5" -> "Over 2.5" só aqui dentro
   const isMMA = S.winner!==undefined && !S.ft;
   const period = resPeriodOf(name);
   const domain = resDomainOf(name);

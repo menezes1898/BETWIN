@@ -137,3 +137,17 @@ function showToast(message, type){
 }
 
 // ---------- ROOT RENDER ----------
+
+
+// ---------- Mais / Menos (português) ----------
+// O sistema mostra "Mais de 2.5" / "Menos de 2.5". Apostas antigas gravadas como "Over"/"Under" continuam valendo:
+// ouToPt() troca para exibir; ouToEn() troca de volta só dentro da conferência de resultados.
+function ouToPt(s){
+  return String(s==null?'':s)
+    .replace(/\bover\b(?=\s+e\s+(?:sim|n[aã]o)\b)/gi, 'Mais').replace(/\bunder\b(?=\s+e\s+(?:sim|n[aã]o)\b)/gi, 'Menos')
+    .replace(/\bover\b(?=\s*[\d(+-])/gi, 'Mais de').replace(/\bunder\b(?=\s*[\d(+-])/gi, 'Menos de')
+    .replace(/\bover\b(?=\s*$)/gi, 'Mais de').replace(/\bunder\b(?=\s*$)/gi, 'Menos de');
+}
+function ouToEn(s){
+  return String(s==null?'':s).replace(/(^|\s)(mais|menos)(?:\s+de)?(?=\s+(?:\d|e\s+(?:sim|n[aã]o)\b))/gi, (m,p,w)=> p+(/^mais/i.test(w)?'Over':'Under'));
+}

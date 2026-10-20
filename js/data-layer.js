@@ -73,7 +73,7 @@ async function loadState(){
     STATE.clients = (clients||[]).map(c=>({id:c.id, name:c.name, code:c.code, discount:parseFloat(c.discount)||0, phone:c.phone||'', isDescarga:c.is_descarga||false, waGroupId:c.wa_group_id||null}));
     STATE.tickets = (tickets||[]).map(t=>({
       id:t.id, clientId:t.client_id, date:t.date, time: t.time ? t.time.slice(0,5) : null,
-      stake: parseFloat(t.stake), odds: t.odds!=null ? parseFloat(t.odds) : null, matches: t.matches||[],
+      stake: parseFloat(t.stake), odds: t.odds!=null ? parseFloat(t.odds) : null, matches: (t.matches||[]).map(m=>(m && typeof m.selection==='string') ? {...m, selection: ouToPt(m.selection)} : m),
       createdAt: t.created_at, ticketNumber: t.ticket_number,
       createdBy: t.created_by||null, conferido: t.conferido||false, conferidoAt: t.conferido_at||null, conferidoBy: t.conferido_by||null, printPath: t.print_path||null
     }));
