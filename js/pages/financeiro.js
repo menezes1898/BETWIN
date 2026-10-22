@@ -5,10 +5,11 @@ function renderFinanceiroTab(){
     <div class="tabs" style="margin-bottom:16px">
       <div class="tab ${FINANCE_TAB==='caixa'?'active':''}" onclick="FINANCE_TAB='caixa';render()">Caixa</div>
       <div class="tab ${FINANCE_TAB==='clientes'?'active':''}" onclick="FINANCE_TAB='clientes';render()">Clientes</div>
+      <div class="tab ${FINANCE_TAB==='despesas'?'active':''}" onclick="FINANCE_TAB='despesas';render()">Despesas</div>
       <div class="tab ${FINANCE_TAB==='relatorios'?'active':''}" onclick="FINANCE_TAB='relatorios';render()">Relatórios</div>
       <div class="tab ${FINANCE_TAB==='encontro'?'active':''}" onclick="FINANCE_TAB='encontro';render()">Encontro de contas</div>
     </div>
-    ${FINANCE_TAB==='caixa' ? renderCaixaTab() : FINANCE_TAB==='clientes' ? renderClientesFinanceiroTab() : FINANCE_TAB==='encontro' ? (typeof renderEncontroTab==='function' ? renderEncontroTab() : '<div class="card"><div class="empty">Arquivo js/pages/encontro.js não encontrado no site. Suba ele na pasta js/pages/ do GitHub, espere o deploy e aperte Ctrl+F5.</div></div>') : renderRelatoriosFinanceiroTab()}
+    ${FINANCE_TAB==='caixa' ? renderCaixaTab() : FINANCE_TAB==='despesas' ? renderDespesasTab() : FINANCE_TAB==='clientes' ? renderClientesFinanceiroTab() : FINANCE_TAB==='encontro' ? (typeof renderEncontroTab==='function' ? renderEncontroTab() : '<div class="card"><div class="empty">Arquivo js/pages/encontro.js não encontrado no site. Suba ele na pasta js/pages/ do GitHub, espere o deploy e aperte Ctrl+F5.</div></div>') : renderRelatoriosFinanceiroTab()}
   `;
 }
 
@@ -40,6 +41,10 @@ function renderCaixaTab(){
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Saídas da Semana</div><div style="font-family:var(--font-mono);font-size:16px;margin-top:4px" class="profit-neg">${fmtBRL(mov.saidas)}</div></div>
         <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Saldo da Semana</div><div style="font-family:var(--font-mono);font-size:16px;font-weight:700;margin-top:4px" class="${saldoSemana>=0?'profit-pos':'profit-neg'}">${fmtBRL(saldoSemana)}</div></div>
       </div>
+    </div>
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div><div style="font-weight:700">Despesas</div><div style="font-size:12px;color:var(--text-muted)">${fmtBRL(mov.despesasW.reduce((a,x)=>a+x.amount,0))} nessa semana · registre e consulte o que foi gasto, com descrição</div></div>
+      <div style="display:flex;gap:8px"><button class="btn-ghost" onclick="FINANCE_TAB='despesas';render()">Ver despesas</button><button class="btn-primary" onclick="abrirNovaDespesa()">+ Nova despesa</button></div>
     </div>
     ${renderMovimentacoesSection()}
     ${renderRetiradasSection()}
@@ -309,6 +314,10 @@ function exportRelatorioCSV(){
     rows.push([c.name, c.volume.toFixed(2), c.resultado.toFixed(2), c.desconto.toFixed(2), c.comissao.toFixed(2)]);
   });
   rows.push(['Total', report.volume.toFixed(2), report.resultado.toFixed(2), report.desconto.toFixed(2), report.comissao.toFixed(2)]);
+  const desp = despesasDoPeriodo(REPORT_WEEK_START, shiftWeek(REPORT_WEEK_END,6));
+  rows.push([]); rows.push(['Despesas do período']); rows.push(['Data','Categoria','Descrição','Valor']);
+  desp.forEach(d=>rows.push([fmtDate(d.date), d.category||'', d.description||'', d.amount.toFixed(2)]));
+  rows.push(['Total de despesas','','',desp.reduce((a,x)=>a+x.amount,0).toFixed(2)]);
   downloadCSV(`relatorio_${REPORT_WEEK_START}_a_${REPORT_WEEK_END}.csv`, rows);
 }
 function exportSituacaoClientesCSV(){
@@ -362,6 +371,7 @@ function renderRelatorioPeriodoSection(){
       </div>
       <div style="margin-top:16px"><button class="btn-ghost" onclick="exportRelatorioCSV()">⬇ Exportar CSV</button></div>
     </div>
+    ${renderDespesasNoRelatorio(report)}
     <div class="card">
       <h3>Por cliente, no período</h3>
       ${clienteRows.length===0 ? '<div class="empty">Nenhuma aposta nesse período.</div>' : `
@@ -642,3 +652,147 @@ async function deleteTransaction(id){
 }
 
 // ---------- CLIENT VIEW ----------
+
+
+// ==================== DESPESAS ====================
+// Ficam na mesma tabela "transactions" (type = 'despesa'), então já descontam do Caixa e aparecem no
+// Histórico de Movimentações. Aqui você registra, consulta por período/categoria e exporta.
+let DESP_FROM = '', DESP_TO = '', DESP_CAT = '', DESP_SHOW_FORM = false, DESP_EDIT_ID = null;
+const DESP_CATEGORIAS = ['Servidor / Hospedagem','Robô / IA (API)','Software / Assinaturas','Equipe / Salários','Marketing / Anúncios','Impostos / Taxas','Comissão','Outros'];
+
+function despesasDoPeriodo(from, to){
+  return STATE.transactions.filter(t=>t.type==='despesa' && !t.excluded && (!from || t.date>=from) && (!to || t.date<=to))
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||'') || (b.createdAt||'').localeCompare(a.createdAt||''));
+}
+function despesasPorCategoria(list){
+  const m = {};
+  list.forEach(d=>{ const c = d.category || 'Sem categoria'; m[c] = (m[c]||0) + d.amount; });
+  return Object.entries(m).map(([cat,total])=>({cat,total})).sort((a,b)=>b.total-a.total);
+}
+function despCatBars(list){
+  const cats = despesasPorCategoria(list); const total = list.reduce((a,x)=>a+x.amount,0);
+  if(!cats.length) return '';
+  return cats.map(c=>`<div style="margin:7px 0"><div style="display:flex;justify-content:space-between;font-size:12.5px"><span>${c.cat}</span><span style="font-family:var(--font-mono)">${fmtBRL(c.total)} <span style="color:var(--text-muted)">· ${total?Math.round(c.total/total*100):0}%</span></span></div><div style="height:6px;border-radius:4px;background:var(--surface-3);margin-top:4px"><div style="height:6px;border-radius:4px;background:var(--red);width:${total?Math.max(2,Math.round(c.total/total*100)):0}%"></div></div></div>`).join('');
+}
+function abrirNovaDespesa(){ FINANCE_TAB='despesas'; DESP_SHOW_FORM=true; DESP_EDIT_ID=null; render(); }
+function setDespPreset(p){
+  const hoje = todaySP(), mon = mondayOf(hoje);
+  if(p==='semana'){ DESP_FROM = mon; DESP_TO = shiftWeek(mon,6); }
+  else if(p==='mes'){ DESP_FROM = hoje.slice(0,8)+'01'; DESP_TO = ''; DESP_TO = new Date(+hoje.slice(0,4), +hoje.slice(5,7), 0).toLocaleDateString('en-CA'); }
+  else { DESP_FROM = ''; DESP_TO = ''; }
+  DESP_CAT = ''; render();
+}
+function renderDespesasTab(){
+  const base = despesasDoPeriodo(DESP_FROM, DESP_TO);
+  const list = DESP_CAT ? base.filter(d=>(d.category||'Sem categoria')===DESP_CAT) : base;
+  const total = list.reduce((a,x)=>a+x.amount,0);
+  const cats = despesasPorCategoria(base);
+  const editing = DESP_EDIT_ID ? STATE.transactions.find(t=>t.id===DESP_EDIT_ID) : null;
+  const usadas = [...new Set(STATE.transactions.filter(t=>t.type==='despesa'&&t.category).map(t=>t.category))];
+  const opcoes = [...new Set([...DESP_CATEGORIAS, ...usadas])];
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div><h3 style="margin:0">Despesas</h3><div style="font-size:12px;color:var(--text-muted);margin-top:2px">O que foi gasto, com a descrição. Já desconta do Caixa e entra no Relatório.</div></div>
+        <button class="btn-primary" onclick="DESP_SHOW_FORM=!DESP_SHOW_FORM;DESP_EDIT_ID=null;render()">${DESP_SHOW_FORM&&!editing?'Fechar':'+ Nova despesa'}</button>
+      </div>
+      ${DESP_SHOW_FORM ? `
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft)">
+        <div class="row">
+          <div><label>Data</label><input type="date" id="desp-date" value="${editing?editing.date:todaySP()}"></div>
+          <div><label>Valor (R$)</label><input type="number" id="desp-amount" step="0.01" placeholder="0,00" value="${editing?editing.amount:''}"></div>
+        </div>
+        <label>Categoria</label>
+        <input type="text" id="desp-cat" list="desp-cat-list" placeholder="Escolha ou digite uma nova" value="${editing?(editing.category||'').replace(/"/g,'&quot;'):''}">
+        <datalist id="desp-cat-list">${opcoes.map(o=>`<option value="${o}">`).join('')}</datalist>
+        <label>Descrição</label>
+        <input type="text" id="desp-desc" placeholder="Ex: Mensalidade do servidor do robô" value="${editing?(editing.description||'').replace(/"/g,'&quot;'):''}" onkeydown="if(event.key==='Enter')salvarDespesa()">
+        <div style="margin-top:14px;display:flex;gap:8px"><button class="btn-primary" onclick="salvarDespesa()">${editing?'Salvar alterações':'Registrar despesa'}</button>${editing?'<button class="btn-ghost" onclick="DESP_EDIT_ID=null;DESP_SHOW_FORM=false;render()">Cancelar</button>':''}</div>
+      </div>` : ''}
+    </div>
+    <div class="card">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn-ghost btn-sm" onclick="setDespPreset('semana')">Essa semana</button>
+        <button class="btn-ghost btn-sm" onclick="setDespPreset('mes')">Esse mês</button>
+        <button class="btn-ghost btn-sm" onclick="setDespPreset('tudo')">Tudo</button>
+      </div>
+      <div class="row">
+        <div><label>De</label><input type="date" value="${DESP_FROM}" onchange="DESP_FROM=this.value;render()"></div>
+        <div><label>Até</label><input type="date" value="${DESP_TO}" onchange="DESP_TO=this.value;render()"></div>
+        <div><label>Categoria</label><select onchange="DESP_CAT=this.value;render()"><option value="">Todas</option>${cats.map(c=>`<option value="${c.cat.replace(/"/g,'&quot;')}" ${DESP_CAT===c.cat?'selected':''}>${c.cat}</option>`).join('')}</select></div>
+      </div>
+      <div class="row" style="gap:22px;margin-top:16px">
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Total de despesas</div><div style="font-family:var(--font-mono);font-size:20px;margin-top:4px" class="profit-neg">${fmtBRL(total)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Lançamentos</div><div style="font-family:var(--font-mono);font-size:20px;margin-top:4px">${list.length}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Maior categoria</div><div style="font-size:15px;margin-top:6px">${cats[0]?cats[0].cat:'—'}</div></div>
+      </div>
+      ${cats.length ? `<div style="margin-top:16px">${despCatBars(base)}</div>` : ''}
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">Lançamentos</h3><button class="btn-ghost btn-sm" onclick="exportDespesasCSV()">⬇ Exportar CSV</button></div>
+      ${list.length===0 ? '<div class="empty">Nenhuma despesa nesse filtro.</div>' : list.map(d=>{
+        const auto = !!(d.commissionerId || d.partnerId);
+        return `<div class="match-row">
+          <div class="match-desc">
+            <span class="teams">${d.description || '(sem descrição)'}</span>
+            <span class="meta">${fmtDate(d.date)} · ${d.category || 'Sem categoria'}${auto?' · lançada automaticamente':''}${d.createdBy&&authorName(d.createdBy)?' · por '+authorName(d.createdBy):''}</span>
+          </div>
+          <div class="match-actions">
+            <span style="font-family:var(--font-mono);font-size:13px" class="profit-neg">-${fmtBRL(d.amount)}</span>
+            ${auto ? '' : `<button class="btn-ghost btn-sm" onclick="DESP_EDIT_ID='${d.id}';DESP_SHOW_FORM=true;render()">Editar</button>`}
+            <button class="btn-danger-ghost btn-sm" onclick="excluirMovimentacao('despesa','${d.id}')">Excluir</button>
+          </div>
+        </div>`;}).join('')}
+    </div>`;
+}
+async function salvarDespesa(){
+  const date = document.getElementById('desp-date').value;
+  const amount = parseFloat(String(document.getElementById('desp-amount').value).replace(',','.'));
+  const category = document.getElementById('desp-cat').value.trim();
+  const description = document.getElementById('desp-desc').value.trim();
+  if(!date){ showToast('Informe a data.'); return; }
+  if(!(amount>0)){ showToast('Informe o valor.'); return; }
+  if(!description){ showToast('Escreva uma descrição da despesa.'); return; }
+  if(DESP_EDIT_ID){
+    const {error} = await supabaseClient.from('transactions').update({category, description, amount, date}).eq('id', DESP_EDIT_ID);
+    if(error){ showToast('Erro ao salvar: '+error.message); return; }
+    const t = STATE.transactions.find(x=>x.id===DESP_EDIT_ID);
+    if(t){ t.category=category; t.description=description; t.amount=amount; t.date=date; }
+    DESP_EDIT_ID = null; DESP_SHOW_FORM = false;
+    showToast('Despesa atualizada!'); render(); return;
+  }
+  const {data, error} = await supabaseClient.from('transactions').insert({type:'despesa', category, description, amount, date, created_by: currentUserId()}).select().single();
+  if(error){ showToast('Erro ao registrar despesa: '+error.message); return; }
+  STATE.transactions.push({id:data.id, type:data.type, category:data.category||'', description:data.description||'', amount:parseFloat(data.amount), date:data.date, createdAt:data.created_at, clientId:null, excluded:false, createdBy:data.created_by||null, commissionerId:null, partnerId:null, weekStart:null});
+  DESP_SHOW_FORM = false;
+  showToast('Despesa registrada!'); render();
+}
+function exportDespesasCSV(){
+  const base = despesasDoPeriodo(DESP_FROM, DESP_TO);
+  const list = DESP_CAT ? base.filter(d=>(d.category||'Sem categoria')===DESP_CAT) : base;
+  const rows = [['Data','Categoria','Descrição','Valor']];
+  list.forEach(d=>rows.push([fmtDate(d.date), d.category||'', d.description||'', d.amount.toFixed(2)]));
+  rows.push(['Total','','',list.reduce((a,x)=>a+x.amount,0).toFixed(2)]);
+  downloadCSV(`despesas_${todaySP()}.csv`, rows);
+}
+// Cartão que aparece dentro de Relatórios: mesmas semanas escolhidas no relatório.
+function renderDespesasNoRelatorio(report){
+  const from = REPORT_WEEK_START, to = shiftWeek(REPORT_WEEK_END, 6);
+  const list = despesasDoPeriodo(from, to);
+  const total = list.reduce((a,x)=>a+x.amount,0);
+  // comissão paga a comissionado/parceiro já está descontada no Líquido do relatório: não conta duas vezes
+  const totalLiq = list.filter(d=>!d.commissionerId && !d.partnerId).reduce((a,x)=>a+x.amount,0);
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3 style="margin:0">Despesas no período</h3><button class="btn-ghost btn-sm" onclick="FINANCE_TAB='despesas';DESP_FROM='${from}';DESP_TO='${to}';DESP_CAT='';render()">Abrir em Despesas</button></div>
+      <div class="row" style="gap:22px;margin-top:14px">
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Total de despesas</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="profit-neg">${fmtBRL(total)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Líquido após despesas</div><div style="font-family:var(--font-mono);font-size:17px;margin-top:4px" class="${(report.liquido-totalLiq)>=0?'profit-pos':'profit-neg'}">${fmtBRL(report.liquido-totalLiq)}</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">comissões pagas já estão no Líquido</div></div>
+      </div>
+      ${list.length ? `<div style="margin-top:14px">${despCatBars(list)}</div>
+      <div style="margin-top:12px;overflow-x:auto"><table>
+        <tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Valor</th></tr>
+        ${list.map(d=>`<tr><td class="left">${fmtDate(d.date)}</td><td class="left">${d.category||'—'}</td><td class="left">${d.description||'—'}</td><td class="num profit-neg">${fmtBRL(d.amount)}</td></tr>`).join('')}
+      </table></div>` : '<div class="empty" style="margin-top:10px">Nenhuma despesa nesse período.</div>'}
+    </div>`;
+}
