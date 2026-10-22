@@ -346,6 +346,7 @@ async function saveTicket(){
   if(!DRAFT.matches.length){ showToast('Adicione ao menos uma partida.'); return; }
 
   if(EDITING_TICKET_ID){
+    const antes = STATE.tickets.find(t=>t.id===EDITING_TICKET_ID);       // para o robô aprender com a sua correção
     const {data, error} = await supabaseClient.from('tickets').update({
       client_id: clientId, date, time, stake, odds, matches: DRAFT.matches
     }).eq('id', EDITING_TICKET_ID).select().single();
@@ -356,7 +357,9 @@ async function saveTicket(){
       stake:parseFloat(data.stake), odds: data.odds!=null ? parseFloat(data.odds) : null, matches:data.matches||[],
       createdAt: data.created_at, ticketNumber: data.ticket_number
     };
-    if(idx>=0) STATE.tickets[idx] = updated; else STATE.tickets.push(updated);
+    if(idx>=0){ STATE.tickets[idx] = {...STATE.tickets[idx], ...updated}; }   // mantém print, conferência etc.
+    else STATE.tickets.push(updated);
+    if(typeof botCaptureCorrection==='function') botCaptureCorrection(antes, DRAFT.matches, stake, odds);
   } else {
     const {data, error} = await supabaseClient.from('tickets').insert({
       client_id: clientId, date, time, stake, odds, matches: DRAFT.matches, created_by: currentUserId()
@@ -422,10 +425,10 @@ function renderWizard(){
           </div>
         </div>
         <div class="nd-f-stake"><label>Valor</label>
-          <input type="text" inputmode="decimal" id="ticket-stake" value="${DRAFT.stake||''}" oninput="DRAFT.stake=this.value;updateWizardTotals()" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('match-event');}" placeholder="0,00"></div>
-        <div class="nd-f-small"><label>Data</label><input type="date" id="ticket-date" tabindex="-1" value="${DRAFT.date||''}" onchange="DRAFT.date=this.value"></div>
-        <div class="nd-f-small"><label>Hora</label><input type="time" id="ticket-time" tabindex="-1" value="${DRAFT.time||''}" onchange="DRAFT.time=this.value"></div>
-        <div class="nd-f-small"><label>Odds (opcional)</label><input type="text" inputmode="decimal" id="ticket-odds" tabindex="-1" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" placeholder="auto"></div>
+          <input type="text" inputmode="decimal" id="ticket-stake" value="${DRAFT.stake||''}" oninput="DRAFT.stake=this.value;updateWizardTotals()" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl('ticket-date');}" placeholder="0,00"></div>
+        <div class="nd-f-small"><label>Data</label><input type="date" id="ticket-date" value="${DRAFT.date||''}" onchange="DRAFT.date=this.value" onkeydown="if(event.key==='Enter'||event.key==='Tab'){event.preventDefault();focusEl(event.shiftKey?'ticket-stake':'ticket-time');}"></div>
+        <div class="nd-f-small"><label>Hora</label><input type="time" id="ticket-time" value="${DRAFT.time||''}" onchange="DRAFT.time=this.value" onkeydown="if(event.key==='Enter'||event.key==='Tab'){event.preventDefault();focusEl(event.shiftKey?'ticket-date':'ticket-odds');}"></div>
+        <div class="nd-f-small"><label>Odds (opcional)</label><input type="text" inputmode="decimal" id="ticket-odds" value="${DRAFT.odds||''}" oninput="DRAFT.odds=this.value;updateWizardTotals()" onkeydown="if(event.key==='Enter'){event.preventDefault();focusEl(DRAFT.semEvento?'match-manual-desc':'match-event');}" placeholder="auto"></div>
         <div class="nd-f-small"><label>Lucro</label><input type="text" id="ticket-retorno-display" tabindex="-1" value="${lucro}" placeholder="—" disabled></div>
       </div>
     </div>
