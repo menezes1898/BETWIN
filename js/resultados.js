@@ -45,7 +45,10 @@ function resCmp(diff){ return diff>1e-9 ? 'green' : (diff<-1e-9 ? 'red' : 'void'
 // diff = valor que a seleção tem que superar (ex.: total - linha  |  (meu+linha) - adversário)
 function resMergeHalf(a, b){
   if(a===b) return a;
-  return null;      // meia vitória / meia derrota -> não existe no sistema
+  const k = [a,b].sort().join('|');
+  if(k==='green|void') return 'half_green';     // linha .25/.75: metade ganha, metade devolvida
+  if(k==='red|void') return 'half_red';         // metade perdida, metade devolvida
+  return null;
 }
 function resEvalWithLine(fn, line){
   // fn(L) -> diff
@@ -53,7 +56,7 @@ function resEvalWithLine(fn, line){
   if(!q) return {r:resCmp(fn(line))};
   const r1 = resCmp(fn(line-0.25)), r2 = resCmp(fn(line+0.25));
   const m = resMergeHalf(r1, r2);
-  return m ? {r:m} : {r:'manual', note:'linha asiática com meia vitória/derrota — resolva manualmente'};
+  return m ? {r:m} : {r:'manual', note:'linha asiática com resultado misto — resolva manualmente'};
 }
 
 // ---------- avaliador de uma seleção ----------
@@ -348,7 +351,7 @@ async function buscarResultados(){
       };
       let ev;
       try{ ev = await resEvalLeg(L.m, S, ctx); }catch(e){ ev = {r:'manual', note:'erro ao avaliar: '+e.message}; }
-      if(ev.r==='green' || ev.r==='red' || ev.r==='void'){
+      if(ev.r==='green' || ev.r==='red' || ev.r==='void' || ev.r==='half_green' || ev.r==='half_red'){
         L.m.result = ev.r; L.m.autoNote = ev.note || ''; L.m.autoAt = new Date().toISOString();
         applied.push({...base, r:ev.r, note:ev.note});
       } else {
@@ -382,7 +385,7 @@ async function buscarResultados(){
 function resShowReport(applied, skipped){
   document.getElementById('res-overlay')?.remove();
   const nm = (t)=>{ const c = STATE.clients.find(x=>x.id===t.clientId); return c ? c.name : 'Cliente removido'; };
-  const chip = (r)=> r==='green' ? '<span style="color:var(--green);font-weight:700">GREEN</span>' : (r==='red' ? '<span style="color:var(--red);font-weight:700">RED</span>' : '<span style="color:var(--text-muted);font-weight:700">ANULADA</span>');
+  const chip = (r)=> r==='half_green' ? '<span style="color:var(--green);font-weight:700">½ GREEN</span>' : r==='half_red' ? '<span style="color:var(--red);font-weight:700">½ RED</span>' : r==='green' ? '<span style="color:var(--green);font-weight:700">GREEN</span>' : (r==='red' ? '<span style="color:var(--red);font-weight:700">RED</span>' : '<span style="color:var(--text-muted);font-weight:700">ANULADA</span>');
   const rowA = a=>`<div class="match-row" style="gap:10px"><div class="match-desc" style="flex:1;min-width:0"><span class="teams">${evtEsc(a.label)}</span><span class="meta">${evtEsc(nm(a.t))} · #${a.t.ticketNumber||'-'} · ${evtEsc(marketLabelOf(a.m.m.market))}: ${evtEsc(a.m.m.selection)}${a.note?' · '+evtEsc(a.note):''}</span></div>${chip(a.r)}</div>`;
   const rowS = s=>`<div class="match-row" style="gap:10px"><div class="match-desc" style="flex:1;min-width:0"><span class="teams">${evtEsc(s.label)}</span><span class="meta">${evtEsc(nm(s.t))} · #${s.t.ticketNumber||'-'} · ${evtEsc(marketLabelOf(s.m.m.market))}: ${evtEsc(s.m.m.selection)}</span><span class="meta" style="color:var(--gold)">${evtEsc(s.why)}</span></div></div>`;
   const ov = document.createElement('div');

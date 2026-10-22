@@ -52,41 +52,69 @@ function weekLabel(mondayStr){
 function ticketDate(ticket){
   return ticket.date || todaySP();
 }
+// Resultado por seleção: 'pending' | 'green' | 'half_green' (meia ganha) | 'red' | 'half_red' (meia perdida) | 'void'
+// Fator da seleção no retorno do bilhete: green = a própria odd; meia ganha = metade ganha na odd e metade devolvida;
+// meia perdida = metade perdida e metade devolvida (0,5); anulada = 1 (não altera a multiplicação); vermelha = 0.
+function legFactor(m){
+  const odd = Number(m.odd)||0;
+  switch(m.result){
+    case 'half_green': return 1 + (odd-1)/2;
+    case 'half_red': return 0.5;
+    case 'void': return 1;
+    case 'red': return 0;
+    default: return odd;
+  }
+}
+function hasHalfLeg(ticket){ return ticket.matches.some(m=>m.result==='half_green' || m.result==='half_red'); }
+// Resultado do bilhete para contas e totais: 'green' | 'red' | 'void' | 'pending'.
+// Com meia ganha/perdida, vale o sinal do lucro (fator > 1 = green, < 1 = red, = 1 = anulada).
 function ticketResult(ticket){
   if(!ticket.matches.length) return 'pending';
   if(ticket.matches.some(m=>m.result==='red')) return 'red';
   if(ticket.matches.every(m=>m.result==='void')) return 'void';
   if(ticket.matches.some(m=>m.result==='pending')) return 'pending';
+  if(hasHalfLeg(ticket)){
+    const f = ticket.matches.reduce((p,m)=>p*legFactor(m),1);
+    return f>1+1e-9 ? 'green' : (f<1-1e-9 ? 'red' : 'void');
+  }
   return 'green';
 }
+// Para exibir: igual ao ticketResult, mas mostra "meia ganha"/"meia perdida" quando é o caso.
+function ticketResultDetail(ticket){
+  const r = ticketResult(ticket);
+  if((r==='green' || r==='red') && !ticket.matches.some(m=>m.result==='red') && hasHalfLeg(ticket)) return r==='green' ? 'half_green' : 'half_red';
+  return r;
+}
 function ticketOddTotal(ticket){
-  return ticket.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
+  return ticket.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*(m.result==='half_green'||m.result==='half_red' ? legFactor(m) : m.odd),1);
 }
 function effectiveOdds(ticket){
-  // Seleção anulada não conta para o prêmio: se houver alguma anulada, a odd é recalculada só com as demais
-  // (a odd total digitada à mão deixa de valer, pois ela incluía a seleção anulada).
-  const hasVoid = ticket.matches.some(m=>m.result==='void');
-  if(hasVoid) return ticketOddTotal(ticket);
+  // Seleção anulada ou meia ganha/perdida muda o prêmio: a odd é recalculada seleção a seleção
+  // (a odd total digitada à mão deixa de valer, pois ela não sabia desse resultado).
+  if(ticket.matches.some(m=>m.result==='void') || hasHalfLeg(ticket)) return ticketOddTotal(ticket);
   return (ticket.odds && ticket.odds>0) ? ticket.odds : ticketOddTotal(ticket);
 }
 function ticketProfit(ticket){
   const r = ticketResult(ticket);
   let profit;
-  if(r==='red') profit = -ticket.stake;
-  else if(r==='green'){ const odds = effectiveOdds(ticket); profit = odds ? (ticket.stake*odds) - ticket.stake : 0; }
+  if(r==='red' && !hasHalfLeg(ticket)) profit = -ticket.stake;
+  else if(ticket.matches.some(m=>m.result==='red')) profit = -ticket.stake;
+  else if(r==='green' || r==='red'){ const odds = effectiveOdds(ticket); profit = odds ? (ticket.stake*odds) - ticket.stake : 0; }
   else profit = 0;
   const cl = STATE.clients.find(c=>c.id===ticket.clientId);
   if(cl && cl.isDescarga) profit = -profit;
   return profit;
 }
 function resultChip(r){
-  const map = {green:['chip-green','GREEN'], red:['chip-red','RED'], void:['chip-void','ANULADA'], pending:['chip-pending','PENDENTE']};
+  const map = {green:['chip-green','GREEN'], red:['chip-red','RED'], half_green:['chip-green','½ GREEN'], half_red:['chip-red','½ RED'], void:['chip-void','ANULADA'], pending:['chip-pending','PENDENTE']};
   const [cls,label] = map[r]||map.pending;
   return `<span class="chip ${cls}">${label}</span>`;
 }
 function resultIconSmall(r){
   if(r==='green') return '<span style="color:var(--green);font-weight:700">✓</span>';
+  if(r==='half_green') return '<span style="color:var(--green);font-weight:700">½✓</span>';
   if(r==='red') return '<span style="color:var(--red);font-weight:700">✗</span>';
+  if(r==='half_red') return '<span style="color:var(--red);font-weight:700">½✗</span>';
   if(r==='void') return '<span style="color:var(--text-muted);font-weight:700">⊘</span>';
   return '<span style="color:var(--gold);font-weight:700">⏱</span>';
 }
