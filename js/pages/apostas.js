@@ -1,41 +1,106 @@
-function renderPendentesTab(){
-  const pendentes = STATE.tickets.filter(t=>ticketResult(t)==='pending').sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
-  return `
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3 style="margin:0">Apostas pendentes</h3>
-        <span style="display:flex;align-items:center;gap:12px"><button class="btn-primary btn-sm btn-buscar-res" onclick="buscarResultados()">🔄 Buscar resultados</button><span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span></span>
-      </div>
-      <p style="font-size:12.5px;color:var(--text-muted);margin:10px 0 0">Consulta a API pelos jogos já encerrados e marca Green, Red ou Anulada nas partidas que tiverem resultado seguro. O que não der fica pendente, com o motivo no relatório.</p>
-    </div>
-    <div class="card">
-      ${pendentes.length===0 ? '<div class="empty">Nenhuma aposta pendente no momento.</div>' : pendentes.map(renderTicketCard).join('')}
-    </div>
-  `;
+// ============================================================================
+//  APOSTAS e PENDENTES — lista profissional, janela de detalhe e resultado com meia ganha / meia perdida
+// ============================================================================
+const TICKETS_PAGE_SIZE = 15;
+let PEND_SEARCH = '';
+let PEND_SORT = 'recentes';
+let DETAIL_ID = null;                 // aposta aberta na janela de detalhe
+
+const RES_BTNS = [                    // resultado por seleção (ordem dos botões)
+  ['green',      '✓ Verde',       'ap-r-green'],
+  ['half_green', '½ Verde',       'ap-r-hgreen'],
+  ['red',        '✗ Vermelha',    'ap-r-red'],
+  ['half_red',   '½ Vermelha',    'ap-r-hred'],
+  ['void',       '⊘ Anulada',     'ap-r-void'],
+  ['pending',    '⏱ Pendente',    'ap-r-pend']
+];
+const RES_QUICK = [                   // botões pequenos dentro do cartão
+  ['green','✓','Verde (ganhou)','ap-r-green'], ['half_green','½✓','Meia verde (meio ganha)','ap-r-hgreen'],
+  ['red','✗','Vermelha (perdeu)','ap-r-red'], ['half_red','½✗','Meia vermelha (meio perdida)','ap-r-hred'],
+  ['void','⊘','Anulada','ap-r-void']
+];
+
+function apFmtDateTime(iso){
+  if(!iso) return '—';
+  try{ return new Date(iso).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; }
+}
+function apClientName(ticket){ const cl = STATE.clients.find(c=>c.id===ticket.clientId); return cl ? cl.name : 'Cliente removido'; }
+function apPotential(ticket){ const o = ticketOddTotal(ticket)>0 ? effectiveOdds(ticket) : 0; return ticket.stake*o; }
+function apKpi(label, value, sub, tone){
+  return `<div class="ap-kpi"><div class="ap-kpi-l">${label}</div><div class="ap-kpi-v ${tone||''}">${value}</div>${sub?`<div class="ap-kpi-s">${sub}</div>`:''}</div>`;
+}
+function apSortList(list, sort){
+  if(sort==='recentes') list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  else if(sort==='antigas') list.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||''));
+  else if(sort==='maior_valor') list.sort((a,b)=>b.stake-a.stake);
+  else if(sort==='menor_valor') list.sort((a,b)=>a.stake-b.stake);
+  return list;
+}
+function apSearchMatch(t, val){
+  if(!val) return true;
+  const v = val.toLowerCase();
+  return String(t.ticketNumber||'').includes(v) || apClientName(t).toLowerCase().includes(v)
+    || t.matches.some(m=>(String(m.home||'')+' '+String(m.away||'')).toLowerCase().includes(v));
 }
 
-// ---------- APOSTAS TAB ----------
-const TICKETS_PAGE_SIZE = 15;
+// ---------- PENDENTES ----------
+function pendFiltered(){
+  return apSortList(STATE.tickets.filter(t=>ticketResult(t)==='pending' && apSearchMatch(t, PEND_SEARCH.trim())), PEND_SORT);
+}
+function pendKpis(list){
+  const valor = list.reduce((s,t)=>s+t.stake,0);
+  const pot = list.reduce((s,t)=>s+apPotential(t),0);
+  const legs = list.reduce((s,t)=>s+t.matches.filter(m=>m.result==='pending').length,0);
+  return apKpi('Apostas pendentes', list.length, '') + apKpi('Valor em jogo', fmtBRL(valor), '', 'gold') + apKpi('Retorno potencial', fmtBRL(pot), '', 'green') + apKpi('Seleções a conferir', legs, '');
+}
+function renderPendentesTab(){
+  const list = pendFiltered();
+  return `
+    <div class="ap-head">
+      <div><h2 class="ap-title">Apostas pendentes</h2><div class="ap-sub">Marque o resultado de cada seleção. Clique no cartão para ver o detalhe.</div></div>
+      <button class="btn-primary btn-sm btn-buscar-res" onclick="buscarResultados()">🔄 Buscar resultados</button>
+    </div>
+    <div class="ap-kpis" id="pend-kpis">${pendKpis(list)}</div>
+    <div class="ap-toolbar">
+      <input type="text" id="pend-search-input" class="ap-search" placeholder="Buscar por nº, cliente ou time" value="${evtEsc(PEND_SEARCH)}" oninput="updatePendSearch(this.value)">
+      <select id="pend-sort-select" class="ap-select" onchange="setPendSort(this.value)">
+        ${[['recentes','Mais recentes'],['antigas','Mais antigas'],['maior_valor','Maior valor'],['menor_valor','Menor valor']].map(([v,l])=>`<option value="${v}" ${PEND_SORT===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>
+    <div id="pend-list">${renderPendList(list)}</div>
+  `;
+}
+function renderPendList(list){
+  return list.length===0 ? '<div class="card"><div class="empty">Nenhuma aposta pendente no momento.</div></div>' : list.map(t=>renderBetCard(t, {showEdit:true, showDuplicate:false, showDelete:false, showQuickResult:true, showAuthor:true})).join('');
+}
+function updatePendSearch(v){ PEND_SEARCH = v; refreshPendList(); }
+function setPendSort(v){ PEND_SORT = v; refreshPendList(); }
+function refreshPendList(){
+  const list = pendFiltered();
+  const a = document.getElementById('pend-kpis'); if(a) a.innerHTML = pendKpis(list);
+  const b = document.getElementById('pend-list'); if(b) b.innerHTML = renderPendList(list);
+}
 
+// ---------- APOSTAS ----------
 function computeFilteredTickets(){
   let list = [...STATE.tickets];
   if(TICKET_FILTER !== 'todas') list = list.filter(t=>ticketResult(t)===TICKET_FILTER);
   const searchEl = document.getElementById('ticket-search-input');
-  const val = searchEl ? searchEl.value.trim().toLowerCase() : '';
-  if(val){
-    list = list.filter(t=>{
-      const cl = STATE.clients.find(c=>c.id===t.clientId);
-      const clientName = cl ? cl.name.toLowerCase() : '';
-      const num = String(t.ticketNumber||'');
-      return num.includes(val) || clientName.includes(val);
-    });
-  }
-  if(TICKET_SORT==='recentes') list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  else if(TICKET_SORT==='antigas') list.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||''));
-  else if(TICKET_SORT==='maior_valor') list.sort((a,b)=>b.stake-a.stake);
-  else if(TICKET_SORT==='menor_valor') list.sort((a,b)=>a.stake-b.stake);
-  return list;
+  const val = searchEl ? searchEl.value.trim() : '';
+  if(val) list = list.filter(t=>apSearchMatch(t, val));
+  return apSortList(list, TICKET_SORT);
+}
+function apostasKpis(list){
+  const abertas = list.filter(t=>ticketResult(t)==='pending');
+  const resolvidas = list.filter(t=>{ const r = ticketResult(t); return r!=='pending' && r!=='void'; });
+  const volume = list.filter(t=>ticketResult(t)!=='void').reduce((s,t)=>s+t.stake,0);
+  const res = resolvidas.reduce((s,t)=>s+ticketProfit(t),0);
+  const greens = resolvidas.filter(t=>ticketResult(t)==='green').length;
+  const taxa = resolvidas.length ? Math.round(greens/resolvidas.length*100)+'% de acerto' : '';
+  return apKpi('Apostas', list.length, abertas.length+' em aberto')
+    + apKpi('Valor apostado', fmtBRL(volume), '')
+    + apKpi('Em aberto', fmtBRL(abertas.reduce((s,t)=>s+t.stake,0)), abertas.length+' aposta'+(abertas.length===1?'':'s'), 'gold')
+    + apKpi('Resultado', (res>0?'+':'')+fmtBRL(res), taxa, res>=0?'green':'red');
 }
 function renderPaginationControls(totalItems){
   const totalPages = Math.max(1, Math.ceil(totalItems/TICKETS_PAGE_SIZE));
@@ -46,8 +111,7 @@ function renderPaginationControls(totalItems){
       <button class="btn-ghost btn-sm" ${TICKET_PAGE<=1?'disabled':''} onclick="goToTicketPage(${TICKET_PAGE-1})">‹ Anterior</button>
       <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">Página ${TICKET_PAGE} de ${totalPages}</span>
       <button class="btn-ghost btn-sm" ${TICKET_PAGE>=totalPages?'disabled':''} onclick="goToTicketPage(${TICKET_PAGE+1})">Próxima ›</button>
-    </div>
-  `;
+    </div>`;
 }
 function refreshTicketList(resetPage){
   if(resetPage) TICKET_PAGE = 1;
@@ -60,96 +124,51 @@ function refreshTicketList(resetPage){
   if(countEl) countEl.textContent = filtered.length + (filtered.length===1 ? ' aposta encontrada' : ' apostas encontradas');
   const pagContainer = document.getElementById('ticket-pagination-container');
   if(pagContainer) pagContainer.innerHTML = renderPaginationControls(filtered.length);
+  const k = document.getElementById('ap-kpis'); if(k) k.innerHTML = apostasKpis(filtered);
 }
 function goToTicketPage(p){
   TICKET_PAGE = p;
   refreshTicketList(false);
   document.getElementById('ticket-list-container')?.scrollIntoView({behavior:'smooth', block:'start'});
 }
-function setTicketFilter(f){
-  TICKET_FILTER = f;
-  TICKET_PAGE = 1;
-  render();
-}
-function setTicketSort(s){
-  TICKET_SORT = s;
-  TICKET_PAGE = 1;
-  render();
-}
+function setTicketFilter(f){ TICKET_FILTER = f; TICKET_PAGE = 1; render(); }
+function setTicketSort(s){ TICKET_SORT = s; TICKET_PAGE = 1; render(); }
 
 function renderApostasTab(){
   if(ADMIN_SUBVIEW==='wizard') return renderWizard();
-
-  const pendentes = STATE.tickets.filter(t=>ticketResult(t)==='pending');
-  const pendentesValor = pendentes.reduce((s,t)=>s+t.stake,0);
-
   const filtered = computeFilteredTickets();
   const start = (TICKET_PAGE-1)*TICKETS_PAGE_SIZE;
   const pageItems = filtered.slice(start, start+TICKETS_PAGE_SIZE);
-
-  const filterChips = [
-    ['todas','Todas'], ['green','Green'], ['red','Red'], ['pending','Pendente'], ['void','Anulada']
-  ];
-
+  const counts = {todas: STATE.tickets.length};
+  STATE.tickets.forEach(t=>{ const r = ticketResult(t); counts[r] = (counts[r]||0)+1; });
+  const chips = [['todas','Todas'],['pending','Pendente'],['green','Green'],['red','Red'],['void','Anulada']];
   return `
-    <div style="display:flex;gap:10px"><button class="btn-primary btn-full" onclick="startNewTicket()">+ Nova Aposta</button><button class="btn-ghost btn-buscar-res" style="white-space:nowrap" onclick="buscarResultados()">🔄 Buscar resultados</button></div>
-    <div style="height:16px"></div>
-    <div class="card" style="cursor:pointer" onclick="SHOW_PENDENTES=!SHOW_PENDENTES;render()">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="chip chip-pending">PENDENTES (${pendentes.length})</span>
-        <span style="font-family:var(--font-mono);font-size:14px;color:var(--gold)">${fmtBRL(pendentesValor)}</span>
-      </div>
-      ${SHOW_PENDENTES ? (pendentes.length===0 ? '<div class="empty">Nenhuma aposta pendente.</div>' : `
-        <div style="margin-top:12px;border-top:1px solid var(--line)">
-          ${pendentes.map(t=>{
-            const cl = STATE.clients.find(c=>c.id===t.clientId);
-            return `
-              <div class="match-row">
-                <div class="match-desc">
-                  <span class="teams">${cl?cl.name:'Cliente removido'}</span>
-                  <span class="meta">${fmtDate(t.date)}${t.time?' '+t.time:''} · ${ticketDetailsShort(t)}</span>
-                </div>
-                <span style="font-family:var(--font-mono);font-size:13px">${fmtBRL(t.stake)}</span>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      `) : ''}
+    <div class="ap-head">
+      <div><h2 class="ap-title">Apostas</h2><div class="ap-sub">Todas as apostas lançadas. Clique em um cartão para abrir o detalhe e marcar resultado.</div></div>
+      <div class="ap-head-btns"><button class="btn-ghost btn-buscar-res" onclick="buscarResultados()">🔄 Buscar resultados</button><button class="btn-primary" onclick="startNewTicket()">+ Nova Aposta</button></div>
     </div>
-    <div style="height:16px"></div>
-    <div class="card">
-      <label>Buscar aposta (nº ou nome do cliente)</label>
-      <input type="text" id="ticket-search-input" placeholder="Ex: 42 ou nome do cliente" oninput="updateTicketSearch()">
-      <label>Filtrar por resultado</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${filterChips.map(([val,label])=>`
-          <button class="btn-ghost btn-sm" style="${TICKET_FILTER===val?'background:var(--gold-soft);color:var(--gold);border-color:var(--gold-dim)':''}" onclick="setTicketFilter('${val}')">${label}</button>
-        `).join('')}
+    <div class="ap-kpis" id="ap-kpis">${apostasKpis(filtered)}</div>
+    <div class="ap-toolbar">
+      <input type="text" id="ticket-search-input" class="ap-search" placeholder="Buscar por nº, cliente ou time" oninput="updateTicketSearch()">
+      <div class="ap-seg">
+        ${chips.map(([v,l])=>`<button class="ap-seg-b ${TICKET_FILTER===v?'on':''}" onclick="setTicketFilter('${v}')">${l}<span>${counts[v]||0}</span></button>`).join('')}
       </div>
-      <label>Ordenar por</label>
-      <select id="ticket-sort-select" onchange="setTicketSort(this.value)">
+      <select id="ticket-sort-select" class="ap-select" onchange="setTicketSort(this.value)">
         <option value="recentes" ${TICKET_SORT==='recentes'?'selected':''}>Mais recentes</option>
         <option value="antigas" ${TICKET_SORT==='antigas'?'selected':''}>Mais antigas</option>
         <option value="maior_valor" ${TICKET_SORT==='maior_valor'?'selected':''}>Maior valor</option>
         <option value="menor_valor" ${TICKET_SORT==='menor_valor'?'selected':''}>Menor valor</option>
       </select>
     </div>
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <h3 style="margin:0">Apostas cadastradas</h3>
-        <span id="ticket-count-label" style="font-size:12px;color:var(--text-muted)">${filtered.length} ${filtered.length===1?'aposta encontrada':'apostas encontradas'}</span>
-      </div>
-      <div id="ticket-list-container">${renderTicketListItems(pageItems)}</div>
-      <div id="ticket-pagination-container">${renderPaginationControls(filtered.length)}</div>
-    </div>
+    <div class="ap-count"><span id="ticket-count-label">${filtered.length} ${filtered.length===1?'aposta encontrada':'apostas encontradas'}</span></div>
+    <div id="ticket-list-container">${renderTicketListItems(pageItems)}</div>
+    <div id="ticket-pagination-container">${renderPaginationControls(filtered.length)}</div>
   `;
 }
 function renderTicketListItems(list){
-  return list.length===0 ? '<div class="empty">Nenhuma aposta encontrada.</div>' : list.map(renderTicketCard).join('');
+  return list.length===0 ? '<div class="card"><div class="empty">Nenhuma aposta encontrada.</div></div>' : list.map(renderTicketCard).join('');
 }
-function updateTicketSearch(){
-  refreshTicketList(true);
-}
+function updateTicketSearch(){ refreshTicketList(true); }
 function ticketDetailsShort(ticket){
   return ticket.matches.map(m=>{
     const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
@@ -158,7 +177,7 @@ function ticketDetailsShort(ticket){
   }).join('; ');
 }
 
-// ---------- CARD DE APOSTA (layout em linha, usado em Apostas/Pendentes e Conferência) ----------
+// ---------- CARTÃO DE APOSTA (Apostas, Pendentes e Conferência) ----------
 function toggleTicketDetails(ticketId){
   if(COLLAPSED_TICKETS.has(ticketId)) COLLAPSED_TICKETS.delete(ticketId); else COLLAPSED_TICKETS.add(ticketId);
   render();
@@ -173,90 +192,100 @@ function initialsBadge(name){
   const c = (name||'?').trim().charAt(0).toUpperCase();
   return c || '?';
 }
-// opts: {showEdit, showDuplicate, showDelete, showQuickResult, showAuthor, conferenciaAction}
+function apLegClass(r){ return {green:'ok', half_green:'hok', red:'no', half_red:'hno', void:'vo'}[r] || 'pe'; }
+// opts: {showEdit, showDuplicate, showDelete, showQuickResult, showAuthor, conferenciaAction, extraStats}
 function renderBetCard(ticket, opts){
   opts = opts || {};
-  const cl = STATE.clients.find(c=>c.id===ticket.clientId);
-  const r = ticketResult(ticket);
+  const r = ticketResult(ticket), rd = ticketResultDetail(ticket);
   const profit = ticketProfit(ticket);
   const odds = ticketOddTotal(ticket)>0 ? effectiveOdds(ticket) : 0;
   const retornoMax = ticket.stake * odds;
   const pendentesNoTicket = ticket.matches.filter(m=>m.result==='pending').length;
-  const weekStart = mondayOf(ticketDate(ticket));
-  const expanded = !COLLAPSED_TICKETS.has(ticket.id); // aberto por padrão, pra ver jogo/mercado sem precisar clicar
+  const expanded = !COLLAPSED_TICKETS.has(ticket.id);
+  const id = ticket.id;
 
-  const matchesHtml = ticket.matches.map(m=>{
+  const legsHtml = ticket.matches.map(m=>{
     const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+    const teams = m.away ? `${evtEsc(m.home)} <span class="bc-x">x</span> ${evtEsc(m.away)}` : evtEsc(m.home);
+    const quick = (opts.showQuickResult && m.result==='pending') ? `<span class="bc-quick">${RES_QUICK.map(([v,l,t,c])=>`<button type="button" class="ap-q ${c}" title="${t}" onclick="setMatchResult('${id}','${m.id}','${v}')">${l}</button>`).join('')}</span>` : '';
     return `
-      <div class="bet-match-row">
-        <div class="bet-match-teams">
-          <div class="bet-match-team"><span class="side-badge side-home">${initialsBadge(m.home)}</span>${m.home}</div>
-          ${m.away ? `<div class="bet-match-team"><span class="side-badge side-away">${initialsBadge(m.away)}</span>${m.away}</div>` : ''}
+      <div class="bc-leg bc-leg-${apLegClass(m.result)}">
+        <span class="bc-leg-ic">${resultIconSmall(m.result)}</span>
+        <div class="bc-leg-main">
+          <div class="bc-leg-teams">${teams}</div>
+          <div class="bc-leg-mkt">${evtEsc(marketLabel)} · <b>${evtEsc(ouToPt(m.selection))}</b></div>
         </div>
-        <div class="bet-match-market">
-          ${resultIconSmall(m.result)} ${marketLabel} · ${m.selection}
-          ${(opts.showQuickResult && m.result==='pending') ? `
-            <span style="margin-left:8px;display:inline-flex;gap:4px;vertical-align:middle">
-              <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','green')">Green</button>
-              <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','red')">Red</button>
-              <button class="btn-ghost btn-sm" onclick="setMatchResult('${ticket.id}','${m.id}','void')">Anular</button>
-            </span>
-          ` : ''}
-        </div>
-        <div class="bet-match-odd">@${m.odd.toFixed(2)}</div>
-      </div>
-    `;
+        ${quick}
+        <div class="bc-leg-odd">@${Number(m.odd).toFixed(2)}</div>
+      </div>`;
   }).join('');
 
   const showAuthor = opts.showAuthor && ticket.createdBy && STATE.profiles.length>0;
-  const authorStat = showAuthor ? `<div class="bet-stat"><span class="bet-stat-label">Digitado por</span><span class="bet-stat-value">${authorName(ticket.createdBy)}</span></div>` : '';
-  const conferidoStat = (opts.showAuthor && ticket.conferido) ? `<div class="bet-stat"><span class="bet-stat-label">Conferência</span><span class="bet-stat-value" style="color:var(--green)">✓ Conferido</span></div>` : '';
+  const stat = (l,v,cls)=>`<div class="bc-stat"><span class="bc-stat-l">${l}</span><span class="bc-stat-v ${cls||''}">${v}</span></div>`;
+  const extra = (showAuthor ? stat('Digitado por', evtEsc(authorName(ticket.createdBy))) : '')
+    + ((opts.showAuthor && ticket.conferido) ? stat('Conferência','✓ Conferido','profit-pos') : '')
+    + (opts.extraStats || '');
 
   return `
-    <div class="bet-card">
-      <div class="bet-card-top">
-        <div class="bet-card-title">
-          <span class="bet-number">#${ticket.ticketNumber||'—'}</span>
-          <span class="bet-client">${cl?cl.name:'Cliente removido'}</span>
-        </div>
-        <div class="bet-card-icons">
-          ${ticket.printPath ? `<button class="icon-btn" title="Ver print do bilhete" onclick="verPrint('${ticket.id}')">📎</button>` : ''}
-          ${opts.showEdit!==false ? `<button class="icon-btn" title="Editar" onclick="editTicket('${ticket.id}')">✎</button>` : ''}
-          ${opts.showDuplicate ? `<button class="icon-btn" title="Duplicar" onclick="duplicateTicket('${ticket.id}')">⧉</button>` : ''}
-          ${opts.showDelete ? `<button class="icon-btn icon-danger" title="Excluir" onclick="deleteTicket('${ticket.id}')">🗑</button>` : ''}
-          ${opts.conferenciaAction || ''}
+    <div class="bc bc-${r}">
+      <div class="bc-top" onclick="abrirDetalheAposta('${id}')" title="Abrir detalhe">
+        <div class="bc-id"><span class="bc-num">#${ticket.ticketNumber||'—'}</span><span class="bc-client">${evtEsc(apClientName(ticket))}</span></div>
+        <div class="bc-top-r">
+          ${resultChip(rd)}
+          <div class="bc-icons" onclick="event.stopPropagation()">
+            ${ticket.printPath ? `<button class="icon-btn" title="Ver print do bilhete" onclick="verPrint('${id}')">📎</button>` : ''}
+            ${opts.showEdit!==false ? `<button class="icon-btn" title="Editar" onclick="editTicket('${id}')">✎</button>` : ''}
+            ${opts.showDuplicate ? `<button class="icon-btn" title="Duplicar" onclick="duplicateTicket('${id}')">⧉</button>` : ''}
+            ${opts.showDelete ? `<button class="icon-btn icon-danger" title="Excluir" onclick="deleteTicket('${id}')">🗑</button>` : ''}
+            ${opts.conferenciaAction || ''}
+          </div>
         </div>
       </div>
-      <div class="bet-stats-row">
-        <div class="bet-stat"><span class="bet-stat-label">Data</span><span class="bet-stat-value">${fmtDate(ticket.date)}${ticket.time?' '+ticket.time:''}</span></div>
-        <div class="bet-stat"><span class="bet-stat-label">Semana</span><span class="bet-stat-value">${weekRangeShortLabel(weekStart)}</span></div>
-        <div class="bet-stat bet-stat-toggle" onclick="toggleTicketDetails('${ticket.id}')" title="${expanded?'Recolher':'Ver'} partidas do bilhete"><span class="bet-stat-label">Detalhes</span><span class="bet-stat-value">☰ ${ticket.matches.length} ${expanded?'⌃':'⌄'}</span></div>
-        <div class="bet-stat"><span class="bet-stat-label">Conf.</span><span class="bet-stat-value">⏱ ${pendentesNoTicket}</span></div>
-        <div class="bet-stat"><span class="bet-stat-label">Valor</span><span class="bet-stat-value">${fmtBRL(ticket.stake)}</span></div>
-        <div class="bet-stat"><span class="bet-stat-label">Odds</span><span class="bet-stat-value">${odds>0?odds.toFixed(2):'—'}</span></div>
-        <div class="bet-stat"><span class="bet-stat-label">Retorno Máx.</span><span class="bet-stat-value" style="color:var(--gold)">${fmtBRL(retornoMax)}</span></div>
-        <div class="bet-stat"><span class="bet-stat-label">Resultado</span><span class="bet-stat-value ${r==='pending'?'':(profit>=0?'profit-pos':'profit-neg')}">${r==='pending'?'—':fmtBRL(profit)}</span></div>
-        <div class="bet-stat"><span class="bet-stat-label">Status</span>${resultChip(r)}</div>
-        ${authorStat}
-        ${conferidoStat}
-        ${opts.extraStats || ''}
+      <div class="bc-stats" onclick="abrirDetalheAposta('${id}')">
+        ${stat('Data', fmtDate(ticket.date)+(ticket.time?' '+String(ticket.time).slice(0,5):''))}
+        ${stat('Valor', fmtBRL(ticket.stake))}
+        ${stat('Odds', odds>0?odds.toFixed(2):'—')}
+        ${stat('Retorno máx.', fmtBRL(retornoMax), 'gold')}
+        ${stat('Resultado', r==='pending'?'—':((profit>=0?'+':'')+fmtBRL(profit)), r==='pending'?'':(profit>=0?'profit-pos':'profit-neg'))}
+        ${stat('A conferir', pendentesNoTicket ? '⏱ '+pendentesNoTicket : '—')}
+        ${extra}
+        <div class="bc-stat bc-toggle" onclick="event.stopPropagation();toggleTicketDetails('${id}')" title="${expanded?'Recolher':'Mostrar'} seleções"><span class="bc-stat-l">Seleções</span><span class="bc-stat-v">${ticket.matches.length} ${expanded?'⌃':'⌄'}</span></div>
       </div>
-      ${expanded ? `<div class="bet-matches">${matchesHtml}</div>` : ''}
-    </div>
-  `;
+      ${expanded ? `<div class="bc-legs">${legsHtml}</div>` : ''}
+    </div>`;
 }
 function renderTicketCard(ticket){
   return renderBetCard(ticket, {showEdit:true, showDuplicate:true, showDelete:true, showQuickResult:true, showAuthor:true});
 }
 
+// ---------- resultado por seleção ----------
+async function apSaveMatches(ticketId, extraFields){
+  const ticket = STATE.tickets.find(t=>t.id===ticketId);
+  const fields = {matches: ticket.matches, ...(extraFields||{})};
+  const {error} = await supabaseClient.from('tickets').update(fields).eq('id', ticketId);
+  return error;
+}
+// pelos botões do cartão: só seleções ainda pendentes (para alterar um resultado já definido, abra o detalhe)
 async function setMatchResult(ticketId, matchId, result){
   const ticket = STATE.tickets.find(t=>t.id===ticketId);
-  const match = ticket.matches.find(m=>m.id===matchId);
-  if(!match || match.result!=='pending'){ showToast('Esse resultado já foi definido. Para alterar, use Editar aposta.'); render(); return; }
+  const match = ticket && ticket.matches.find(m=>m.id===matchId);
+  if(!match || match.result!=='pending'){ showToast('Esse resultado já foi definido. Para alterar, abra o detalhe da aposta.'); render(); return; }
   match.result = result;
-  const {error} = await supabaseClient.from('tickets').update({matches: ticket.matches}).eq('id', ticketId);
+  const error = await apSaveMatches(ticketId);
   if(error){ showToast('Erro ao salvar resultado: '+error.message); match.result='pending'; return; }
-  render();
+  render(); if(DETAIL_ID) renderDetalhe();
+}
+// pela janela de detalhe: pode trocar um resultado já definido (inclusive voltar para pendente)
+async function setLegResult(ticketId, matchId, result){
+  const ticket = STATE.tickets.find(t=>t.id===ticketId);
+  const match = ticket && ticket.matches.find(m=>m.id===matchId);
+  if(!match) return;
+  const old = match.result;
+  if(old===result) return;
+  match.result = result;
+  const error = await apSaveMatches(ticketId);
+  if(error){ showToast('Erro ao salvar resultado: '+error.message); match.result = old; return; }
+  render(); renderDetalhe();
 }
 function setDraftMatchResult(matchId, result){
   const m = DRAFT.matches.find(x=>x.id===matchId);
@@ -267,8 +296,123 @@ async function deleteTicket(ticketId){
   const {error} = await supabaseClient.from('tickets').delete().eq('id', ticketId);
   if(error){ showToast('Erro ao excluir aposta: '+error.message); return; }
   STATE.tickets = STATE.tickets.filter(t=>t.id!==ticketId);
-  render();
+  fecharDetalhe(); render();
 }
+
+// ---------- JANELA "DETALHE DA APOSTA" ----------
+let DETAIL_MANUAL = 'green';          // ganhou | perdeu | anulada (liquidação manual)
+function fecharDetalhe(){ DETAIL_ID = null; const o = document.getElementById('detail-overlay'); if(o) o.remove(); document.body.style.overflow=''; }
+function abrirDetalheAposta(ticketId){
+  const t = STATE.tickets.find(x=>x.id===ticketId); if(!t) return;
+  DETAIL_ID = ticketId; DETAIL_MANUAL = 'green';
+  let ov = document.getElementById('detail-overlay');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'detail-overlay'; ov.className = 'dt-overlay';
+    ov.onclick = (e)=>{ if(e.target===ov) fecharDetalhe(); };
+    document.body.appendChild(ov);
+  }
+  document.body.style.overflow = 'hidden';
+  renderDetalhe();
+  if(t.printPath) apLoadDetailPrint(t);
+}
+async function apLoadDetailPrint(t){
+  try{
+    const {data, error} = await supabaseClient.storage.from(PRINT_BUCKET).createSignedUrl(t.printPath, 600);
+    const el = document.getElementById('dt-print');
+    if(!el || error || !data || !data.signedUrl) return;
+    el.innerHTML = `<img src="${data.signedUrl}" alt="Print do bilhete" onclick="verPrint('${t.id}')" title="Clique para ampliar">`;
+  }catch(e){}
+}
+function setDetailManual(v){ DETAIL_MANUAL = v; renderDetalhe(); }
+function renderDetalhe(){
+  const ov = document.getElementById('detail-overlay'); if(!ov) return;
+  const t = STATE.tickets.find(x=>x.id===DETAIL_ID);
+  if(!t){ fecharDetalhe(); return; }
+  const r = ticketResult(t), rd = ticketResultDetail(t), profit = ticketProfit(t);
+  const odds = ticketOddTotal(t)>0 ? effectiveOdds(t) : 0;
+  const pot = t.stake*odds;
+  const keepPaid = document.getElementById('dt-paid') ? document.getElementById('dt-paid').value : null;
+  const tile = (l,v,cls,sub)=>`<div class="dt-tile"><div class="dt-tile-l">${l}</div><div class="dt-tile-v ${cls||''}">${v}</div>${sub?`<div class="dt-tile-s">${sub}</div>`:''}</div>`;
+  const legs = t.matches.map(m=>{
+    const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
+    const teams = m.away ? `${evtEsc(m.home)} <span class="bc-x">x</span> ${evtEsc(m.away)}` : evtEsc(m.home);
+    return `
+      <div class="dt-leg">
+        <div class="dt-leg-top">
+          <div class="dt-leg-main">
+            <div class="dt-leg-teams">${teams}</div>
+            <div class="dt-leg-mkt">${evtEsc(marketLabel)} · <b>${evtEsc(ouToPt(m.selection))}</b></div>
+            ${m.date ? `<div class="dt-leg-when">${fmtDate(m.date)}${m.time?' '+String(m.time).slice(0,5):''}</div>`:''}
+          </div>
+          <div class="dt-leg-r"><div class="dt-leg-odd">@ ${Number(m.odd).toFixed(2)}</div>${resultChip(m.result)}</div>
+        </div>
+        <div class="dt-mark"><span class="dt-mark-l">MARCAR</span>
+          ${RES_BTNS.map(([v,l,c])=>`<button type="button" class="ap-q ap-q-lg ${c} ${m.result===v?'on':''}" onclick="setLegResult('${t.id}','${m.id}','${v}')">${l}</button>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
+  const manualBtn = (v,l,c)=>`<button type="button" class="dt-man ${c} ${DETAIL_MANUAL===v?'on':''}" onclick="setDetailManual('${v}')">${l}</button>`;
+  ov.innerHTML = `
+    <div class="dt-modal" role="dialog" aria-modal="true">
+      <div class="dt-head">
+        <div class="dt-head-ic">📋</div>
+        <div class="dt-head-t"><div class="dt-title">Detalhe da Aposta</div><div class="dt-ref">Aposta #${t.ticketNumber||'—'} · ${evtEsc(apClientName(t))}</div></div>
+        ${resultChip(rd)}
+        <button type="button" class="dt-x" aria-label="Fechar" onclick="fecharDetalhe()">✕</button>
+      </div>
+      <div class="dt-body">
+        <div class="dt-tiles">
+          ${tile('Cliente', evtEsc(apClientName(t)))}
+          ${tile('Valor', fmtBRL(t.stake))}
+          ${tile('Odds totais', odds>0?odds.toFixed(2):'—','gold')}
+          ${tile('Retorno potencial', fmtBRL(pot),'green')}
+          ${tile('Registrada em', apFmtDateTime(t.createdAt), '', 'Jogo: '+fmtDate(t.date)+(t.time?' '+String(t.time).slice(0,5):''))}
+          ${tile('Resultado', r==='pending'?'—':((profit>=0?'+':'')+fmtBRL(profit)), r==='pending'?'':(profit>=0?'green':'red'))}
+        </div>
+        ${t.printPath ? `<div class="dt-sec">📷 Print do bilhete</div><div id="dt-print" class="dt-print"><span class="dt-muted">Carregando…</span></div>` : ''}
+        <div class="dt-sec">Seleções <span class="dt-muted">(${t.matches.length})</span></div>
+        ${legs}
+        <div class="dt-acts">
+          <button class="btn-ghost" onclick="fecharDetalhe();editTicket('${t.id}')">✎ Editar</button>
+          <button class="btn-ghost" onclick="fecharDetalhe();duplicateTicket('${t.id}')">⧉ Duplicar</button>
+          <button class="btn-ghost dt-danger" onclick="deleteTicket('${t.id}')">🗑 Excluir</button>
+        </div>
+        <div class="dt-sec">Liquidar a aposta inteira de uma vez</div>
+        <div class="dt-manual">
+          <div class="dt-man-row">${manualBtn('green','✅ Ganhou','dt-man-green')}${manualBtn('red','✕ Perdeu','dt-man-red')}${manualBtn('void','⊘ Anulada','dt-man-void')}</div>
+          ${DETAIL_MANUAL==='green' ? `
+            <label class="dt-lab">Valor pago ao cliente (R$)</label>
+            <div class="dt-paid-row"><input type="text" inputmode="decimal" id="dt-paid" value="${keepPaid!==null ? evtEsc(keepPaid) : String(Math.round(pot*100)/100).replace('.',',')}"><button type="button" class="btn-ghost btn-sm" onclick="document.getElementById('dt-paid').value=String(Math.round(${pot}*100)/100).replace('.',',')">Usar pot.</button></div>
+            <div class="dt-hint">Se o valor for diferente do retorno potencial (ex.: cash out), o sistema ajusta a odd da aposta para bater com o valor pago.</div>` : ''}
+          <button type="button" class="btn-primary btn-full dt-confirm" onclick="liquidarManual('${t.id}')">Confirmar resultado</button>
+        </div>
+      </div>
+    </div>`;
+}
+// Liquidação manual da aposta inteira: Ganhou (todas verdes; valor pago ajusta a odd), Perdeu ou Anulada
+async function liquidarManual(ticketId){
+  const t = STATE.tickets.find(x=>x.id===ticketId); if(!t) return;
+  const before = t.matches.map(m=>m.result), beforeOdds = t.odds;
+  let extra = null;
+  if(DETAIL_MANUAL==='green'){
+    const paid = parseNum((document.getElementById('dt-paid')||{}).value);
+    t.matches.forEach(m=>{ if(m.result!=='void') m.result = 'green'; });
+    if(t.matches.every(m=>m.result==='void')) t.matches.forEach(m=>m.result='green');
+    const natural = t.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
+    if(paid>0 && t.stake>0 && Math.abs(paid - t.stake*natural) > 0.005){ t.odds = Math.round(paid/t.stake*10000)/10000; extra = {odds: t.odds}; }
+  } else if(DETAIL_MANUAL==='red'){
+    const pend = t.matches.filter(m=>m.result==='pending');
+    if(pend.length) pend.forEach(m=>m.result='red'); else if(!t.matches.some(m=>m.result==='red')) t.matches[t.matches.length-1].result='red';
+  } else {
+    t.matches.forEach(m=>m.result='void');
+  }
+  const error = await apSaveMatches(ticketId, extra);
+  if(error){ showToast('Erro ao salvar resultado: '+error.message); t.matches.forEach((m,i)=>m.result=before[i]); t.odds = beforeOdds; return; }
+  showToast('Resultado registrado.');
+  render(); renderDetalhe();
+}
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && DETAIL_ID) fecharDetalhe(); });
+
 
 // ---------- WIZARD (Nova Aposta) ----------
 function startNewTicket(){
@@ -319,11 +463,11 @@ function cancelWizard(){
 }
 function parseNum(v){ const n = parseFloat(String(v==null?'':v).trim().replace(/\./g,function(m,o,str){ return /,/.test(str)?'':'.'; }).replace(',','.')); return n; }
 function draftEffectiveOdds(){
-  if(DRAFT.matches.some(m=>m.result==='void')) return draftMatchesOddTotal();
+  if(DRAFT.matches.some(m=>m.result==='void' || m.result==='half_green' || m.result==='half_red')) return draftMatchesOddTotal();
   return parseNum(DRAFT.odds) || draftMatchesOddTotal();
 }
 function draftMatchesOddTotal(){
-  return DRAFT.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*m.odd,1);
+  return DRAFT.matches.filter(m=>m.result!=='void').reduce((p,m)=>p*((m.result==='half_green'||m.result==='half_red') ? legFactor(m) : m.odd),1);
 }
 function updateWizardTotals(){
   const stake = parseNum(DRAFT.stake) || 0;
@@ -400,7 +544,9 @@ function renderWizard(){
           ${resultChip(m.result)}
           <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','pending')">Pendente</button>
           <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','green')">Green</button>
+          <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','half_green')">½ Green</button>
           <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','red')">Red</button>
+          <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','half_red')">½ Red</button>
           <button class="btn-ghost btn-sm" tabindex="-1" onclick="setDraftMatchResult('${m.id}','void')">Anular</button>
         </div>
       </div>
