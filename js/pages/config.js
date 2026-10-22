@@ -349,8 +349,9 @@ async function usrCall(body){
     if(error){
       let msg = error.message || 'erro';
       try{ if(error.context && error.context.json){ const j = await error.context.json(); if(j && j.error) msg = j.error; } }catch(e){}
-      if(/not found|404|Failed to send|fetch/i.test(msg)) msg = 'A função "admin-users" ainda não foi publicada no Supabase (veja o passo a passo).';
-      return {error: msg};
+      const st = error.context && error.context.status ? ' [HTTP '+error.context.status+']' : '';
+      if(/not found|404|Failed to send|fetch/i.test(msg)) msg = 'Não consegui falar com a função "admin-users" no Supabase (confira se ela está publicada e ativa).';
+      return {error: msg + st + ' — detalhe: ' + (error.message||'')};
     }
     if(data && data.error) return {error: data.error};
     return {data};
