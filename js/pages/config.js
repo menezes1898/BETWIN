@@ -341,16 +341,18 @@ function startBotStatusPoll(){
 // ---------- Usuários do sistema (cadastro, senha, bloqueio) ----------
 // Trocar a PRÓPRIA senha funciona direto. Criar usuário, redefinir senha de outro, bloquear e excluir
 // passam pela função "admin-users" do Supabase (precisa ser publicada uma vez — veja o passo a passo).
+// Nome da função no Supabase (Edge Functions). Se um dia criar outra com nome diferente, troque aqui.
+const USERS_FN = 'hyper-service';
 let USERS_LIST = null, USERS_ERR = '', USERS_LOADING = false;
 function usrEsc(v){ return String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 async function usrCall(body){
   try{
-    const {data, error} = await supabaseClient.functions.invoke('admin-users', {body});
+    const {data, error} = await supabaseClient.functions.invoke(USERS_FN, {body});
     if(error){
       let msg = error.message || 'erro';
       try{ if(error.context && error.context.json){ const j = await error.context.json(); if(j && j.error) msg = j.error; } }catch(e){}
       const st = error.context && error.context.status ? ' [HTTP '+error.context.status+']' : '';
-      if(/not found|404|Failed to send|fetch/i.test(msg)) msg = 'Não consegui falar com a função "admin-users" no Supabase (confira se ela está publicada e ativa).';
+      if(/not found|404|Failed to send|fetch/i.test(msg)) msg = 'Não consegui falar com a função "'+USERS_FN+'" no Supabase (confira se ela está publicada e ativa).';
       return {error: msg + st + ' — detalhe: ' + (error.message||'')};
     }
     if(data && data.error) return {error: data.error};
