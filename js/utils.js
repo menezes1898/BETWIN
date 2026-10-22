@@ -106,15 +106,15 @@ function ticketProfit(ticket){
   return profit;
 }
 function resultChip(r){
-  const map = {green:['chip-green','GREEN'], red:['chip-red','RED'], half_green:['chip-green','½ GREEN'], half_red:['chip-red','½ RED'], void:['chip-void','ANULADA'], pending:['chip-pending','PENDENTE']};
+  const map = {green:['chip-green','GREEN'], red:['chip-red','RED'], half_green:['chip-green half','½ GREEN'], half_red:['chip-red half','½ RED'], void:['chip-void','ANULADA'], pending:['chip-pending','PENDENTE']};
   const [cls,label] = map[r]||map.pending;
   return `<span class="chip ${cls}">${label}</span>`;
 }
 function resultIconSmall(r){
   if(r==='green') return '<span style="color:var(--green);font-weight:700">✓</span>';
-  if(r==='half_green') return '<span style="color:var(--green);font-weight:700">½✓</span>';
+  if(r==='half_green') return '<span style="color:var(--green);font-weight:800;border:1px solid var(--green);border-radius:5px;padding:0 3px;font-size:11px;background:linear-gradient(90deg,rgba(52,211,153,.45) 0 50%,transparent 50%)">½</span>';
   if(r==='red') return '<span style="color:var(--red);font-weight:700">✗</span>';
-  if(r==='half_red') return '<span style="color:var(--red);font-weight:700">½✗</span>';
+  if(r==='half_red') return '<span style="color:var(--red);font-weight:800;border:1px solid var(--red);border-radius:5px;padding:0 3px;font-size:11px;background:linear-gradient(90deg,rgba(242,109,109,.45) 0 50%,transparent 50%)">½</span>';
   if(r==='void') return '<span style="color:var(--text-muted);font-weight:700">⊘</span>';
   return '<span style="color:var(--gold);font-weight:700">⏱</span>';
 }
