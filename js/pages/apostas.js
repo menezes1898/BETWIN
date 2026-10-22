@@ -15,9 +15,9 @@ const RES_BTNS = [                    // resultado por seleção (ordem dos bot�
   ['pending',    '⏱ Pendente',    'ap-r-pend']
 ];
 const RES_QUICK = [                   // botões pequenos dentro do cartão
-  ['green','✓','Verde (ganhou)','ap-r-green'], ['half_green','½✓','Meia verde (meio ganha)','ap-r-hgreen'],
-  ['red','✗','Vermelha (perdeu)','ap-r-red'], ['half_red','½✗','Meia vermelha (meio perdida)','ap-r-hred'],
-  ['void','⊘','Anulada','ap-r-void']
+  ['green','✓ Green','Verde (ganhou)','ap-r-green'], ['half_green','½ Green','Meia verde (metade ganha, metade devolvida)','ap-r-hgreen'],
+  ['red','✗ Red','Vermelha (perdeu)','ap-r-red'], ['half_red','½ Red','Meia vermelha (metade perdida, metade devolvida)','ap-r-hred'],
+  ['void','Anul.','Anulada','ap-r-void']
 ];
 
 function apFmtDateTime(iso){
