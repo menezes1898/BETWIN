@@ -703,3 +703,7 @@ body.is-admin .nd-card{padding:0}
 .ap-q.on.ap-r-hred{background:linear-gradient(90deg,var(--red) 0 50%,rgba(242,109,109,.2) 50% 100%);color:#2b0b0b}
 .chip-half-g,.chip.chip-green.half{background:linear-gradient(90deg,rgba(52,211,153,.5) 0 50%,rgba(52,211,153,.1) 50% 100%)}
 .chip.half{background:linear-gradient(90deg,rgba(52,211,153,.5) 0 50%,rgba(52,211,153,.08) 50% 100%)}.chip-red.half{background:linear-gradient(90deg,rgba(242,109,109,.5) 0 50%,rgba(242,109,109,.08) 50% 100%)}
+
+/* cartão de usuários (Config): campos de e-mail e senha com o mesmo visual dos outros */
+#users-card input[type=password],#users-card input[type=email]{width:100%;background:#0f151d;border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:8px;font-family:var(--font-body);font-size:14px}
+#users-card input::placeholder{color:var(--text-muted);opacity:.55}
