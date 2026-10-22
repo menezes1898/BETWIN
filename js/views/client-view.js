@@ -18,6 +18,8 @@ function fmtNum(v){
 }
 function cvIcon(r){
   if(r==='green') return '<span class="cv-ic cv-ic-green">✓</span>';
+  if(r==='half_green') return '<span class="cv-ic cv-ic-green" style="font-size:9px">½</span>';
+  if(r==='half_red') return '<span class="cv-ic cv-ic-red" style="font-size:9px">½</span>';
   if(r==='red') return '<span class="cv-ic cv-ic-red">✕</span>';
   if(r==='void') return '<span class="cv-ic cv-ic-void">–</span>';
   return '<span class="cv-ic cv-ic-pending"><svg viewBox="0 0 12 12" width="8" height="8" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M6 3v3.2l2 1.2"/></svg></span>';
