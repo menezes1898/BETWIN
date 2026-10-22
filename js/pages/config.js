@@ -150,6 +150,7 @@ function renderConfigTab(){
   setTimeout(startBotStatusPoll, 0);
   return `
     <div class="card" id="bot-status-card">${renderBotStatusCard()}</div>
+    <div class="card" id="users-card">${renderUsuariosCard()}</div>
     <div class="card">
       <h3>Busca automática de jogos (API-Sports)</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-top:0">No cadastro de apostas, ao digitar o evento o sistema sugere jogos reais do dia e do dia seguinte (ex: “Bayern x Arsenal”, “Chiefs x Bills”). Sem chave, ele já sugere times e jogos que você lançou antes. Para ativar os jogos online, cole abaixo a sua chave (API-KEY) da conta gratuita em <b>dashboard.api-football.com</b> → Profile → My Access. A mesma chave vale para todos os esportes. A chave fica salva só neste navegador.</p>
@@ -334,4 +335,109 @@ function startBotStatusPoll(){
     if(!document.getElementById('bot-status-card')){ clearInterval(BOT_POLL); BOT_POLL = null; return; }   // saiu da tela: para
     refreshBotStatus(false);
   }, 15000);
+}
+
+
+// ---------- Usuários do sistema (cadastro, senha, bloqueio) ----------
+// Trocar a PRÓPRIA senha funciona direto. Criar usuário, redefinir senha de outro, bloquear e excluir
+// passam pela função "admin-users" do Supabase (precisa ser publicada uma vez — veja o passo a passo).
+let USERS_LIST = null, USERS_ERR = '', USERS_LOADING = false;
+function usrEsc(v){ return String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+async function usrCall(body){
+  try{
+    const {data, error} = await supabaseClient.functions.invoke('admin-users', {body});
+    if(error){
+      let msg = error.message || 'erro';
+      try{ if(error.context && error.context.json){ const j = await error.context.json(); if(j && j.error) msg = j.error; } }catch(e){}
+      if(/not found|404|Failed to send|fetch/i.test(msg)) msg = 'A função "admin-users" ainda não foi publicada no Supabase (veja o passo a passo).';
+      return {error: msg};
+    }
+    if(data && data.error) return {error: data.error};
+    return {data};
+  }catch(e){ return {error: e.message||String(e)}; }
+}
+function renderUsuariosCard(){
+  const me = currentUserEmail();
+  const rows = USERS_LIST ? USERS_LIST.map(u=>`
+    <div class="match-row" style="gap:10px;${u.banned?'opacity:.6':''}">
+      <div class="match-desc" style="flex:1;min-width:0"><span class="teams">${usrEsc(u.name||u.email.split('@')[0])}${u.id===currentUserId()?' <span class="chip chip-pending">VOCÊ</span>':''}${u.banned?' <span class="chip chip-void">BLOQUEADO</span>':''}</span><span class="meta">${usrEsc(u.email)}${u.last_sign_in_at?' · último acesso '+new Date(u.last_sign_in_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):' · nunca acessou'}</span></div>
+      <div class="match-actions">
+        <button class="btn-ghost btn-sm" onclick="usrResetSenha('${u.id}')">Nova senha</button>
+        ${u.id===currentUserId() ? '' : `<button class="btn-ghost btn-sm" onclick="usrBloquear('${u.id}',${u.banned?'false':'true'})">${u.banned?'Desbloquear':'Bloquear'}</button><button class="btn-danger-ghost btn-sm" onclick="usrExcluir('${u.id}')">Excluir</button>`}
+      </div>
+    </div>`).join('') : '';
+  return `
+    <h3>Usuários do sistema</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-top:0">Quem pode entrar no painel. Aqui você cadastra pessoas (ex.: digitação), redefine senha, bloqueia e exclui.</p>
+    <div style="padding:12px 0;border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);margin-bottom:14px">
+      <div style="font-weight:600;margin-bottom:8px">Minha conta ${me?`<span style="font-weight:400;color:var(--text-muted)">· ${usrEsc(me)}</span>`:''}</div>
+      <div class="row" style="margin-top:0;align-items:flex-end">
+        <div><label style="margin-top:0">Nova senha</label><input type="password" id="my-pass-1" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></div>
+        <div><label style="margin-top:0">Repita a nova senha</label><input type="password" id="my-pass-2" autocomplete="new-password" onkeydown="if(event.key==='Enter')trocarMinhaSenha()"></div>
+        <div style="flex:0 0 auto;min-width:0"><button class="btn-primary" onclick="trocarMinhaSenha()">Trocar minha senha</button></div>
+      </div>
+    </div>
+    ${USERS_ERR ? `<div style="font-size:12.5px;color:var(--red);margin-bottom:10px">${usrEsc(USERS_ERR)}</div>` : ''}
+    ${USERS_LIST===null ? `<div style="margin-bottom:14px"><button class="btn-ghost" onclick="carregarUsuarios()">${USERS_LOADING?'Carregando…':'Carregar usuários'}</button></div>` : (USERS_LIST.length===0 ? '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhum usuário.</div>' : `<div style="margin-bottom:14px">${rows}</div>`)}
+    <div style="font-weight:600;margin-bottom:8px">Cadastrar novo usuário</div>
+    <div class="row" style="margin-top:0;align-items:flex-end">
+      <div><label style="margin-top:0">Nome</label><input type="text" id="new-user-name" placeholder="Ex: Maria (digitação)"></div>
+      <div><label style="margin-top:0">E-mail (login)</label><input type="email" id="new-user-email" placeholder="maria@email.com" autocomplete="off"></div>
+      <div><label style="margin-top:0">Senha inicial</label><input type="text" id="new-user-pass" placeholder="Mínimo 6 caracteres" autocomplete="off" onkeydown="if(event.key==='Enter')criarUsuario()"></div>
+      <div style="flex:0 0 auto;min-width:0"><button class="btn-primary" onclick="criarUsuario()">Cadastrar</button></div>
+    </div>`;
+}
+function usrRefresh(){ const c = document.getElementById('users-card'); if(c) c.innerHTML = renderUsuariosCard(); }
+async function carregarUsuarios(){
+  USERS_LOADING = true; USERS_ERR = ''; usrRefresh();
+  const r = await usrCall({action:'list'});
+  USERS_LOADING = false;
+  if(r.error){ USERS_ERR = r.error; USERS_LIST = null; } else { USERS_LIST = r.data.users || []; }
+  usrRefresh();
+}
+async function trocarMinhaSenha(){
+  const a = document.getElementById('my-pass-1').value, b = document.getElementById('my-pass-2').value;
+  if(a.length<6){ showToast('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  if(a!==b){ showToast('As duas senhas não são iguais.'); return; }
+  const {error} = await supabaseClient.auth.updateUser({password:a});
+  if(error){ showToast('Erro ao trocar a senha: '+error.message); return; }
+  document.getElementById('my-pass-1').value=''; document.getElementById('my-pass-2').value='';
+  showToast('Senha alterada!');
+}
+async function criarUsuario(){
+  const name = document.getElementById('new-user-name').value.trim();
+  const email = document.getElementById('new-user-email').value.trim();
+  const password = document.getElementById('new-user-pass').value;
+  if(!name){ showToast('Informe o nome.'); return; }
+  if(!/^\S+@\S+\.\S+$/.test(email)){ showToast('E-mail inválido.'); return; }
+  if(password.length<6){ showToast('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  const r = await usrCall({action:'create', name, email, password});
+  if(r.error){ USERS_ERR = r.error; usrRefresh(); showToast('Erro ao cadastrar: '+r.error); return; }
+  USERS_ERR = '';
+  const u = r.data.user;
+  if(u && !STATE.profiles.find(p=>p.id===u.id)) STATE.profiles.push({id:u.id, name});
+  showToast('Usuário cadastrado! Passe o e-mail e a senha para a pessoa.');
+  await carregarUsuarios();
+  ['new-user-name','new-user-email','new-user-pass'].forEach(i=>{ const e=document.getElementById(i); if(e) e.value=''; });
+}
+async function usrResetSenha(id){
+  const p = prompt('Digite a NOVA senha para esse usuário (mínimo 6 caracteres):');
+  if(p===null) return;
+  if(p.length<6){ showToast('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  const r = await usrCall({action:'set_password', user_id:id, password:p});
+  if(r.error){ showToast('Erro: '+r.error); return; }
+  showToast('Senha redefinida! Avise a pessoa.');
+}
+async function usrBloquear(id, bloquear){
+  if(!confirm(bloquear ? 'Bloquear esse usuário? Ele não consegue mais entrar (você pode desbloquear depois).' : 'Desbloquear esse usuário?')) return;
+  const r = await usrCall({action:'set_banned', user_id:id, banned:bloquear});
+  if(r.error){ showToast('Erro: '+r.error); return; }
+  await carregarUsuarios();
+}
+async function usrExcluir(id){
+  if(!confirm('Excluir esse usuário de vez? As apostas que ele lançou continuam, mas ele nunca mais entra. Se só quer impedir o acesso, use Bloquear.')) return;
+  const r = await usrCall({action:'delete', user_id:id});
+  if(r.error){ showToast('Erro: '+r.error); return; }
+  STATE.profiles = STATE.profiles.filter(p=>p.id!==id);
+  await carregarUsuarios();
 }
