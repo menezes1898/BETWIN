@@ -380,6 +380,7 @@ function renderUsuariosCard(){
         <div style="flex:0 0 auto;min-width:0"><button class="btn-primary" onclick="trocarMinhaSenha()">Trocar minha senha</button></div>
       </div>
     </div>
+    ${USERS_NOTICE ? `<div style="font-size:13px;padding:10px 12px;border:1px solid var(--gold);border-radius:8px;margin-bottom:12px">${USERS_NOTICE} <button class="btn-ghost btn-sm" onclick="USERS_NOTICE='';usrRefresh()">ok</button></div>` : ''}
     ${USERS_ERR ? `<div style="font-size:12.5px;color:var(--red);margin-bottom:10px">${usrEsc(USERS_ERR)}</div>` : ''}
     ${USERS_LIST===null ? `<div style="margin-bottom:14px"><button class="btn-ghost" onclick="carregarUsuarios()">${USERS_LOADING?'Carregando…':'Carregar usuários'}</button></div>` : (USERS_LIST.length===0 ? '<div class="empty" style="text-align:left;padding:0 0 14px">Nenhum usuário.</div>' : `<div style="margin-bottom:14px">${rows}</div>`)}
     <div style="font-weight:600;margin-bottom:8px">Cadastrar novo usuário</div>
@@ -423,13 +424,26 @@ async function criarUsuario(){
   await carregarUsuarios();
   ['new-user-name','new-user-email','new-user-pass'].forEach(i=>{ const e=document.getElementById(i); if(e) e.value=''; });
 }
+function usrGerarSenha(){
+  // sem letras/números parecidos (0/O, 1/l/I) para ninguém errar ao digitar
+  const a = 'abcdefghjkmnpqrstuvwxyz', n = '23456789';
+  const pick = set => set[Math.floor(Math.random()*set.length)];
+  let out = ''; for(let k=0;k<5;k++) out += pick(a); for(let k=0;k<3;k++) out += pick(n);
+  return out;
+}
+let USERS_NOTICE = '';
 async function usrResetSenha(id){
-  const p = prompt('Digite a NOVA senha para esse usuário (mínimo 6 caracteres):');
+  const u = (USERS_LIST||[]).find(x=>x.id===id);
+  const sugestao = usrGerarSenha();
+  const p = prompt('Senha provisória para '+(u?(u.name||u.email):'esse usuário')+'.\nPode aceitar a sugerida ou digitar outra (mínimo 6 caracteres):', sugestao);
   if(p===null) return;
   if(p.length<6){ showToast('A senha precisa ter pelo menos 6 caracteres.'); return; }
   const r = await usrCall({action:'set_password', user_id:id, password:p});
   if(r.error){ showToast('Erro: '+r.error); return; }
-  showToast('Senha redefinida! Avise a pessoa.');
+  USERS_NOTICE = `Nova senha de <b>${usrEsc(u?(u.name||u.email):'usuário')}</b> (${usrEsc(u?u.email:'')}): <span style="font-family:var(--font-mono);font-size:15px;color:var(--gold);user-select:all">${usrEsc(p)}</span> — passe para a pessoa e peça para trocar em Config → Minha conta.`;
+  try{ navigator.clipboard && navigator.clipboard.writeText(p); }catch(e){}
+  showToast('Senha redefinida e copiada! Avise a pessoa.');
+  usrRefresh();
 }
 async function usrBloquear(id, bloquear){
   if(!confirm(bloquear ? 'Bloquear esse usuário? Ele não consegue mais entrar (você pode desbloquear depois).' : 'Desbloquear esse usuário?')) return;
