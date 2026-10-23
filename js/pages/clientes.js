@@ -44,49 +44,293 @@ function updateClientSearch(){
 }
 function openClientDetail(id){
   CLIENT_DETAIL_ID = id;
+  CLIENT_RETURN_TAB = 'clientes';
   CONFIRM_DELETE_CLIENT = false;
-  CLIENT_DETAIL_SUBVIEW = 'painel';
+  CLIENT_DETAIL_SUBVIEW = 'semanas';
+  cdResetFilters();
+  render();
+}
+// Da Dashboard: clicar no nome do cliente abre direto a página dele (e o "Voltar" volta para a Dashboard).
+function openClientFromDashboard(id){
+  ADMIN_TAB = 'clientes';
+  CLIENT_RETURN_TAB = 'dashboard';
+  CLIENT_DETAIL_ID = id;
+  CONFIRM_DELETE_CLIENT = false;
+  CLIENT_DETAIL_SUBVIEW = 'semanas';
+  cdResetFilters();
+  render();
+  try{ window.scrollTo(0,0); }catch(e){}
+}
+function closeClientDetail(){
+  CLIENT_DETAIL_ID = null;
+  if(CLIENT_RETURN_TAB && CLIENT_RETURN_TAB!=='clientes') ADMIN_TAB = CLIENT_RETURN_TAB;
+  CLIENT_RETURN_TAB = 'clientes';
   render();
 }
 function openClientDetailAt(id, subview){
   ADMIN_TAB = 'clientes';
   CLIENT_DETAIL_ID = id;
+  CLIENT_RETURN_TAB = 'clientes';
   CONFIRM_DELETE_CLIENT = false;
   CLIENT_DETAIL_SUBVIEW = subview;
+  cdResetFilters();
   render();
 }
+let CLIENT_RETURN_TAB = 'clientes';
+let CLIENT_WK_PAGE = 1, CLIENT_WK_SIZE = 20, CLIENT_WK_OPEN = {};
+let CLIENT_BETS_Q = '', CLIENT_BETS_STATUS = 'todas', CLIENT_BETS_PAGE = 1;
+function cdResetFilters(){ CLIENT_WK_PAGE = 1; CLIENT_WK_OPEN = {}; CLIENT_BETS_Q = ''; CLIENT_BETS_STATUS = 'todas'; CLIENT_BETS_PAGE = 1; }
+function cdEsc(v){ return String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function cdCls(v){ return Math.abs(v)<0.005 ? 'v-zero' : (v>0 ? 'profit-pos' : 'profit-neg'); }
+function cdNum(v){ return fmtNum(Math.abs(v)<0.005 ? 0 : v); }
+function cdWeekNum(wk){ return typeof isoWeekNum==='function' ? isoWeekNum(wk) : ''; }
+function cdDM(ds){ return ds.slice(8,10)+'/'+ds.slice(5,7); }
+
+// Uma linha por semana em que o cliente teve aposta — mesmas contas da Dashboard.
+function clientWeekRows(cl){
+  const weeks = Array.from(new Set(STATE.tickets.filter(t=>t.clientId===cl.id).map(t=>mondayOf(ticketDate(t))))).sort().reverse();
+  return weeks.map(wk=>{
+    const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && mondayOf(ticketDate(t))===wk);
+    const volume = tickets.reduce((s,t)=>s+t.stake,0);
+    const resultado = tickets.reduce((s,t)=>s+ticketProfit(t),0);
+    const descontoPct = getWeekDiscount(cl, wk);
+    const desconto = computeDescontoAmount(cl, resultado, wk);
+    const comms = getActiveCommissionersForWeek(cl.id, wk);
+    const comissao = comms.reduce((s,a)=>s+computeCommissionAmount(cl.id, a.percent, wk),0);
+    const parts = getActivePartnersForWeek(cl.id, wk);
+    const parceria = parts.reduce((s,a)=>s+computePartnerShare(cl.id, a.percent, wk),0);
+    const liquido = applyDescontoSign(cl, resultado, desconto) - comissao + parceria;
+    const owed = computeWeekOwedAmount(cl.id, wk);                         // perspectiva sua: positivo = cliente deve a você
+    const pago = getSettlementsFor(cl.id, wk).reduce((s,x)=>s+x.amount,0);
+    return {wk, tickets, volume, resultado, descontoPct, desconto, comms, comissao, parts, parceria, liquido, owed, pago, restante: owed - pago,
+      g: tickets.filter(t=>ticketResult(t)==='green').length, r: tickets.filter(t=>ticketResult(t)==='red').length, p: tickets.filter(t=>ticketResult(t)==='pending').length};
+  });
+}
+function cdBadges(g, r, p){
+  return (g?`<span class="chip chip-green" style="margin-right:4px">✓ ${g}</span>`:'')+(r?`<span class="chip chip-red" style="margin-right:4px">✗ ${r}</span>`:'')+(p?`<span class="chip chip-pending" style="margin-right:4px">⏱ ${p}</span>`:'') || '—';
+}
+function cdInitials(name){ const p = String(name||'?').trim().split(/\s+/); return ((p[0]||'?')[0]+(p[1]?p[1][0]:'')).toUpperCase(); }
+function setClientSub(v){ CLIENT_DETAIL_SUBVIEW = v; render(); }
+
 function renderClientDetail(id){
   const cl = STATE.clients.find(c=>c.id===id);
   if(!cl){ CLIENT_DETAIL_ID=null; return renderClientesTab(); }
+  if(CLIENT_DETAIL_SUBVIEW==='painel') CLIENT_DETAIL_SUBVIEW = 'semanas';
   const baseUrl = window.location.href.split('#')[0];
-  const clientTickets = STATE.tickets.filter(t=>t.clientId===cl.id);
-  const volumeGeral = clientTickets.reduce((s,t)=>s+t.stake,0);
-  const resultadoGeral = clientTickets.reduce((s,t)=>s+ticketProfit(t),0);
+  const rows = clientWeekRows(cl);
+  const all = STATE.tickets.filter(t=>t.clientId===cl.id);
+  const tot = rows.reduce((a,r)=>({volume:a.volume+r.volume, resultado:a.resultado+r.resultado, desconto:a.desconto+r.desconto, comissao:a.comissao+r.comissao, parceria:a.parceria+r.parceria, liquido:a.liquido+r.liquido}), {volume:0,resultado:0,desconto:0,comissao:0,parceria:0,liquido:0});
+  const g = all.filter(t=>ticketResult(t)==='green').length, r = all.filter(t=>ticketResult(t)==='red').length;
+  const pend = all.filter(t=>ticketResult(t)==='pending');
+  const saldoDev = computeContinuousBalance(cl.id);                  // positivo = cliente deve a você
+  const curWk = mondayOf(todaySP());
+  const comNow = getActiveCommissionersForWeek(cl.id, curWk).map(c=>{ const cm = STATE.commissioners.find(x=>x.id===c.commissionerId); return (cm?cm.name:'?')+' '+c.percent+'%'; });
+  const parNow = getActivePartnersForWeek(cl.id, curWk).map(c=>{ const pr = STATE.partners.find(x=>x.id===c.partnerId); return (pr?pr.name:'?')+' '+c.percent+'%'; });
+  const grp = cl.waGroupId ? ((STATE.botGroups.find(x=>x.id===cl.waGroupId)||{}).name || 'grupo vinculado') : '';
+  const sub = CLIENT_DETAIL_SUBVIEW;
+  const tab = (k, label)=>`<button type="button" class="cd-tab ${sub===k?'on':''}" onclick="setClientSub('${k}')">${label}</button>`;
+  const attr = (l, v)=>`<div class="cd-attr"><span>${l}</span><b>${v}</b></div>`;
+  const kpi = (l, v, cls, small, hl)=>`<div class="cd-kpi ${hl?'hl':''}"><span class="cd-kl">${l}</span><b class="cd-kv ${cls||''}">${v}</b>${small?`<span class="cd-ks">${small}</span>`:''}</div>`;
   return `
-    <button class="btn-ghost btn-sm" onclick="CLIENT_DETAIL_ID=null;render()">‹ Voltar</button>
-    <div style="height:12px"></div>
-    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-      <h2 style="margin:0;font-family:var(--font-display);font-weight:600;font-size:22px">${cl.name} ${cl.isDescarga?'<span class="chip" style="background:var(--gold-dim);color:var(--gold)">DESCARGA</span>':''}</h2>
-      <span class="chip ${resultadoGeral>=0?'chip-green':'chip-red'}">${resultadoGeral>=0?'+':''}${fmtBRL(resultadoGeral)} no total</span>
-    </div>
-    <div class="tabs" style="margin-bottom:16px">
-      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='painel'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='painel';render()">Painel</div>
-      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='semanas'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='semanas';render()">Semanas</div>
-      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='diagnostico'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='diagnostico';render()">Diagnóstico</div>
-      <div class="tab ${CLIENT_DETAIL_SUBVIEW==='info'?'active':''}" onclick="CLIENT_DETAIL_SUBVIEW='info';render()">Editar</div>
-    </div>
-    ${CLIENT_DETAIL_SUBVIEW==='semanas' ? renderClientWeeksList(cl) : CLIENT_DETAIL_SUBVIEW==='painel' ? renderClientPanel(cl) : CLIENT_DETAIL_SUBVIEW==='diagnostico' ? renderClientDiagnostico(cl) : `
-    <div class="card" style="display:flex;padding:0">
-      <div style="flex:1;text-align:center;padding:1rem 0.5rem">
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Volume total (interno)</div>
-        <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px">${fmtBRL(volumeGeral)}</div>
+    <div class="cd-crumb"><button type="button" class="cd-back" onclick="closeClientDetail()">‹ ${CLIENT_RETURN_TAB==='dashboard'?'Dashboard':'Clientes'}</button><span>›</span><b>${cdEsc(cl.name)}</b></div>
+    <div class="card cd-head">
+      <div class="cd-top">
+        <div class="cd-avatar">${cdEsc(cdInitials(cl.name))}</div>
+        <div class="cd-id">
+          <div class="cd-name">${cdEsc(cl.name)} ${cl.isDescarga?'<span class="chip" style="background:var(--gold-dim);color:var(--gold)">DESCARGA</span>':''}</div>
+          <div class="cd-sub">#${cdEsc(cl.code||'—')} · <a href="${baseUrl}#cliente=${cl.code}" target="_blank">Link</a> · <a href="javascript:void(0)" onclick="copyLink('${cl.id}')">Copiar</a></div>
+        </div>
+        <div class="cd-actions">
+          <button class="btn-ghost btn-sm" onclick="setClientSub('info')">✎ Editar</button>
+          <button class="btn-ghost btn-sm" onclick="setClientSub('pagamentos')" title="Pagamentos e baixas">$ Pagamentos</button>
+          <button class="btn-ghost btn-sm" onclick="gerarFechamento('${cl.id}')" title="Gerar imagem de fechamento">🧾 Fechamento</button>
+          <button class="btn-ghost btn-sm" onclick="gerarFechamentoPDF('${cl.id}')" title="Fechamento em PDF">PDF</button>
+        </div>
       </div>
-      <div style="width:1px;background:var(--line)"></div>
-      <div style="flex:1;text-align:center;padding:1rem 0.5rem">
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Resultado geral (interno)</div>
-        <div style="font-family:var(--font-mono);font-size:18px;margin-top:4px" class="${resultadoGeral>=0?'profit-pos':'profit-neg'}">${fmtBRL(resultadoGeral)}</div>
+      <div class="cd-attrs">
+        ${attr('Desconto padrão', (cl.discount||0)+'%')}
+        ${attr('Comissionado', comNow.length?cdEsc(comNow.join(', ')):'—')}
+        ${attr('Parceiros', parNow.length?cdEsc(parNow.join(', ')):'—')}
+        ${attr('Descarga', cl.isDescarga?'Ativo':'Inativo')}
+        ${attr('WhatsApp', cl.phone?cdEsc(cl.phone):'—')}
+        ${attr('Grupo (robô)', grp?cdEsc(grp):'Não vinculado')}
+        ${attr('Saldo a '+(saldoDev>=0?'receber':'pagar'), `<span class="${saldoDev>0.01?'profit-pos':(saldoDev<-0.01?'profit-neg':'v-zero')}">${cdNum(Math.abs(saldoDev))}</span>`)}
+      </div>
+      <div class="cd-kpis">
+        ${kpi('Apostas', all.length, '', `<span class="profit-pos">${g}</span> / <span class="profit-neg">${r}</span>${pend.length?` · ${pend.length} pend.`:''}`)}
+        ${kpi('Volume', cdNum(tot.volume))}
+        ${kpi('Saldo apostas', cdNum(tot.resultado), cdCls(tot.resultado))}
+        ${kpi('Desconto', cdNum(tot.desconto), tot.desconto>0?'profit-pos':'v-zero')}
+        ${kpi('Comissão', cdNum(tot.comissao), tot.comissao>0?'cd-gold':'v-zero')}
+        ${Math.abs(tot.parceria)>=0.005 ? kpi('Parceria', cdNum(-tot.parceria), tot.parceria>0?'profit-neg':'profit-pos') : ''}
+        ${kpi('Líquido', cdNum(tot.liquido), cdCls(tot.liquido), '', true)}
       </div>
     </div>
+    <div class="cd-tabs">
+      ${tab('semanas','Semanas')}${tab('apostas','Apostas')}${tab('esporte','Por esporte')}${tab('pagamentos','Pagamentos')}${tab('diagnostico','Diagnóstico')}${tab('info','Editar')}
+    </div>
+    ${sub==='semanas' ? renderClientWeeksTable(cl, rows) : sub==='apostas' ? renderClientBetsTab(cl) : sub==='esporte' ? renderClientSportTab(cl) : sub==='pagamentos' ? renderClientPaymentsTab(cl, saldoDev) : sub==='diagnostico' ? renderClientDiagnostico(cl) : renderClientEditTab(cl, tot, baseUrl)}
+  `;
+}
+
+// ---- Semanas (tabela no formato da referência) ----
+function renderClientWeeksTable(cl, rows){
+  if(rows.length===0) return '<div class="card"><div class="empty">Esse cliente ainda não tem apostas registradas.</div></div>';
+  const size = CLIENT_WK_SIZE, pages = Math.max(1, Math.ceil(rows.length/size));
+  if(CLIENT_WK_PAGE>pages) CLIENT_WK_PAGE = pages; if(CLIENT_WK_PAGE<1) CLIENT_WK_PAGE = 1;
+  const from = (CLIENT_WK_PAGE-1)*size, slice = rows.slice(from, from+size);
+  const line = r=>{
+    const open = !!CLIENT_WK_OPEN[r.wk];
+    const comLabel = r.comms.length ? r.comms.map(c=>{ const cm = STATE.commissioners.find(x=>x.id===c.commissionerId); return cdEsc((cm?cm.name:'?')+' '+c.percent+'%'); }).join('<br>') : '<span class="v-zero">—</span>';
+    const parLabel = r.parts.length ? r.parts.map(c=>{ const pr = STATE.partners.find(x=>x.id===c.partnerId); return cdEsc((pr?pr.name:'?')+' '+c.percent+'%'); }).join('<br>') : '<span class="v-zero">—</span>';
+    let pay;
+    if(Math.abs(r.owed)<0.005 && Math.abs(r.pago)<0.005) pay = '<span class="v-zero">—</span>';
+    else if(Math.abs(r.restante)<0.5) pay = '<span class="chip chip-green">Quitado</span>';
+    else pay = `${Math.abs(r.pago)>0.005?'<span class="chip chip-pending" style="margin-right:6px">Parcial</span>':''}<button class="btn-ghost btn-sm" onclick="event.stopPropagation();markWeekAsPaid('${cl.id}','${r.wk}',${r.restante.toFixed(2)})" title="Registrar o valor ${r.restante>=0?'recebido':'pago'} dessa semana">${r.restante>=0?'Receber':'Pagar'} ${cdNum(Math.abs(r.restante))}</button>`;
+    return `
+      <tr class="cd-row ${open?'open':''}" onclick="toggleClientWeek('${r.wk}')">
+        <td class="left"><b>#${cdWeekNum(r.wk)}</b> · ${cdDM(r.wk)} a ${cdDM(shiftWeek(r.wk,6))}</td>
+        <td>${r.tickets.length}<div class="cd-mini">${cdBadges(r.g, r.r, r.p)}</div></td>
+        <td class="num strong">${cdNum(r.volume)}</td>
+        <td class="num ${cdCls(r.resultado)}">${cdNum(r.resultado)}</td>
+        <td class="num">${r.desconto>0?`<b>${cdNum(r.desconto)}</b>`:'<span class="v-zero">0,00</span>'} <button class="cd-pen" onclick="event.stopPropagation();editWeekDiscount('${cl.id}','${r.wk}',${r.descontoPct})" title="Editar o desconto só dessa semana">✎</button><div class="cd-mini">${r.descontoPct}%</div></td>
+        <td class="num">${r.comissao>0?`<b class="cd-gold">${cdNum(r.comissao)}</b>`:'<span class="v-zero">0,00</span>'}</td>
+        <td>${comLabel} <button class="cd-pen" onclick="event.stopPropagation();editWeekCommissioners('${cl.id}','${r.wk}')" title="Editar comissionados só dessa semana">✎</button></td>
+        <td>${parLabel}${Math.abs(r.parceria)>=0.005?`<div class="cd-mini ${r.parceria>0?'profit-neg':'profit-pos'}">${cdNum(-r.parceria)}</div>`:''}</td>
+        <td class="num ${cdCls(r.liquido)}"><b>${cdNum(r.liquido)}</b></td>
+        <td onclick="event.stopPropagation()">${pay}</td>
+      </tr>
+      ${open ? `<tr class="cd-sub"><td colspan="10">${renderClientWeekBets(r)}</td></tr>` : ''}`;
+  };
+  return `
+    <div class="card tbl-card">
+      <div class="tbl-scroll"><table class="dash-table cd-table">
+        <thead><tr><th>Período</th><th>Apostas</th><th>Volume</th><th>Saldo</th><th>Desconto</th><th>Comissão</th><th>Comissionado</th><th>Parceiros</th><th>Líquido</th><th>Pagamento</th></tr></thead>
+        <tbody>${slice.map(line).join('')}</tbody>
+      </table></div>
+      <div class="cd-foot">
+        <span>Mostrando ${from+1} a ${Math.min(from+size, rows.length)} de ${rows.length} semanas · clique numa semana para ver as apostas</span>
+        <span class="cd-pager">
+          <button class="btn-ghost btn-sm" ${CLIENT_WK_PAGE<=1?'disabled':''} onclick="CLIENT_WK_PAGE--;render()">‹</button>
+          <b>${CLIENT_WK_PAGE}/${pages}</b>
+          <button class="btn-ghost btn-sm" ${CLIENT_WK_PAGE>=pages?'disabled':''} onclick="CLIENT_WK_PAGE++;render()">›</button>
+          <select onchange="CLIENT_WK_SIZE=+this.value;CLIENT_WK_PAGE=1;render()">${[10,20,50].map(n=>`<option value="${n}" ${n===size?'selected':''}>${n}</option>`).join('')}</select>
+        </span>
+      </div>
+    </div>`;
+}
+function toggleClientWeek(wk){ CLIENT_WK_OPEN[wk] = !CLIENT_WK_OPEN[wk]; render(); }
+function renderClientWeekBets(r){
+  const list = [...r.tickets].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  return `<div class="cd-wkbets">${list.map(t=>cdBetRow(t)).join('')}</div>`;
+}
+function cdLegsHtml(t){
+  return t.matches.map(m=>{
+    const mk = (MARKETS.find(x=>x.v===m.market)||{}).l || m.market;
+    const teams = m.away ? m.home+' x '+m.away : m.home;
+    return `<div class="cd-leg">${resultIconSmall(m.result)} <span>${cdEsc(teams)} · ${cdEsc(mk)} · <b>${cdEsc(m.selection)}</b>${m.odd>0?` <i>@${Number(m.odd).toFixed(2)}</i>`:''}</span></div>`;
+  }).join('');
+}
+function cdBetRow(t){
+  const r = ticketResultDetail(t), p = ticketProfit(t), rr = ticketResult(t);
+  return `<div class="cd-bet" onclick="abrirDetalheAposta('${t.id}')" title="Abrir detalhe da aposta">
+    <div class="cd-bd"><b>${fmtDate(t.date)}${t.time?' '+t.time:''}</b><span>#${t.ticketNumber||'—'}</span></div>
+    <div class="cd-bv"><b>${fmtNum(t.stake)}</b><span>@ ${ticketOddTotal(t)>0?effectiveOdds(t).toFixed(2):'—'}</span></div>
+    <div class="cd-bl">${cdLegsHtml(t)}</div>
+    <div class="cd-br">${resultChip(r)}<b class="${rr==='pending'||rr==='void'?'v-zero':(p>=0?'profit-pos':'profit-neg')}">${rr==='pending'?'—':cdNum(p)}</b></div>
+  </div>`;
+}
+
+// ---- Apostas do cliente ----
+function clientBetsFiltered(cl){
+  let list = STATE.tickets.filter(t=>t.clientId===cl.id);
+  if(CLIENT_BETS_STATUS!=='todas') list = list.filter(t=>ticketResult(t)===CLIENT_BETS_STATUS);
+  const q = CLIENT_BETS_Q.trim().toLowerCase();
+  if(q) list = list.filter(t=>String(t.ticketNumber||'').includes(q) || t.matches.some(m=>(String(m.home)+' '+String(m.away)+' '+String(m.selection)+' '+String(m.market)).toLowerCase().includes(q)));
+  return list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+}
+function renderClientBetsTab(cl){
+  const list = clientBetsFiltered(cl), size = 25, pages = Math.max(1, Math.ceil(list.length/size));
+  if(CLIENT_BETS_PAGE>pages) CLIENT_BETS_PAGE = pages;
+  const from = (CLIENT_BETS_PAGE-1)*size;
+  const cnt = k=>STATE.tickets.filter(t=>t.clientId===cl.id && (k==='todas'||ticketResult(t)===k)).length;
+  const seg = [['todas','Todas'],['pending','Pendente'],['green','Green'],['red','Red'],['void','Anulada']];
+  return `
+    <div class="card">
+      <div class="cd-bar">
+        <input type="text" id="cd-bets-q" placeholder="Buscar por nº, time ou mercado" value="${cdEsc(CLIENT_BETS_Q)}" oninput="CLIENT_BETS_Q=this.value;CLIENT_BETS_PAGE=1;clientBetsRefresh()">
+        <div class="ap-seg">${seg.map(([k,l])=>`<button type="button" class="${CLIENT_BETS_STATUS===k?'on':''}" onclick="CLIENT_BETS_STATUS='${k}';CLIENT_BETS_PAGE=1;render()">${l} <i>${cnt(k)}</i></button>`).join('')}</div>
+      </div>
+      <div id="cd-bets-list">${renderClientBetsList(list, from, size, pages)}</div>
+    </div>`;
+}
+function renderClientBetsList(list, from, size, pages){
+  if(!list.length) return '<div class="empty">Nenhuma aposta nesse filtro.</div>';
+  return `<div class="cd-wkbets">${list.slice(from, from+size).map(cdBetRow).join('')}</div>
+    <div class="cd-foot"><span>${from+1} a ${Math.min(from+size, list.length)} de ${list.length} apostas</span>
+    <span class="cd-pager"><button class="btn-ghost btn-sm" ${CLIENT_BETS_PAGE<=1?'disabled':''} onclick="CLIENT_BETS_PAGE--;render()">‹</button><b>${CLIENT_BETS_PAGE}/${pages}</b><button class="btn-ghost btn-sm" ${CLIENT_BETS_PAGE>=pages?'disabled':''} onclick="CLIENT_BETS_PAGE++;render()">›</button></span></div>`;
+}
+function clientBetsRefresh(){
+  const cl = STATE.clients.find(c=>c.id===CLIENT_DETAIL_ID); if(!cl) return;
+  const list = clientBetsFiltered(cl), size = 25, pages = Math.max(1, Math.ceil(list.length/size));
+  const el = document.getElementById('cd-bets-list'); if(el) el.innerHTML = renderClientBetsList(list, 0, size, pages);
+}
+
+// ---- Por esporte / por mercado ----
+const CD_SPORT_NAMES = {football:'Futebol', soccer:'Futebol', basketball:'Basquete', nba:'Basquete (NBA)', nfl:'Futebol americano', mma:'MMA', tennis:'Tênis', baseball:'Beisebol', hockey:'Hóquei', other:'Outros'};
+function renderClientSportTab(cl){
+  const tickets = STATE.tickets.filter(t=>t.clientId===cl.id && ticketResult(t)!=='pending' && ticketResult(t)!=='void');
+  if(!tickets.length) return '<div class="card"><div class="empty">Sem apostas resolvidas ainda.</div></div>';
+  // aposta de 1 seleção entra inteira no esporte/mercado dela; múltipla entra no esporte da 1ª seleção (ou "Múltiplas")
+  const sportOf = t=>{
+    if(t.matches.length>1) return 'Múltiplas';
+    const m = t.matches[0]; const sp = String((m.ref&&m.ref.sport)||m.sport||'').toLowerCase();
+    return CD_SPORT_NAMES[sp] || (sp ? sp : 'Não informado');
+  };
+  const marketOf = t=>{
+    if(t.matches.length>1) return 'Múltiplas';
+    const m = t.matches[0]; return (MARKETS.find(x=>x.v===m.market)||{}).l || m.market || 'Outro';
+  };
+  const group = fn=>{
+    const o = {};
+    tickets.forEach(t=>{ const k = fn(t); const a = o[k] = o[k] || {k, n:0, g:0, r:0, vol:0, res:0}; a.n++; a.vol += t.stake; a.res += ticketProfit(t); const rr = ticketResult(t); if(rr==='green') a.g++; else if(rr==='red') a.r++; });
+    return Object.values(o).sort((a,b)=>a.res-b.res);
+  };
+  const table = (title, rows)=>`
+    <div class="card tbl-card"><div class="tbl-tabs"><div class="tbl-tab"><span>${title}</span></div></div>
+      <div class="tbl-scroll"><table class="dash-table"><thead><tr><th>${title.replace('Por ','')}</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Perf.</th></tr></thead><tbody>
+      ${rows.map(a=>`<tr><td class="left"><b>${cdEsc(a.k)}</b></td><td>${a.n} <span class="cd-mini">${cdBadges(a.g,a.r,0)}</span></td><td class="num strong">${cdNum(a.vol)}</td><td class="num ${cdCls(a.res)}">${cdNum(a.res)}</td><td class="num perf">${a.vol>0?fmtNum(a.res/a.vol*100)+'%':'—'}</td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  return table('Por esporte', group(sportOf)) + table('Por mercado', group(marketOf));
+}
+
+// ---- Pagamentos ----
+function renderClientPaymentsTab(cl, saldoDev){
+  const sts = STATE.settlements.filter(s=>s.clientId===cl.id).sort((a,b)=>(b.paidAt||'').localeCompare(a.paidAt||''));
+  const aberto = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===cl.id && !t.excluded);
+  const totalPago = getAllSettlementsForClient(cl.id);
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div><div class="cd-kl">Saldo atual</div><div style="font-family:var(--font-mono);font-size:22px;font-weight:700" class="${saldoDev>0.01?'profit-pos':(saldoDev<-0.01?'profit-neg':'v-zero')}">${fmtBRL(Math.abs(saldoDev))}</div><div class="cd-mini">${saldoDev>0.01?'o cliente deve a você':(saldoDev<-0.01?'você deve ao cliente':'sem saldo pendente')} · já registrado em baixas: ${fmtBRL(totalPago)}</div></div>
+        <button class="btn-primary" onclick="darBaixa('${cl.id}', ${saldoDev.toFixed(2)})">+ Registrar pagamento</button>
+      </div>
+      <p class="cd-mini" style="margin:10px 0 0">O pagamento de uma semana específica é feito na aba <b>Semanas</b> (botão Receber/Pagar). Aqui você registra um acerto geral. Tudo entra no Caixa do Financeiro.</p>
+    </div>
+    <div class="card"><h3>Pagamentos registrados</h3>
+      ${sts.length===0 ? '<div class="empty">Nenhum pagamento registrado.</div>' : sts.map(s=>`
+        <div class="match-row" style="${s.excluded?'opacity:.5':''}">
+          <div class="match-desc"><span class="teams">${s.paidAt?new Date(s.paidAt).toLocaleDateString('pt-BR'):'—'} · ${s.weekStart?'semana de '+weekLabel(s.weekStart):'baixa geral'}${s.excluded?' <span class="chip chip-void">EXCLUÍDO</span>':''}</span><span class="meta">${s.createdBy&&authorName(s.createdBy)?'por '+authorName(s.createdBy):''}</span></div>
+          <div class="match-actions"><span style="font-family:var(--font-mono)" class="${s.amount>=0?'profit-pos':'profit-neg'}">${s.amount>=0?'recebido ':'pago '}${fmtBRL(Math.abs(s.amount))}</span>
+            ${s.excluded ? `<button class="btn-ghost btn-sm" onclick="restaurarMovimentacao('baixa','${s.id}')">Restaurar</button>` : `<button class="btn-danger-ghost btn-sm" onclick="excluirMovimentacao('baixa','${s.id}')">Excluir</button>`}</div>
+        </div>`).join('')}
+    </div>
+    ${aberto.length ? `<div class="card"><h3>Saldo em aberto (dívida antiga)</h3>${aberto.map(t=>`<div class="match-row"><div class="match-desc"><span class="teams">${cdEsc(t.description||'Em aberto')}</span><span class="meta">${fmtDate(t.date)}</span></div><div class="match-actions"><span style="font-family:var(--font-mono);color:var(--gold)">${fmtBRL(t.amount)}</span><button class="btn-ghost btn-sm" onclick="marcarComoRecebido('${t.id}')">Marcar recebido</button></div></div>`).join('')}</div>` : ''}`;
+}
+
+// ---- Editar ----
+function renderClientEditTab(cl, tot, baseUrl){
+  return `
     <div class="card">
       <h3>Editar cliente</h3>
       <label>Nome do cliente</label>
@@ -121,7 +365,6 @@ function renderClientDetail(id){
       <div class="card">
         <button class="btn-danger-ghost btn-full" onclick="CONFIRM_DELETE_CLIENT=true;render()">Excluir cliente</button>
       </div>
-    `}
     `}
   `;
 }

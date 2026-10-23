@@ -120,7 +120,7 @@ function renderDashboardTab(){
         <tbody>
         ${rows.map(r=>`
           <tr>
-            <td class="left"><div class="cl-cell"><span class="cl-name">${r.name}</span><a class="ic-act" href="${baseUrl}#cliente=${r.code}" target="_blank" title="Abrir relatório do cliente">${ICO_EXT}</a><button class="ic-act" onclick="gerarFechamento('${r.id}')" title="Gerar imagem de fechamento">${ICO_RECEIPT}</button><button class="ic-act" onclick="gerarFechamentoPDF('${r.id}')" title="Baixar fechamento em PDF (com os jogos da semana)">${ICO_PDF}</button></div></td>
+            <td class="left"><div class="cl-cell"><a class="cl-name cl-link" href="javascript:void(0)" onclick="openClientFromDashboard('${r.id}')" title="Abrir a página do cliente">${r.name}</a><a class="ic-act" href="${baseUrl}#cliente=${r.code}" target="_blank" title="Abrir relatório do cliente">${ICO_EXT}</a><button class="ic-act" onclick="gerarFechamento('${r.id}')" title="Gerar imagem de fechamento">${ICO_RECEIPT}</button><button class="ic-act" onclick="gerarFechamentoPDF('${r.id}')" title="Baixar fechamento em PDF (com os jogos da semana)">${ICO_PDF}</button></div></td>
             <td>${countBadges(r.tickets)}</td>
             <td class="num strong">${fmtNum(r.volume)}</td>
             <td class="num ${cls(r.resultado)}">${num(r.resultado)}</td>
