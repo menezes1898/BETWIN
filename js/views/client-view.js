@@ -97,7 +97,7 @@ function renderClientView(code){
 
   const totalResultadoSemana = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
   // Com perda E desconto: 3 cartões (Resultado / Desconto / Líquido). Senão: só o resultado, centralizado.
-  const hasDesc = resultado<0 && desconto>0;
+  const hasDesc = true;   // sempre mostra Resultado / Desconto / Líquido (mesmo sem desconto)
   const heroValue = hasDesc ? liquido : resultado;
 
   document.title = 'Relatório';
@@ -121,7 +121,7 @@ function renderClientView(code){
       </div>
       <div class="cv-stat">
         <div class="lbl">Desconto</div>
-        <div class="val profit-pos">${fmtNum(desconto)}</div>
+        <div class="val ${desconto>0?'profit-pos':''}">${fmtNum(desconto)}</div>
       </div>
       <div class="cv-stat">
         <div class="lbl">Líquido</div>
