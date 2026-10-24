@@ -17,7 +17,7 @@ function countBadges(tickets){
 
 function renderDashboardTab(){
   const weeks = allWeeksSorted();
-  if(weeks.length===0) return '<div class="card"><div class="empty">Cadastre apostas para ver a dashboard.</div></div>';
+  if(weeks.length===0) return '<div class="card"><div class="empty-cta"><span>Ainda não há apostas. Assim que você lançar a primeira, os totais da semana aparecem aqui.</span><button class="btn-primary" onclick="ADMIN_TAB=\'apostas\';startNewTicket()">+ Lançar a primeira aposta</button></div></div>';
   if(!DASH_WEEK) DASH_WEEK = weeks[0];
 
   const rows = STATE.clients.map(cl=>{
@@ -100,7 +100,7 @@ function renderDashboardTab(){
       </div>
 
       <div class="card rs-card">
-        <div class="rs-title">${ICO_CHART}<span>Resumo</span></div>
+        <div class="rs-title">${ICO_CHART}<span class="rs-tt">Geral</span></div>
         ${resRow('Apostas', `<b>${allTickets.length}</b> ${countBadges(allTickets)}`)}
         ${resRow('Volume', `<b>${fmtNum(totalVolume)}</b>`)}
         ${resRow('Resultado', `<b class="${cls(resumoResultado)}">${num(resumoResultado)}</b>`)}
@@ -114,6 +114,7 @@ function renderDashboardTab(){
     <div class="card tbl-card">
       <div class="tbl-tabs"><div class="tbl-tab">${ICO_USERS}<span>Clientes (${rows.length})</span></div></div>
       ${rows.length===0 ? '<div class="empty">Nenhuma aposta nessa semana.</div>' : `
+      <div class="tbl-note">Visão do cliente: resultado negativo = o cliente perdeu (a banca ganha). O quadro Geral mostra o mesmo valor do seu lado (verde = lucro seu).</div>
       <div class="tbl-scroll">
       <table class="dash-table">
         <thead><tr><th>Cliente</th><th>Apostas</th><th>Volume</th><th>Resultado</th><th>Desconto</th><th>Comissão</th><th>Parceria</th><th>Perf.</th><th>Líquido</th></tr></thead>
