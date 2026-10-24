@@ -100,7 +100,7 @@ function renderClientView(code){
   const hasDesc = true;   // sempre mostra Resultado / Desconto / Líquido (mesmo sem desconto)
   const heroValue = hasDesc ? liquido : resultado;
 
-  document.title = 'Relatório';
+  document.title = 'BetWin';
   app.innerHTML = `
     <div class="client-theme client-page-wrap" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#0d1420; --surface:#18212f; --surface-2:#202b3d; --surface-3:#2b3850; --line:#2a3550; --line-soft:#232d42; --text:#F5F7FA; --text-muted:#93a0ba; --red:#ff5d62; --red-dim:rgba(255,93,98,0.14); --green:#34d399; --green-dim:rgba(52,211,153,0.14); background:var(--bg);">
     <button class="cv-refresh" onclick="refreshClientData()" title="Atualizar" aria-label="Atualizar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg></button>

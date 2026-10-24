@@ -26,7 +26,7 @@ function renderCommissionerView(code){
 
   const totalComissao = rows.reduce((s,r)=>s+r.comissao,0);
 
-  document.title = 'Relatório';
+  document.title = 'BetWin';
   app.innerHTML = `
     <div class="client-theme client-page-wrap" style="--gold:#3EC1F3; --gold-dim:#1B5E86; --bg:#070B14; --surface:#10141F; --surface-2:#151B29; --line:#222B3E; --text:#F5F7FA; --text-muted:#B8BEC7; background:var(--bg);">
     <div class="client-header"><div class="name" style="color:var(--text)">${cm.name}</div></div>
