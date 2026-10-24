@@ -1,5 +1,24 @@
+// Tela mostrada quando os dados não carregaram (sem isso o site parecia "vazio" ou o link parecia inválido).
+function renderLoadError(){
+  document.body.classList.remove('is-admin');
+  document.getElementById('app').innerHTML = `
+    <div class="card state-card" role="alert">
+      <div class="state-ico" aria-hidden="true">!</div>
+      <h3>Não foi possível carregar os dados</h3>
+      <p>Verifique sua internet e tente novamente. Seus dados não foram alterados.</p>
+      <button class="btn-primary" id="retry-btn" onclick="retryLoad()">Tentar novamente</button>
+      <small>${String(LOAD_ERROR||'').replace(/[<>&]/g,'')}</small>
+    </div>`;
+}
+async function retryLoad(){
+  const b = document.getElementById('retry-btn');
+  if(b){ b.disabled = true; b.textContent = 'Carregando…'; }
+  await loadState();
+  render();
+}
 function render(){
   document.body.classList.remove('is-admin');
+  if(LOAD_ERROR){ renderLoadError(); return; }
   const hash = window.location.hash;
   const m = hash.match(/cliente=([a-zA-Z0-9]+)/);
   if(m){ renderClientView(m[1]); return; }
@@ -19,27 +38,53 @@ function renderLogin(){
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="brand">${renderBrandMark()}<span class="sub">Painel da Consultoria</span></div>
-    <div class="card" style="max-width:340px;margin:60px auto 0">
+    <form class="card login-card" onsubmit="doLogin();return false" novalidate>
       <h3>Entrar</h3>
-      <label>E-mail</label>
-      <input type="email" id="login-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()">
-      <label>Senha</label>
-      <input type="password" id="login-password" placeholder="Sua senha" onkeydown="if(event.key==='Enter') doLogin()">
-      <div id="login-error" style="color:var(--red);font-size:12px;margin-top:8px;display:none"></div>
-      <div style="margin-top:14px"><button class="btn-primary btn-full" onclick="doLogin()">Entrar</button></div>
-    </div>
+      <p class="login-hint">Acesso restrito à equipe da consultoria.</p>
+      <label for="login-email">E-mail</label>
+      <input type="email" id="login-email" name="email" placeholder="seu@email.com" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false" required>
+      <label for="login-password">Senha</label>
+      <div class="pw-wrap">
+        <input type="password" id="login-password" name="password" placeholder="Sua senha" autocomplete="current-password" required>
+        <button type="button" class="pw-toggle" onclick="toggleLoginPw(this)" aria-label="Mostrar senha" aria-pressed="false">Mostrar</button>
+      </div>
+      <div id="login-error" class="login-error" role="alert" aria-live="polite" hidden></div>
+      <div style="margin-top:16px"><button type="submit" id="login-btn" class="btn-primary btn-full">Entrar</button></div>
+      <p class="login-help">Esqueceu a senha? Peça ao administrador para gerar uma nova em Configurações › Usuários.</p>
+    </form>
   `;
   document.getElementById('login-email').focus();
+}
+function toggleLoginPw(btn){
+  const i = document.getElementById('login-password');
+  const show = i.type==='password';
+  i.type = show ? 'text' : 'password';
+  btn.textContent = show ? 'Ocultar' : 'Mostrar';
+  btn.setAttribute('aria-pressed', show?'true':'false');
+  btn.setAttribute('aria-label', show?'Ocultar senha':'Mostrar senha');
 }
 async function doLogin(){
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
-  errEl.style.display='none';
-  if(!email || !password){ errEl.textContent='Preencha e-mail e senha.'; errEl.style.display='block'; return; }
-  const {data, error} = await supabaseClient.auth.signInWithPassword({email, password});
-  if(error){ errEl.textContent='E-mail ou senha incorretos.'; errEl.style.display='block'; return; }
-  SESSION = data.session;
+  const btn = document.getElementById('login-btn');
+  const fail = (msg, focusId)=>{ errEl.textContent = msg; errEl.hidden = false; if(focusId) document.getElementById(focusId).focus(); };
+  errEl.hidden = true;
+  if(!email){ fail('Digite seu e-mail.', 'login-email'); return; }
+  if(!password){ fail('Digite sua senha.', 'login-password'); return; }
+  btn.disabled = true; btn.textContent = 'Entrando…';
+  let res;
+  try{ res = await supabaseClient.auth.signInWithPassword({email, password}); }
+  catch(e){ res = {error:{message:'network'}}; }
+  if(res.error){
+    btn.disabled = false; btn.textContent = 'Entrar';
+    const net = /fetch|network|failed/i.test(res.error.message||'');
+    fail(net ? 'Sem conexão com o servidor. Verifique a internet e tente de novo.' : 'E-mail ou senha incorretos. Confira e tente novamente.', 'login-password');
+    return;
+  }
+  SESSION = res.data.session;
+  btn.textContent = 'Carregando seus dados…';
+  await loadState();
   render();
 }
 async function doLogout(){

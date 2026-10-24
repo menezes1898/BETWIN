@@ -21,6 +21,7 @@ async function fetchAllRows(table, orderColumn){
 }
 
 async function loadState(){
+  LOAD_ERROR = null;
   try{
     const [{data: clients, error: err1}, {data: tickets, error: err2}, {data: settlements, error: err3}, {data: withdrawals, error: err4}, {data: transactions, error: err5}, {data: commissioners, error: err6}, {data: commissionerClients, error: err7}, {data: weekDiscounts, error: err8}, {data: weekCommissioners, error: err9}, {data: discountHistory, error: err10}, {data: profiles, error: err11}, {data: whatsappGroups, error: err12}, {data: partners, error: err13}, {data: partnerClients, error: err14}, {data: botValidators, error: err15}] = await Promise.all([
       fetchAllRows('clients', 'created_at'),
@@ -40,7 +41,7 @@ async function loadState(){
       fetchAllRows('bot_validators', 'created_at')
     ]);
     if(err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10){
-      showToast('Erro ao conectar no Supabase: '+((err1||err2||err3||err4||err5||err6||err7||err8||err9||err10).message)+'\nVerifique a URL e a ANON KEY no início do arquivo.');
+      LOAD_ERROR = (err1||err2||err3||err4||err5||err6||err7||err8||err9||err10).message || 'erro desconhecido';
       return;
     }
     // profiles e whatsapp_groups são opcionais (só existem depois de rodar a migração correspondente)
@@ -100,7 +101,7 @@ async function loadState(){
       id:h.id, clientId:h.client_id, discountPercent:parseFloat(h.discount_percent)||0, effectiveFromWeek:h.effective_from_week||null
     }));
   }catch(e){
-    showToast('Erro ao conectar no Supabase: '+e.message);
+    LOAD_ERROR = (e && e.message) || 'erro de conexão';
   }
 }
 

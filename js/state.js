@@ -111,3 +111,6 @@ const MARKETS = [
   {v:'Outro', l:'—', k:''},
 ];
 
+
+// Mensagem do último erro ao carregar os dados (null = tudo certo). Usada para mostrar a tela "Tentar novamente".
+let LOAD_ERROR = null;
