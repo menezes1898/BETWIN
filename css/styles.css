@@ -749,3 +749,58 @@ body.is-admin .nd-card{padding:0}
 .cd-leg{font-size:12.5px;color:var(--text-muted);display:flex;gap:6px;align-items:baseline}.cd-leg b{color:var(--text)}.cd-leg i{font-style:normal;color:var(--text)}
 .cd-br{display:flex;align-items:center;justify-content:flex-end;gap:10px;font-family:var(--font-mono);font-size:13px}
 @media (max-width:760px){.cd-bet{grid-template-columns:1fr auto;grid-template-areas:"d r" "v r" "l l"}.cd-bd{grid-area:d}.cd-bv{grid-area:v;flex-direction:row;gap:8px}.cd-br{grid-area:r}.cd-bl{grid-area:l}.cd-top{padding:14px}}
+
+/* ===== Auditoria UX: base, acessibilidade, login, estados ===== */
+input[type=email],input[type=password],input[type=search],input[type=tel],input[type=url]{
+  width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+  padding:10px 12px;border-radius:var(--radius-sm);font-family:var(--font-body);font-size:14px;
+  transition:border-color .15s var(--ease), box-shadow .15s var(--ease);
+}
+body.is-admin input[type=email],body.is-admin input[type=password],body.is-admin input[type=search],body.is-admin input[type=tel],body.is-admin input[type=url]{background:#0f151d;border-radius:8px;}
+input::placeholder,textarea::placeholder{color:var(--text-muted);opacity:.55;}
+button:disabled,.btn-primary:disabled{opacity:.55;cursor:not-allowed;filter:none;transform:none;}
+button:focus-visible,[role=button]:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+input:-webkit-autofill{-webkit-text-fill-color:var(--text);box-shadow:0 0 0 40px var(--surface-2) inset;caret-color:var(--text);}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important;}
+}
+
+/* Login */
+.login-card{max-width:380px;margin:48px auto 0;padding:26px 24px !important;}
+.login-card h3{font-size:18px;margin-bottom:4px;}
+.login-hint{margin:0 0 6px;font-size:13px;color:var(--text-muted);}
+.login-error{margin-top:12px;padding:9px 12px;border-radius:var(--radius-sm);background:var(--red-dim);color:var(--red);font-size:13px;line-height:1.4;border:1px solid rgba(242,109,109,.25);}
+.login-error[hidden]{display:none;}
+.login-help{margin:16px 0 0;font-size:12px;line-height:1.5;color:var(--text-muted);text-align:center;}
+.pw-wrap{position:relative;}
+.pw-wrap input{padding-right:78px;}
+.pw-toggle{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:transparent;color:var(--text-muted);font-size:12px;padding:6px 10px;border-radius:6px;}
+.pw-toggle:hover{color:var(--text);filter:none;background:var(--surface-3);}
+.pw-toggle:active{transform:translateY(-50%);}
+
+/* Tela de erro de carregamento */
+.state-card{max-width:420px;margin:12vh auto 0;text-align:center;padding:32px 24px !important;}
+.state-card .state-ico{width:44px;height:44px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;font-weight:700;font-size:22px;background:var(--red-dim);color:var(--red);}
+.state-card h3{font-size:17px;margin-bottom:8px;}
+.state-card p{margin:0 0 18px;font-size:13.5px;line-height:1.5;color:var(--text-muted);}
+.state-card small{display:block;margin-top:16px;font-size:11px;color:var(--text-muted);opacity:.7;word-break:break-word;}
+
+/* Estado vazio com chamada para ação */
+.empty-cta{display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 12px;color:var(--text-muted);font-size:13.5px;text-align:center;}
+
+/* Dashboard: deixa claro de quem é a perspectiva de cada bloco */
+.persp{display:block;margin:2px 0 0;font-size:11.5px;font-weight:500;color:var(--text-muted);letter-spacing:0;}
+.rs-title .rs-tt{display:flex;flex-direction:column;align-items:flex-start;line-height:1.2;margin-right:auto;}
+.rs-title .persp{font-size:11.5px;font-weight:500;color:var(--text-muted);margin-top:3px;}
+.tbl-note{padding:10px 16px 0;font-size:12px;color:var(--text-muted);}
+
+/* Celular: evita zoom automático do iOS nos campos, alvos de toque maiores e respeita o notch */
+@media (max-width:760px){
+  input[type=text],input[type=date],input[type=time],input[type=number],input[type=email],input[type=password],input[type=search],input[type=tel],select,textarea{font-size:16px;}
+  button,.btn-ghost,.btn-primary{min-height:40px;}
+  .btn-sm{min-height:34px;}
+  #app{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));}
+  .login-card{margin-top:28px;}
+  #toast-container{bottom:max(20px,env(safe-area-inset-bottom));}
+}
