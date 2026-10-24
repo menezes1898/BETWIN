@@ -25,6 +25,20 @@ function cvIcon(r){
   return '<span class="cv-ic cv-ic-pending"><svg viewBox="0 0 12 12" width="8" height="8" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M6 3v3.2l2 1.2"/></svg></span>';
 }
 
+// Celular: cada seleção cabe numa linha só. Se o texto for maior que o espaço, a fonte diminui até caber.
+function cvFitLines(){
+  const mobile = window.matchMedia('(max-width:760px)').matches;
+  document.querySelectorAll('.cv-line-txt').forEach(el=>{
+    el.style.fontSize = '';
+    if(!mobile) return;
+    let fs = parseFloat(getComputedStyle(el).fontSize) || 11.5;
+    while(el.scrollWidth > el.clientWidth + 0.5 && fs > 6.5){ fs -= 0.25; el.style.fontSize = fs+'px'; }
+  });
+}
+if(!window.__cvFitBound){
+  window.__cvFitBound = true;
+  let _t; window.addEventListener('resize', ()=>{ clearTimeout(_t); _t = setTimeout(cvFitLines, 120); });
+}
 function renderClientView(code){
   const app = document.getElementById('app');
   const client = STATE.clients.find(c=>c.code===code);
@@ -174,6 +188,8 @@ function renderClientView(code){
     </div>
     </div>
   `;
+  cvFitLines();
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(cvFitLines);
 }
 
 // ---------- COMMISSIONER VIEW ----------
