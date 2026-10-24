@@ -43,7 +43,11 @@ function apSearchMatch(t, val){
     || t.matches.some(m=>(String(m.home||'')+' '+String(m.away||'')).toLowerCase().includes(v));
 }
 
-// ---------- PENDENTES ----------
+// ---------- PENDENTES (por evento ou por aposta) ----------
+let PEND_VIEW = 'evento';              // 'evento' | 'aposta'
+let PEND_EV_SORT = 'antigos';          // antigos | apostas | valor
+const PEND_EV_CLOSED = new Set();      // eventos recolhidos
+
 function pendFiltered(){
   return apSortList(STATE.tickets.filter(t=>ticketResult(t)==='pending' && apSearchMatch(t, PEND_SEARCH.trim())), PEND_SORT);
 }
@@ -53,32 +57,186 @@ function pendKpis(list){
   const legs = list.reduce((s,t)=>s+t.matches.filter(m=>m.result==='pending').length,0);
   return apKpi('Apostas pendentes', list.length, '') + apKpi('Valor em jogo', fmtBRL(valor), '', 'gold') + apKpi('Retorno potencial', fmtBRL(pot), '', 'green') + apKpi('Seleções a conferir', legs, '');
 }
+
+// Agrupa as seleções pendentes por EVENTO (jogo) e, dentro do evento, por mercado + escolha.
+function pendEventGroups(){
+  const q = PEND_SEARCH.trim().toLowerCase();
+  const evs = new Map();
+  // Um mesmo jogo pode chegar com identificação diferente (uma aposta com a busca de eventos, outra só com os nomes,
+  // ou com os times na ordem invertida). Juntamos tudo que compartilhar a identificação OU o par de times.
+  const alias = new Map();                              // chave -> chave principal do evento
+  const find = k=>{ while(alias.has(k) && alias.get(k)!==k) k = alias.get(k); return k; };
+  STATE.tickets.forEach(t=>{
+    if(ticketResult(t)!=='pending') return;
+    t.matches.forEach(m=>{
+      if(m.result!=='pending') return;
+      const refKey = m.ref && m.ref.sport && m.ref.id!=null ? 'r:'+m.ref.sport+':'+m.ref.id : '';
+      const nameKey = 'n:'+[evtNorm(m.home||''), evtNorm(m.away||'')].sort().join('|');
+      const ks = [refKey, nameKey].filter(Boolean).map(find);
+      const key = ks[0];
+      ks.forEach(k=>{ if(k!==key){ alias.set(k, key); const old = evs.get(k); if(old){ const dst = evs.get(key); if(dst){ old.markets.forEach((mg,mk)=>{ const d = dst.markets.get(mk); if(d) d.rows.push(...mg.rows); else dst.markets.set(mk, mg); }); old.tickets.forEach(id=>{ if(!dst.tickets.has(id)){ dst.tickets.add(id); const tt = STATE.tickets.find(x=>x.id===id); if(tt) dst.stake += tt.stake; } }); if(old.date && (!dst.date || old.date<dst.date)) dst.date = old.date; evs.delete(k); } else { evs.set(key, old); old.key = key; evs.delete(k); } } } });
+      alias.set(refKey||nameKey, key); alias.set(nameKey, key); if(refKey) alias.set(refKey, key);
+      let ev = evs.get(key);
+      if(!ev){ ev = {key, home:m.home||'', away:m.away||'', sport:(m.ref&&m.ref.sport)||'', date:t.date||'', markets:new Map(), tickets:new Set(), stake:0}; evs.set(key, ev); }
+      if(!ev.sport && m.ref && m.ref.sport) ev.sport = m.ref.sport;
+      if(t.date && (!ev.date || t.date<ev.date)) ev.date = t.date;
+      const mk = evtNorm(m.market||'')+'|'+evtNorm(ouToPt(m.selection||''));
+      let mg = ev.markets.get(mk);
+      if(!mg){ mg = {key:mk, market:m.market, selection:ouToPt(m.selection||''), rows:[]}; ev.markets.set(mk, mg); }
+      mg.rows.push({t, m});
+      if(!ev.tickets.has(t.id)){ ev.tickets.add(t.id); ev.stake += t.stake; }
+    });
+  });
+  let list = Array.from(evs.values());
+  if(q){
+    list = list.filter(ev=>(ev.home+' '+ev.away).toLowerCase().includes(q)
+      || Array.from(ev.markets.values()).some(mg=>mg.rows.some(r=>String(r.t.ticketNumber||'').includes(q) || apClientName(r.t).toLowerCase().includes(q))));
+  }
+  list.forEach(ev=>{ ev.markets = Array.from(ev.markets.values()).sort((x,y)=>y.rows.length-x.rows.length); });
+  if(PEND_EV_SORT==='apostas') list.sort((x,y)=>y.tickets.size-x.tickets.size || (x.date||'').localeCompare(y.date||''));
+  else if(PEND_EV_SORT==='valor') list.sort((x,y)=>y.stake-x.stake);
+  else list.sort((x,y)=>(x.date||'9999').localeCompare(y.date||'9999') || y.tickets.size-x.tickets.size);
+  return list;
+}
+function pendEventKpis(evs){
+  const tk = new Set(); let legs = 0, valor = 0;
+  evs.forEach(ev=>{ ev.markets.forEach(mg=>{ legs += mg.rows.length; }); ev.tickets.forEach(id=>{ if(!tk.has(id)){ tk.add(id); const t = STATE.tickets.find(x=>x.id===id); if(t) valor += t.stake; } }); });
+  return apKpi('Eventos pendentes', evs.length, '') + apKpi('Apostas pendentes', tk.size, '') + apKpi('Valor em jogo', fmtBRL(valor), '', 'gold') + apKpi('Seleções a conferir', legs, '');
+}
+function pendEvDateLabel(d){
+  if(!d) return '';
+  const today = todaySP();
+  if(d===today) return 'Hoje';
+  if(d===shiftWeek(today,-1)) return 'Ontem';
+  return fmtDate(d);
+}
+function renderPendEventRow(r){
+  const t = r.t, id = t.id;
+  const others = t.matches.filter(x=>x.id!==r.m.id);
+  const odds = Number(r.m.odd);
+  const multi = others.length ? `<span class="pe-multi" title="${evtEsc('Múltipla — depende também de: '+others.map(x=>(x.home||'')+(x.away?' x '+x.away:'')+' · '+ouToPt(x.selection||'')+' ('+(x.result==='pending'?'pendente':x.result)+')').join(' | '))}">Múltipla · ${t.matches.length}</span>` : '';
+  return `
+    <div class="pe-row">
+      <div class="pe-who" onclick="abrirDetalheAposta('${id}')" title="Abrir detalhe da aposta">
+        <span class="pe-num">#${t.ticketNumber||'—'}</span>
+        <span class="pe-client">${evtEsc(apClientName(t))}</span>
+        ${multi}
+      </div>
+      <div class="pe-vals"><span>${fmtBRL(t.stake)}</span><span class="pe-odd">@${isFinite(odds)?odds.toFixed(2):'—'}</span></div>
+      <div class="bc-quick pe-quick">${RES_QUICK.map(([v,l,tt,c])=>`<button type="button" class="ap-q ${c}" title="${tt}" onclick="setMatchResult('${id}','${r.m.id}','${v}')">${l}</button>`).join('')}</div>
+    </div>`;
+}
+function renderPendEvent(ev){
+  const closed = PEND_EV_CLOSED.has(ev.key);
+  const k = evtEsc(ev.key).replace(/'/g,'&#39;');
+  const teams = ev.away ? `${evtEsc(ev.home)} <span class="bc-x">x</span> ${evtEsc(ev.away)}` : evtEsc(ev.home);
+  const sport = ev.sport ? (EVT_SPORTS.find(s=>s.id===ev.sport)||{}).label : '';
+  const marketsHtml = ev.markets.map((mg,i)=>{
+    const label = MARKETS.find(x=>x.v===mg.market)?.l || mg.market;
+    const mkId = ev.key+'||'+mg.key;
+    return `
+      <div class="pe-market">
+        <div class="pe-mk-head">
+          <div class="pe-mk-t"><span class="pe-mk-name">${evtEsc(label)}</span><b>${evtEsc(mg.selection)}</b><span class="pe-count">${mg.rows.length} aposta${mg.rows.length===1?'':'s'}</span></div>
+          <div class="pe-mk-act"><span class="pe-all">Marcar todas:</span>${RES_QUICK.map(([v,l,tt,c])=>`<button type="button" class="ap-q ${c}" title="${tt} — aplica nas ${mg.rows.length} apostas deste mercado" onclick="setMarketResult(${PEND_MKS.push({ev:ev.key,mk:mg.key})-1},'${v}')">${l}</button>`).join('')}</div>
+        </div>
+        ${mg.rows.map(renderPendEventRow).join('')}
+      </div>`;
+  }).join('');
+  return `
+    <div class="pe-card ${closed?'pe-closed':''}">
+      <div class="pe-head" onclick="togglePendEvent(${PEND_EVS.push(ev.key)-1})" role="button" tabindex="0">
+        <span class="pe-chev">${closed?'▸':'▾'}</span>
+        <div class="pe-title"><div class="pe-teams">${teams}</div><div class="pe-meta">${[pendEvDateLabel(ev.date), sport].filter(Boolean).join(' · ')}</div></div>
+        <div class="pe-sum"><span><b>${ev.tickets.size}</b> aposta${ev.tickets.size===1?'':'s'}</span><span><b>${fmtBRL(ev.stake)}</b></span></div>
+      </div>
+      ${closed ? '' : `<div class="pe-body">${marketsHtml}</div>`}
+    </div>`;
+}
+// índices de apoio (evitam colocar texto livre dentro do onclick)
+let PEND_EVS = [], PEND_MKS = [];
+function renderPendEventList(){
+  PEND_EVS = []; PEND_MKS = [];
+  const evs = pendEventGroups();
+  if(!evs.length) return `<div class="card"><div class="empty-cta"><span>${PEND_SEARCH.trim() ? 'Nenhum evento encontrado nessa busca.' : 'Tudo conferido! Não há eventos com apostas pendentes.'}</span></div></div>`;
+  return evs.map(renderPendEvent).join('');
+}
+function togglePendEvent(i){
+  const key = PEND_EVS[i]; if(key==null) return;
+  if(PEND_EV_CLOSED.has(key)) PEND_EV_CLOSED.delete(key); else PEND_EV_CLOSED.add(key);
+  refreshPendList();
+}
+function setPendEvAll(open){
+  if(open) PEND_EV_CLOSED.clear(); else pendEventGroups().forEach(ev=>PEND_EV_CLOSED.add(ev.key));
+  refreshPendList();
+}
+// Marca o mesmo resultado em todas as apostas de um mercado do evento
+async function setMarketResult(i, result){
+  const ref = PEND_MKS[i]; if(!ref) return;
+  const ev = pendEventGroups().find(e=>e.key===ref.ev);
+  const mg = ev && ev.markets.find(x=>x.key===ref.mk);
+  if(!mg) return;
+  const label = {green:'GREEN',half_green:'½ GREEN',red:'RED',half_red:'½ RED',void:'ANULADA'}[result] || result;
+  if(mg.rows.length>1 && !confirm(`Marcar ${label} em ${mg.rows.length} apostas?\n\n${ev.home}${ev.away?' x '+ev.away:''}\n${(MARKETS.find(x=>x.v===mg.market)?.l||mg.market)} · ${mg.selection}`)) return;
+  const y = window.scrollY;
+  const byTicket = new Map();
+  mg.rows.forEach(r=>{ if(r.m.result==='pending'){ r.m.result = result; byTicket.set(r.t.id, r); } });
+  const results = await Promise.all(Array.from(byTicket.keys()).map(async id=>({id, error: await apSaveMatches(id)})));
+  const failed = results.filter(x=>x.error);
+  if(failed.length){
+    mg.rows.forEach(r=>{ if(failed.some(f=>f.id===r.t.id)) r.m.result = 'pending'; });
+    showToast('Erro ao salvar '+failed.length+' aposta(s): '+failed[0].error.message, 'error');
+  } else {
+    showToast(mg.rows.length+' aposta'+(mg.rows.length===1?'':'s')+' marcada'+(mg.rows.length===1?'':'s')+' como '+label+'.', 'success');
+  }
+  render(); window.scrollTo(0, y);
+}
+
 function renderPendentesTab(){
-  const list = pendFiltered();
+  const evento = PEND_VIEW==='evento';
+  const list = evento ? null : pendFiltered();
   return `
     <div class="ap-head">
-      <div><h2 class="ap-title">Apostas pendentes</h2><div class="ap-sub">Marque o resultado de cada seleção. Clique no cartão para ver o detalhe.</div></div>
+      <div><h2 class="ap-title">Apostas pendentes</h2><div class="ap-sub">${evento ? 'Agrupadas por jogo: marque o resultado uma vez e vale para todas as apostas daquele mercado.' : 'Marque o resultado de cada seleção. Clique no cartão para ver o detalhe.'}</div></div>
       <button class="btn-primary btn-sm btn-buscar-res" onclick="buscarResultados()">🔄 Buscar resultados</button>
     </div>
-    <div class="ap-kpis" id="pend-kpis">${pendKpis(list)}</div>
+    <div class="ap-kpis" id="pend-kpis">${evento ? pendEventKpis(pendEventGroups()) : pendKpis(list)}</div>
     <div class="ap-toolbar">
-      <input type="text" id="pend-search-input" class="ap-search" placeholder="Buscar por nº, cliente ou time" value="${evtEsc(PEND_SEARCH)}" oninput="updatePendSearch(this.value)">
-      <select id="pend-sort-select" class="ap-select" onchange="setPendSort(this.value)">
-        ${[['recentes','Mais recentes'],['antigas','Mais antigas'],['maior_valor','Maior valor'],['menor_valor','Menor valor']].map(([v,l])=>`<option value="${v}" ${PEND_SORT===v?'selected':''}>${l}</option>`).join('')}
-      </select>
+      <div class="ap-seg">
+        <button class="ap-seg-b ${evento?'on':''}" onclick="setPendView('evento')">Por evento</button>
+        <button class="ap-seg-b ${!evento?'on':''}" onclick="setPendView('aposta')">Por aposta</button>
+      </div>
+      <input type="text" id="pend-search-input" class="ap-search" placeholder="${evento?'Buscar por time, cliente ou nº':'Buscar por nº, cliente ou time'}" value="${evtEsc(PEND_SEARCH)}" oninput="updatePendSearch(this.value)">
+      ${evento ? `
+        <select id="pend-sort-select" class="ap-select" onchange="setPendEvSort(this.value)">
+          ${[['antigos','Jogos mais antigos primeiro'],['apostas','Mais apostas'],['valor','Maior valor']].map(([v,l])=>`<option value="${v}" ${PEND_EV_SORT===v?'selected':''}>${l}</option>`).join('')}
+        </select>
+        <button class="btn-ghost btn-sm" onclick="setPendEvAll(false)">Recolher todos</button>
+        <button class="btn-ghost btn-sm" onclick="setPendEvAll(true)">Expandir todos</button>` : `
+        <select id="pend-sort-select" class="ap-select" onchange="setPendSort(this.value)">
+          ${[['recentes','Mais recentes'],['antigas','Mais antigas'],['maior_valor','Maior valor'],['menor_valor','Menor valor']].map(([v,l])=>`<option value="${v}" ${PEND_SORT===v?'selected':''}>${l}</option>`).join('')}
+        </select>`}
     </div>
-    <div id="pend-list">${renderPendList(list)}</div>
+    <div id="pend-list">${evento ? renderPendEventList() : renderPendList(list)}</div>
   `;
 }
 function renderPendList(list){
   return list.length===0 ? '<div class="card"><div class="empty">Nenhuma aposta pendente no momento.</div></div>' : list.map(t=>renderBetCard(t, {showEdit:true, showDuplicate:false, showDelete:false, showQuickResult:true, showAuthor:true})).join('');
 }
+function setPendView(v){ PEND_VIEW = v; render(); }
+function setPendEvSort(v){ PEND_EV_SORT = v; refreshPendList(); }
 function updatePendSearch(v){ PEND_SEARCH = v; refreshPendList(); }
 function setPendSort(v){ PEND_SORT = v; refreshPendList(); }
 function refreshPendList(){
-  const list = pendFiltered();
-  const a = document.getElementById('pend-kpis'); if(a) a.innerHTML = pendKpis(list);
-  const b = document.getElementById('pend-list'); if(b) b.innerHTML = renderPendList(list);
+  const a = document.getElementById('pend-kpis'), b = document.getElementById('pend-list');
+  if(PEND_VIEW==='evento'){
+    if(a) a.innerHTML = pendEventKpis(pendEventGroups());
+    if(b) b.innerHTML = renderPendEventList();
+  } else {
+    const list = pendFiltered();
+    if(a) a.innerHTML = pendKpis(list);
+    if(b) b.innerHTML = renderPendList(list);
+  }
 }
 
 // ---------- APOSTAS ----------
@@ -271,9 +429,10 @@ async function setMatchResult(ticketId, matchId, result){
   const match = ticket && ticket.matches.find(m=>m.id===matchId);
   if(!match || match.result!=='pending'){ showToast('Esse resultado já foi definido. Para alterar, abra o detalhe da aposta.'); render(); return; }
   match.result = result;
+  const y = window.scrollY;
   const error = await apSaveMatches(ticketId);
   if(error){ showToast('Erro ao salvar resultado: '+error.message); match.result='pending'; return; }
-  render(); if(DETAIL_ID) renderDetalhe();
+  render(); window.scrollTo(0, y); if(DETAIL_ID) renderDetalhe();
 }
 // pela janela de detalhe: pode trocar um resultado já definido (inclusive voltar para pendente)
 async function setLegResult(ticketId, matchId, result){
