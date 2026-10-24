@@ -28,7 +28,7 @@ function render(){
   if(me){ if(typeof renderEncontroView==='function'){ renderEncontroView(me[1]); } else { document.getElementById('app').innerHTML='<div class="empty">Arquivo js/views/encontro-view.js não encontrado no site.</div>'; } return; }
   const mp = hash.match(/parceiro=([a-zA-Z0-9]+)/);
   if(mp){ renderPartnerView(mp[1]); return; }
-  document.title = 'Boletim — Consultoria';
+  document.title = 'BetWin';
   if(!SESSION){ renderLogin(); return; }
   renderAdmin();
 }
