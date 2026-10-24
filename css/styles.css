@@ -256,8 +256,11 @@
   @media (max-width:760px){
     .client-page-wrap{padding-left:12px;padding-right:12px;}
     .cv-head{display:none;}
-    .cv-row{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"date meta result" "details details details";column-gap:10px;row-gap:8px;padding:11px 10px 12px;}
-    .cv-date{grid-area:date;}
+    .cv-row{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"date meta result" "details details details" "id id id";column-gap:10px;row-gap:7px;padding:11px 10px 10px;}
+    .cv-date{display:contents;}
+    .cv-date .d1{grid-area:date;}
+    .cv-date .d2{grid-area:id;margin-top:0;font-size:9px;font-weight:600;opacity:.8;gap:6px;}
+    .cv-date .d2 .cv-tag,.cv-date .d2 .cv-print{width:16px;height:15px;min-height:0;margin-left:0;}
     .cv-result{grid-area:result;font-size:14px;align-self:start;}
     .cv-meta{grid-area:meta;display:flex;gap:10px;justify-content:center;align-self:start;flex-wrap:wrap;row-gap:2px;}
     .cv-val,.cv-odds{text-align:left;font-size:12px;white-space:nowrap;}
