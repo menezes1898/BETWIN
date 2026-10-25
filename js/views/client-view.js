@@ -111,8 +111,9 @@ function renderClientView(code){
 
   const totalResultadoSemana = weekTickets.reduce((s,t)=>s+ticketProfit(t),0);
   // Com perda E desconto: 3 cartões (Resultado / Desconto / Líquido). Senão: só o resultado, centralizado.
-  const hasDesc = true;   // sempre mostra Resultado / Desconto / Líquido (mesmo sem desconto)
-  const heroValue = hasDesc ? liquido : resultado;
+  // Saldo negativo: mostra Resultado / Desconto / Líquido. Saldo positivo (ou zerado): só o Líquido, sem o campo de desconto.
+  const hasDesc = resultado < -0.004;
+  const heroValue = liquido;
 
   document.title = 'BetWin';
   app.innerHTML = `
