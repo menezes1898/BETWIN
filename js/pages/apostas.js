@@ -242,12 +242,15 @@ function refreshPendList(){
 // ---------- APOSTAS ----------
 function computeFilteredTickets(){
   let list = [...STATE.tickets];
-  if(TICKET_FILTER !== 'todas') list = list.filter(t=>ticketResult(t)===TICKET_FILTER);
+  if(TICKET_FILTER !== 'todas') list = list.filter(t=>ticketResult(t)===TICKET_FILTER || TICKET_KEEP.has(t.id));
   const searchEl = document.getElementById('ticket-search-input');
-  const val = searchEl ? searchEl.value.trim() : '';
+  if(searchEl) TICKET_SEARCH = searchEl.value;
+  const val = TICKET_SEARCH.trim();
   if(val) list = list.filter(t=>apSearchMatch(t, val));
   return apSortList(list, TICKET_SORT);
 }
+// marca a aposta como "em uso": ao dar green/red ela não some da lista filtrada (some só quando você trocar o filtro ou a busca)
+function apKeep(ticketId){ TICKET_KEEP.add(ticketId); }
 function apostasKpis(list){
   const abertas = list.filter(t=>ticketResult(t)==='pending');
   const resolvidas = list.filter(t=>{ const r = ticketResult(t); return r!=='pending' && r!=='void'; });
@@ -289,7 +292,7 @@ function goToTicketPage(p){
   refreshTicketList(false);
   document.getElementById('ticket-list-container')?.scrollIntoView({behavior:'smooth', block:'start'});
 }
-function setTicketFilter(f){ TICKET_FILTER = f; TICKET_PAGE = 1; render(); }
+function setTicketFilter(f){ TICKET_FILTER = f; TICKET_KEEP.clear(); TICKET_PAGE = 1; render(); }
 function setTicketSort(s){ TICKET_SORT = s; TICKET_PAGE = 1; render(); }
 
 function renderApostasTab(){
@@ -307,7 +310,7 @@ function renderApostasTab(){
     </div>
     <div class="ap-kpis" id="ap-kpis">${apostasKpis(filtered)}</div>
     <div class="ap-toolbar">
-      <input type="text" id="ticket-search-input" class="ap-search" placeholder="Buscar por nº, cliente ou time" oninput="updateTicketSearch()">
+      <input type="text" id="ticket-search-input" class="ap-search" placeholder="Buscar por nº, cliente ou time" value="${String(TICKET_SEARCH).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}" oninput="updateTicketSearch()">
       <div class="ap-seg">
         ${chips.map(([v,l])=>`<button class="ap-seg-b ${TICKET_FILTER===v?'on':''}" onclick="setTicketFilter('${v}')">${l}<span>${counts[v]||0}</span></button>`).join('')}
       </div>
@@ -326,7 +329,7 @@ function renderApostasTab(){
 function renderTicketListItems(list){
   return list.length===0 ? '<div class="card"><div class="empty">Nenhuma aposta encontrada.</div></div>' : list.map(renderTicketCard).join('');
 }
-function updateTicketSearch(){ refreshTicketList(true); }
+function updateTicketSearch(){ TICKET_KEEP.clear(); refreshTicketList(true); }
 function ticketDetailsShort(ticket){
   return ticket.matches.map(m=>{
     const marketLabel = MARKETS.find(x=>x.v===m.market)?.l || m.market;
@@ -428,7 +431,7 @@ async function setMatchResult(ticketId, matchId, result){
   const ticket = STATE.tickets.find(t=>t.id===ticketId);
   const match = ticket && ticket.matches.find(m=>m.id===matchId);
   if(!match || match.result!=='pending'){ showToast('Esse resultado já foi definido. Para alterar, abra o detalhe da aposta.'); render(); return; }
-  match.result = result;
+  match.result = result; apKeep(ticketId);
   const y = window.scrollY;
   const error = await apSaveMatches(ticketId);
   if(error){ showToast('Erro ao salvar resultado: '+error.message); match.result='pending'; return; }
@@ -441,7 +444,7 @@ async function setLegResult(ticketId, matchId, result){
   if(!match) return;
   const old = match.result;
   if(old===result) return;
-  match.result = result;
+  match.result = result; apKeep(ticketId);
   const error = await apSaveMatches(ticketId);
   if(error){ showToast('Erro ao salvar resultado: '+error.message); match.result = old; return; }
   render(); renderDetalhe();
@@ -565,6 +568,7 @@ async function liquidarManual(ticketId){
   } else {
     t.matches.forEach(m=>m.result='void');
   }
+  apKeep(ticketId);
   const error = await apSaveMatches(ticketId, extra);
   if(error){ showToast('Erro ao salvar resultado: '+error.message); t.matches.forEach((m,i)=>m.result=before[i]); t.odds = beforeOdds; return; }
   showToast('Resultado registrado.');
