@@ -113,6 +113,9 @@ function renderClientView(code){
   // Com perda E desconto: 3 cartões (Resultado / Desconto / Líquido). Senão: só o resultado, centralizado.
   // Saldo negativo: mostra Resultado / Desconto / Líquido. Saldo positivo (ou zerado): só o Líquido, sem o campo de desconto.
   const hasDesc = resultado < -0.004;
+  // Conta de Descarga: sempre mostra Valor jogado / Desconto / Líquido (valor jogado = apostas já resolvidas da semana, sem pendentes e anuladas)
+  const isDesc = !!client.isDescarga;
+  const valorJogado = weekTickets.filter(t=>{ const r = ticketResult(t); return r!=='pending' && r!=='void'; }).reduce((a,t)=>a+t.stake,0);
   const heroValue = liquido;
 
   document.title = 'BetWin';
@@ -128,7 +131,22 @@ function renderClientView(code){
       <button class="cv-week-btn" onclick="changeClientWeek(1)" aria-label="Próxima semana">›</button>
     </div>
 
-    ${hasDesc ? `
+    ${isDesc ? `
+    <div class="cv-stats">
+      <div class="cv-stat">
+        <div class="lbl">Valor jogado</div>
+        <div class="val">${fmtNum(valorJogado)}</div>
+      </div>
+      <div class="cv-stat">
+        <div class="lbl">Desconto</div>
+        <div class="val ${desconto>0?'profit-neg':''}">${fmtNum(desconto)}</div>
+      </div>
+      <div class="cv-stat">
+        <div class="lbl">Líquido</div>
+        <div class="val ${liquido>=0?'profit-pos':'profit-neg'}">${fmtNum(liquido)}</div>
+      </div>
+    </div>
+    ` : hasDesc ? `
     <div class="cv-stats">
       <div class="cv-stat">
         <div class="lbl">Resultado</div>
