@@ -225,7 +225,9 @@ function showFechamentoPreview(dataUrl, clientName, weekMonday){
   btnRow.style.cssText = 'display:flex;gap:10px;';
   const downloadBtn = document.createElement('a');
   downloadBtn.href = dataUrl;
-  downloadBtn.download = `fechamento-${clientName.replace(/\s+/g,'-').toLowerCase()}-${weekMonday}.png`;
+  { const _dd = (d)=>{ const p = d.toISOString().slice(0,10).split('-'); return p[2]+'-'+p[1]+'-'+p[0]; };
+    const _s = new Date(weekMonday+'T12:00:00'), _d = new Date(_s); _d.setDate(_s.getDate()+6);
+    downloadBtn.download = `fechamento semanal - ${String(clientName).replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim()} - semana ${_dd(_s)} a ${_dd(_d)}.png`; }
   downloadBtn.textContent = 'Baixar imagem';
   downloadBtn.className = 'btn-primary';
   downloadBtn.style.cssText = 'padding:10px 18px;border-radius:4px;text-decoration:none;font-weight:600;';

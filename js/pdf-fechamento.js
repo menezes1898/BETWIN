@@ -387,8 +387,11 @@ async function gerarFechamentoPDF(clientId){
       doc.text(`Pagina ${i} de ${total}`, PW-M, 291, {align:'right'});
     }
 
-    const safeName = cl.name.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'-') || 'cliente';
-    const file = `fechamento-${safeName}-${weekMonday}.pdf`;
+    // nome do arquivo: "fechamento semanal - CLIENTE - semana 26-10-2026 a 01-11-2026.pdf"
+    const safeName = String(cl.name||'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim() || 'cliente';
+    const dd = (d)=>{ const p = d.toISOString().slice(0,10).split('-'); return p[2]+'-'+p[1]+'-'+p[0]; };
+    const fSeg = new Date(weekMonday+'T12:00:00'), fDom = new Date(fSeg); fDom.setDate(fSeg.getDate()+6);
+    const file = `fechamento semanal - ${safeName} - semana ${dd(fSeg)} a ${dd(fDom)}.pdf`;
     doc.save(file);
     showToast('PDF gerado: '+file);
   }catch(err){
