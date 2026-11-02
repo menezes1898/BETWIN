@@ -106,9 +106,12 @@ async function gerarFechamento(clientId){
   // Saldo anterior: saldo contínuo (todas as semanas anteriores + saldo em aberto,
   // já líquido de tudo que foi pago) — exatamente o mesmo cálculo usado no Financeiro.
   const openTransactions = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId);
-  const temSaldoAnterior = Math.abs(computeContinuousBalance(clientId, weekMonday)) >= 0.01;
+  // Pagamento preso a ESTA semana (botão "Marcar como pago" da semana) entra no saldo da semana, não no anterior.
+  const pagoSemana = getWeekSettlementsSum(clientId, weekMonday);
+  const temPagoSemana = Math.abs(pagoSemana) >= 0.01;
+  const temSaldoAnterior = Math.abs(computeContinuousBalance(clientId, weekMonday)) >= 0.01 || temPagoSemana;
   const saldoAnterior = -computeContinuousBalance(clientId, weekMonday);
-  const saldoSemana = applyDescontoSign(cl, subtotal, desconto);
+  const saldoSemana = applyDescontoSign(cl, subtotal, desconto) + pagoSemana;
   const saldoTotal = saldoSemana + saldoAnterior;
 
   // Monta a lista de linhas a desenhar
@@ -118,6 +121,9 @@ async function gerarFechamento(clientId){
   linhas.push(['SUBTOTAL:', (subtotal>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(subtotal)).replace('R$','').trim(), subtotal>=0?'#3FB68B':'#E0575A', false]);
   if(temDesconto){
     linhas.push(['DESCONTO:', 'R$ + '+fmtBRL(desconto).replace('R$','').trim(), '#3EC1F3', false]);
+  }
+  if(temPagoSemana){
+    linhas.push(['PAGAMENTO DA SEMANA:', (pagoSemana>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(pagoSemana)).replace('R$','').trim(), '#3EC1F3', false]);
   }
   if(temSaldoAnterior){
     linhas.push(['SALDO DA SEMANA:', (saldoSemana>=0?'R$ + ':'R$ - ')+fmtBRL(Math.abs(saldoSemana)).replace('R$','').trim(), saldoSemana>=0?'#3FB68B':'#E0575A', false]);

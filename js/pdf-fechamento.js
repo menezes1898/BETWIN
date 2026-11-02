@@ -54,9 +54,11 @@ async function gerarFechamentoPDF(clientId){
     const descontoPct = getWeekDiscount(cl, weekMonday);
     const desconto = computeDescontoAmount(cl, subtotal, weekMonday);
     const temDesconto = desconto>0;
-    const temSaldoAnterior = Math.abs(computeContinuousBalance(clientId, weekMonday)) >= 0.01;
+    const pagoSemana = getWeekSettlementsSum(clientId, weekMonday);   // pagamento preso a esta semana
+    const temPagoSemana = Math.abs(pagoSemana) >= 0.01;
+    const temSaldoAnterior = Math.abs(computeContinuousBalance(clientId, weekMonday)) >= 0.01 || temPagoSemana;
     const saldoAnterior = -computeContinuousBalance(clientId, weekMonday);
-    const saldoSemana = applyDescontoSign(cl, subtotal, desconto);
+    const saldoSemana = applyDescontoSign(cl, subtotal, desconto) + pagoSemana;
     const saldoTotal = saldoSemana + saldoAnterior;
 
     // ===================== VISUAL (só apresentação; os números acima não mudam) =====================
@@ -175,7 +177,7 @@ async function gerarFechamentoPDF(clientId){
     doc.setTextColor(...(saldoTotal>=0 ? [74,222,128] : [255,123,130])); doc.text(saldoTxt, M+8, y+17.5);
     if(temSaldoAnterior){
       const rx = PW-M-8;
-      [['Saldo da semana', saldoSemana, y+9.5], ['Saldo anterior', saldoAnterior, y+18.5]].forEach(([l,v,yy])=>{
+      [[temPagoSemana ? 'Saldo da semana (com pagamento)' : 'Saldo da semana', saldoSemana, y+9.5], ['Saldo anterior', saldoAnterior, y+18.5]].forEach(([l,v,yy])=>{
         label(l, rx, yy-3.6, {align:'right', color:[143,179,220], size:6.3});
         doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
         doc.text(pdfSigned(v), rx, yy+0.8, {align:'right'});

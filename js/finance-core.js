@@ -39,8 +39,14 @@ function computeContinuousBalance(clientId, excludeWeek){
   });
   const emAbertoAmount = STATE.transactions.filter(t=>t.type==='em_aberto' && t.clientId===clientId && !t.excluded).reduce((s,x)=>s+x.amount,0);
   const totalOwed = totalBetAdmin + emAbertoAmount;
-  const totalPaid = getAllSettlementsForClient(clientId);
+  // Pagamentos presos à semana excluída ficam de fora: eles pertencem àquela semana (aparecem no "saldo da semana"
+  // do fechamento), e não ao saldo anterior. O total geral continua o mesmo.
+  const totalPaid = STATE.settlements.filter(x=>x.clientId===clientId && !x.excluded && !(excludeWeek && x.weekStart===excludeWeek)).reduce((a,x)=>a+x.amount,0);
   return totalOwed - totalPaid;
+}
+// Soma dos pagamentos/baixas presos a UMA semana específica daquele cliente ("Marcar como pago" da semana).
+function getWeekSettlementsSum(clientId, weekStart){
+  return STATE.settlements.filter(x=>x.clientId===clientId && !x.excluded && x.weekStart===weekStart).reduce((a,x)=>a+x.amount,0);
 }
 // Devolve o valor (perspectiva admin: positivo = você deve receber) que UMA semana
 // específica de UM cliente gerou sozinha, sem misturar com o saldo de outras semanas.
