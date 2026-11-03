@@ -148,9 +148,11 @@ function renderConfigTab(){
   const savedDashboardLogo = localStorage.getItem(DASHBOARD_LOGO_KEY);
   const logoHidden = localStorage.getItem(LOGO_HIDDEN_KEY)==='true';
   setTimeout(startBotStatusPoll, 0);
+  setTimeout(fmsgInit, 0);
   return `
     <div class="card" id="bot-status-card">${renderBotStatusCard()}</div>
     <div class="card" id="backup-card">${renderBackupCard()}</div>
+    <div class="card" id="fmsg-card">${renderFechamentoMsgCard()}</div>
     <div class="card" id="users-card">${renderUsuariosCard()}</div>
     <div class="card">
       <h3>Busca automática de jogos (API-Sports)</h3>
