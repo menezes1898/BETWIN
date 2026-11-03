@@ -35,14 +35,16 @@ function pdfSafe(s){
 function pdfMoney(v){ return fmtBRL(Math.abs(v)).replace(/ /g,' '); }
 function pdfSigned(v){ return (v>=0?'+ ':'- ')+pdfMoney(v); }
 
-async function gerarFechamentoPDF(clientId){
+// opts (usado pelo envio no WhatsApp): {week:'AAAA-MM-DD', returnOnly:true} -> não baixa; devolve {file, base64, texto}
+async function gerarFechamentoPDF(clientId, opts){
+  const so = !!(opts && opts.returnOnly);
   try{
     const cl = STATE.clients.find(c=>c.id===clientId);
-    if(!cl){ showToast('Cliente não encontrado.'); return; }
-    showToast('Gerando PDF...');
+    if(!cl){ if(so) throw new Error('Cliente não encontrado.'); showToast('Cliente não encontrado.'); return; }
+    if(!so) showToast('Gerando PDF...');
     await ensurePdfLibs();
 
-    const weekMonday = DASH_WEEK || mondayOf(todaySP());
+    const weekMonday = (opts && opts.week) || DASH_WEEK || mondayOf(todaySP());
     const allWeek = STATE.tickets.filter(t=>t.clientId===clientId && mondayOf(ticketDate(t))===weekMonday)
       .sort((a,b)=>ticketDate(a).localeCompare(ticketDate(b)) || (a.time||'').localeCompare(b.time||''));
     const tickets = allWeek.filter(t=>ticketResult(t)!=='void');
@@ -394,9 +396,15 @@ async function gerarFechamentoPDF(clientId){
     const dd = (d)=>{ const p = d.toISOString().slice(0,10).split('-'); return p[2]+'-'+p[1]+'-'+p[0]; };
     const fSeg = new Date(weekMonday+'T12:00:00'), fDom = new Date(fSeg); fDom.setDate(fSeg.getDate()+6);
     const file = `fechamento semanal - ${safeName} - semana ${dd(fSeg)} a ${dd(fDom)}.pdf`;
+    if(so){
+      const texto = await montarMensagemFechamento(clientId, weekMonday);
+      const b64 = doc.output('datauristring').split(',')[1];
+      return {file, base64:b64, texto, saldoTotal};
+    }
     doc.save(file);
     showToast('PDF gerado: '+file);
   }catch(err){
+    if(so) throw err;
     showToast('Erro ao gerar o PDF: '+err.message);
   }
 }

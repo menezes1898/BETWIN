@@ -5,7 +5,7 @@ const BACKUP_TABLES = [
   'clients','tickets','settlements','withdrawals','transactions',
   'commissioners','commissioner_clients','client_week_discount','client_week_commissioners','client_discount_history',
   'profiles','whatsapp_groups','partners','partner_clients',
-  'bot_validators','bot_status','bot_groups','bot_launches','account_meetings'
+  'bot_validators','bot_status','bot_groups','bot_launches','account_meetings','app_settings'
 ];
 const BACKUP_LAST_KEY = 'betwin_last_backup';
 let BACKUP_RUNNING = false;

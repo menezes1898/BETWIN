@@ -112,7 +112,9 @@ const NAV_ICONS = {
   menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',
   logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
-  collapse:'<path d="m15 6-6 6 6 6"/>'
+  collapse:'<path d="m15 6-6 6 6 6"/>',
+  send:'<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>',
+  image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/>'
 };
 function navIcon(name, size){
   const s = size || 18;
@@ -152,6 +154,8 @@ function adminNavModel(pendentesCount, conferenciaCount){
       {tab:'parcerias', label:'Parcerias', icon:'link'}
     ]},
     {tab:'financeiro', label:'Financeiro', icon:'wallet'},
+    {tab:'fechamentos', label:'Fechamentos', icon:'send'},
+    {tab:'artes', label:'Artes do dia', icon:'image'},
     {tab:'config', label:'Configurações', icon:'settings'}
   ];
 }
@@ -229,6 +233,8 @@ function renderAdmin(){
   if(ADMIN_TAB==='parceiros') c.innerHTML = renderParceirosTab();
   if(ADMIN_TAB==='parcerias') c.innerHTML = renderParceriasTab();
   if(ADMIN_TAB==='destaques') c.innerHTML = renderDestaquesTab();
+  if(ADMIN_TAB==='fechamentos') c.innerHTML = renderFechamentosTab();
+  if(ADMIN_TAB==='artes') c.innerHTML = renderArtesTab();
   if(ADMIN_TAB==='config') c.innerHTML = renderConfigTab();
 }
 function setTab(t){ ADMIN_TAB=t; ADMIN_SUBVIEW='list'; render(); }
