@@ -3,6 +3,17 @@
 // Nada é enviado sem uma janela de confirmação mostrando o PERÍODO, para não mandar a semana errada sem querer.
 let FECH_WEEK = null;
 let FECH_OUT = {};            // client_id -> {status, sent_at, error} do envio mais recente DA SEMANA mostrada
+// Clientes DESMARCADOS (não entram no "Enviar selecionados"). Fica guardado no navegador: um grupo de descarga desmarcado
+// continua desmarcado nas outras semanas. Cliente novo vem marcado.
+let FECH_EXCL = new Set();
+try{ FECH_EXCL = new Set(JSON.parse(localStorage.getItem('betwin_fech_excl')||'[]')); }catch(e){}
+function fechSalvarExcl(){ try{ localStorage.setItem('betwin_fech_excl', JSON.stringify([...FECH_EXCL])); }catch(e){} }
+function fechToggle(id){ if(FECH_EXCL.has(id)) FECH_EXCL.delete(id); else FECH_EXCL.add(id); fechSalvarExcl(); render(); }
+function fechToggleTodos(marcar){
+  fechRows().filter(r=>r.cl.waGroupId).forEach(r=>{ if(marcar) FECH_EXCL.delete(r.cl.id); else FECH_EXCL.add(r.cl.id); });
+  fechSalvarExcl(); render();
+}
+function fechSelecionados(){ return fechRows().filter(r=>r.cl.waGroupId && !FECH_EXCL.has(r.cl.id)); }
 let FECH_TABELA_OK = true, FECH_ERR = '', FECH_BUSY = false, FECH_POLL = null;
 
 const FECH_MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
@@ -44,6 +55,7 @@ function renderFechamentosTab(){
     const pode = !!r.cl.waGroupId;
     const cor = r.saldo>0.004 ? 'profit-pos' : (r.saldo<-0.004 ? 'profit-neg' : '');
     return `<tr>
+      <td style="width:34px;text-align:center"><input type="checkbox" ${pode?'':'disabled'} ${pode && !FECH_EXCL.has(r.cl.id)?'checked':''} onchange="fechToggle('${r.cl.id}')" title="${pode?'Marcado = entra no &quot;Enviar selecionados&quot;':'Sem grupo vinculado'}" style="width:16px;height:16px;cursor:pointer"></td>
       <td class="left"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b>${fechEsc(r.cl.name)}</b>
         <button class="btn-primary btn-sm" ${pode?'':'disabled'} onclick="fechEnviarUm('${r.cl.id}')" title="${pode?'Enviar o fechamento só deste cliente (serve também para reenviar)':'Vincule o grupo do cliente em Clientes'}">📤 Enviar</button>
         <button class="btn-ghost btn-sm" onclick="gerarFechamentoPDFSemana('${r.cl.id}')" title="Baixar o PDF deste cliente (não envia nada)">PDF</button></div></td>
@@ -54,6 +66,7 @@ function renderFechamentosTab(){
     </tr>`;
   }).join('');
   const enviaveis = rows.filter(r=>r.cl.waGroupId);
+  const marcados = enviaveis.filter(r=>!FECH_EXCL.has(r.cl.id));
   return `
     <div class="card" style="margin-bottom:14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -64,7 +77,7 @@ function renderFechamentosTab(){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-ghost btn-sm" onclick="fechIrSemanaPassada()">Semana passada</button>
-          <button class="btn-primary" ${enviaveis.length&&!FECH_BUSY?'':'disabled'} onclick="fechEnviarTodos()">📤 Enviar todos (${enviaveis.length})</button>
+          <button class="btn-primary" ${marcados.length&&!FECH_BUSY?'':'disabled'} onclick="fechEnviarTodos()">📤 Enviar selecionados (${marcados.length} de ${enviaveis.length})</button>
         </div>
       </div>
       ${andamento ? `<div style="margin-top:10px;padding:9px 12px;border:1px solid var(--gold);border-radius:10px;font-size:12.5px;color:var(--gold)">⚠️ Esta semana ainda está em andamento. Confirme que é mesmo ela que você quer enviar.</div>` : ''}
@@ -72,8 +85,8 @@ function renderFechamentosTab(){
       ${FECH_TABELA_OK ? '' : `<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--red);border-radius:10px;font-size:12.5px">A fila de envio ainda não foi criada no banco (rode o SQL do envio de fechamentos). <span style="color:var(--text-muted)">${fechEsc(FECH_ERR)}</span></div>`}
     </div>
     <div class="card" style="padding:0;overflow:auto">
-      <table class="tbl"><thead><tr><th class="left">Cliente</th><th class="left">Grupo do WhatsApp</th><th>Apostas</th><th>Saldo final</th><th class="left">Envio</th></tr></thead>
-      <tbody>${linhas || '<tr><td colspan="5" class="empty">Nenhum cliente com apostas nesta semana.</td></tr>'}</tbody></table>
+      <table class="tbl"><thead><tr><th style="width:34px;text-align:center"><input type="checkbox" ${enviaveis.length && marcados.length===enviaveis.length?'checked':''} onchange="fechToggleTodos(this.checked)" title="Marcar / desmarcar todos" style="width:16px;height:16px;cursor:pointer"></th><th class="left">Cliente</th><th class="left">Grupo do WhatsApp</th><th>Apostas</th><th>Saldo final</th><th class="left">Envio</th></tr></thead>
+      <tbody>${linhas || '<tr><td colspan="6" class="empty">Nenhum cliente com apostas nesta semana.</td></tr>'}</tbody></table>
     </div>
     <p class="muted" style="font-size:12px;margin:10px 4px">O robô precisa estar ligado para entregar. A mensagem enviada com o PDF é editada em Configurações › Mensagem do fechamento.</p>`;
 }
@@ -134,15 +147,18 @@ async function fechEnviarUm(id){
 async function fechEnviarTodos(){
   if(FECH_BUSY) return;
   const week = fechWeek();
-  const todos = fechRows().filter(r=>r.cl.waGroupId);
+  const todos = fechSelecionados();
+  if(!todos.length){ showToast('Nenhum cliente marcado. Marque os grupos que vão receber o fechamento.', 'error'); return; }
   const novos = todos.filter(r=>{ const o = FECH_OUT[r.cl.id]; return !(o && ['enviado','pendente','enviando'].includes(o.status)); });
-  if(!novos.length){ showToast('Todos os clientes desta semana já foram enviados. Use o botão "Enviar" de cada cliente para reenviar.', 'error'); return; }
+  if(!novos.length){ showToast('Os clientes marcados já foram enviados nesta semana. Use o botão "Enviar" de cada cliente para reenviar.', 'error'); return; }
   const puladas = todos.length - novos.length;
-  const aviso = `Vão ser enviados <b>${novos.length} fechamento${novos.length>1?'s':''}</b> (cada um no grupo do cliente).`
+  const naoMarcados = fechRows().filter(r=>r.cl.waGroupId && FECH_EXCL.has(r.cl.id)).length;
+  const aviso = `Vão ser enviados <b>${novos.length} fechamento${novos.length>1?'s':''}</b> (cada um no grupo do cliente):<br><span style="color:var(--text-muted)">${novos.map(r=>fechEsc(r.cl.name)).join(', ')}</span>`
+    + (naoMarcados ? `<br>${naoMarcados} desmarcado${naoMarcados>1?'s':''} ficam de fora.` : '')
     + (puladas ? `<br>${puladas} já enviado${puladas>1?'s':''} nesta semana ${puladas>1?'ficam':'fica'} de fora.` : '')
     + (week>=mondayOf(todaySP()) ? '<br><span style="color:var(--gold)">⚠️ Esta semana ainda está em andamento.</span>' : '');
   const exemplo = await montarMensagemFechamento(novos[0].cl.id, week);
-  if(!(await fechConfirmar({titulo:'Enviar todos os fechamentos?', aviso, mensagem: exemplo, rotuloOk:'Confirmar e enviar todos'}))) return;
+  if(!(await fechConfirmar({titulo:'Enviar os fechamentos selecionados?', aviso, mensagem: exemplo, rotuloOk:'Confirmar e enviar'}))) return;
   FECH_BUSY = true; render();
   let ok = 0; const falhas = [];
   for(let i=0;i<novos.length;i++){
