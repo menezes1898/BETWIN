@@ -34,20 +34,20 @@ function evBadge(name, big){
 function evGroups(){
   const evs = new Map(), alias = new Map();
   const find = k=>{ while(alias.has(k) && alias.get(k)!==k) k = alias.get(k); return k; };
-  const hoje = todaySP(), limite = shiftWeek(hoje, -2);
+  const limite = mondayOf(todaySP());                           // só a semana atual em diante
   STATE.tickets.forEach(t=>{
-    const temPend = t.matches.some(m=>m.result==='pending');
-    if(!temPend && (t.date||'') < limite) return;               // histórico antigo fica de fora
     t.matches.forEach(m=>{
-      if(!m.home) return;
+      if(!m.home && !m.selection) return;
+      const titulo = m.home || m.selection;
+      const longo = !m.away;
       const refKey = m.ref && m.ref.sport && m.ref.id!=null ? 'r:'+m.ref.sport+':'+m.ref.id : '';
-      const nameKey = 'n:'+[evtNorm(m.home||''), evtNorm(m.away||'')].sort().join('|');
+      const nameKey = longo ? 'l:'+evtNorm(titulo)+'|'+evtNorm(m.market||'') : 'n:'+[evtNorm(m.home||''), evtNorm(m.away||'')].sort().join('|');
       const ks = [refKey, nameKey].filter(Boolean).map(find);
       const key = ks[0];
       ks.forEach(k=>{ if(k!==key){ alias.set(k, key); const old = evs.get(k); if(old){ const dst = evs.get(key); if(dst){ dst.rows.push(...old.rows); if(!dst.ref && old.ref) dst.ref = old.ref; evs.delete(k); } else { evs.set(key, old); old.key = key; evs.delete(k); } } } });
       alias.set(refKey||nameKey, key); alias.set(nameKey, key); if(refKey) alias.set(refKey, key);
       let ev = evs.get(key);
-      if(!ev){ ev = {key, home:m.home||'', away:m.away||'', date:'', time:'', ref:null, rows:[]}; evs.set(key, ev); }
+      if(!ev){ ev = {key, home:titulo, away:m.away||'', sub: longo ? (marketLabelOf(m.market)||'') : '', longo, date:'', time:'', ref:null, rows:[]}; evs.set(key, ev); }
       if(m.ref && m.ref.sport && !ev.ref) ev.ref = m.ref;
       const d = m.date || t.date || '';
       if(d && (!ev.date || d<ev.date)){ ev.date = d; ev.time = m.time ? String(m.time).slice(0,5) : ev.time; }
@@ -55,7 +55,7 @@ function evGroups(){
       ev.rows.push({t, m});
     });
   });
-  return Array.from(evs.values()).map(ev=>{
+  return Array.from(evs.values()).filter(ev=>ev.longo ? ev.rows.some(r=>r.m.result==='pending') : (!ev.date || ev.date>=limite)).map(ev=>{
     ev.tickets = new Set(ev.rows.map(r=>r.t.id));
     ev.pend = ev.rows.filter(r=>r.m.result==='pending').length;
     ev.stake = Array.from(ev.tickets).reduce((s,id)=>{ const t = STATE.tickets.find(x=>x.id===id); return s + (t?t.stake:0); }, 0);
@@ -81,6 +81,7 @@ function evAbrir(i){ const l = window.__evKeys||[]; EV_OPEN = l[i]||null; render
 function evVoltar(){ EV_OPEN = null; render(); }
 
 function evDateLabel(ev){
+  if(ev.longo) return 'Longo prazo';
   const d = ev.date; if(!d) return '';
   const hoje = todaySP();
   const lb = d===hoje ? 'Hoje' : d===shiftWeek(hoje,-1) ? 'Ontem' : d===shiftWeek(hoje,1) ? 'Amanhã' : fmtDate(d);
@@ -101,6 +102,7 @@ function evListHtml(){
       <div class="ev-card-top"><span class="ev-when">${evtEsc(evDateLabel(ev))}</span>${evStatusChip(ev)}</div>
       <div class="ev-teams">
         <div class="ev-team">${evBadge(ev.home)}<span>${evtEsc(ev.home)}</span></div>
+        ${ev.sub ? `<div class="ev-vs" style="padding-left:0">${evtEsc(ev.sub)}</div>` : ''}
         ${ev.away ? `<div class="ev-vs">x</div><div class="ev-team">${evBadge(ev.away)}<span>${evtEsc(ev.away)}</span></div>` : ''}
       </div>
       <div class="ev-card-foot">
@@ -153,6 +155,7 @@ function renderEventoPagina(){
         <div class="ev-hero-team">${evBadge(ev.home,true)}<b>${evtEsc(ev.home)}</b></div>
         ${ev.away ? `<div class="ev-hero-x">x</div><div class="ev-hero-team">${evBadge(ev.away,true)}<b>${evtEsc(ev.away)}</b></div>` : ''}
       </div>
+      ${ev.sub ? `<div class="ev-hero-sum" style="margin-bottom:6px">${evtEsc(ev.sub)}</div>` : ''}
       <div class="ev-hero-sum">${ev.tickets.size} aposta${ev.tickets.size===1?'':'s'} · ${ev.rows.length} seleç${ev.rows.length===1?'ão':'ões'} · ${fmtBRL(ev.stake)} em jogo · ${ev.pend} pendente${ev.pend===1?'':'s'}</div>
     </div>
     ${ev.away ? `
@@ -180,11 +183,7 @@ function renderEventoPagina(){
           <td class="r">${evGanho(t)}</td>
           <td class="r">${Number(m.odd)?Number(m.odd).toFixed(2):'—'}</td>
           <td>${evResChip(m.result)}</td>
-          <td class="ev-acts">
-            <button class="ev-b g ${m.result==='green'?'on':''}" title="Green" onclick="evMarcar(${i},'green')">G</button>
-            <button class="ev-b r ${m.result==='red'?'on':''}" title="Red" onclick="evMarcar(${i},'red')">R</button>
-            <button class="ev-b v ${m.result==='void'?'on':''}" title="Anulada" onclick="evMarcar(${i},'void')">A</button>
-            ${m.result!=='pending'?`<button class="ev-b u" title="Desfazer resultado" onclick="evMarcar(${i},'pending')">↺</button>`:''}
+          <td class="ev-acts">${RES_QUICK.map(([v,l,tt,c])=>`<button type="button" class="ap-q ${c} ${m.result===v?'on':''}" title="${tt}" onclick="evMarcar(${i},'${v}')">${l}</button>`).join('')}${m.result!=='pending'?`<button type="button" class="ap-q ap-r-pend" title="Desfazer resultado (volta para pendente)" onclick="evMarcar(${i},'pending')">↺</button>`:''}
           </td></tr>`;
       }).join('')}</tbody></table></div>`;
 }
