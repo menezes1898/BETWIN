@@ -1,4 +1,3 @@
-.ev-bar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
 .ev-tabs{display:flex;gap:6px;flex-wrap:wrap}
 .ev-tab{background:var(--surface);border:1px solid var(--line);color:var(--text-muted);border-radius:20px;padding:6px 13px;font-size:12.5px;font-weight:600;cursor:pointer}
 .ev-tab i{font-style:normal;font-family:var(--font-mono);font-size:11px;margin-left:4px;opacity:.8}
@@ -13,10 +12,7 @@
 .ev-team{display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;min-width:0}
 .ev-team span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ev-vs{font-size:11px;color:var(--text-muted);padding-left:12px;line-height:1}
-.ev-badge{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none}
 .ev-flag{background:var(--surface-3);font-size:19px}
-.ev-badge-lg{width:64px;height:64px;font-size:30px}
-.ev-badge-lg.ev-flag{font-size:38px}
 .ev-card-foot{display:flex;gap:14px;align-items:center;margin-top:14px;padding-top:11px;border-top:1px solid var(--line);font-size:12px;color:var(--text-muted)}
 .ev-card-foot b{color:var(--text)}
 .ev-stake{margin-left:auto;font-family:var(--font-mono);color:var(--gold);font-weight:700}
@@ -44,10 +40,9 @@
 .ev-num{color:var(--gold);font-weight:700;cursor:pointer;font-family:var(--font-mono)}
 .ev-sel{font-weight:600}
 .ev-mk,.ev-note{font-size:11.5px;color:var(--text-muted);margin-top:2px}
-.ev-acts{white-space:nowrap}
-.ev-b{width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:var(--surface-3);color:var(--text-muted);font-weight:700;cursor:pointer;margin-right:4px}
-.ev-b.g:hover,.ev-b.g.on{background:var(--green);border-color:var(--green);color:#06281c}
-.ev-b.r:hover,.ev-b.r.on{background:var(--red);border-color:var(--red);color:#fff}
-.ev-b.v:hover,.ev-b.v.on{background:var(--text-muted);color:var(--surface)}
-.ev-b.u{width:auto;padding:0 8px}
 @media(max-width:700px){.ev-search{width:100%}.ev-hero-teams{gap:16px}}
+.ev-badge{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:none}
+.ev-flag{background:var(--surface-3);font-size:19px}
+.ev-badge-lg{width:64px;height:64px;font-size:30px}
+.ev-badge-lg.ev-flag{font-size:38px}
+.ev-table td.ev-acts{min-width:300px}.ev-acts .ap-q{margin:2px 4px 2px 0}
