@@ -100,6 +100,7 @@ const NAV_ICONS = {
   ticket:'<path d="M3 9V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6z"/><path d="M13 5v2M13 11v2M13 17v2"/>',
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2 .8 3.5 2.6 3.5 5.7"/>',
   list:'<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   check:'<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
   star:'<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
@@ -145,6 +146,7 @@ function adminNavModel(pendentesCount, conferenciaCount){
     {key:'apostas', label:'Apostas', icon:'ticket', items:[
       {tab:'apostas', label:'Apostas', icon:'list'},
       {tab:'pendentes', label:'Pendentes', icon:'clock', badge:pendentesCount},
+      {tab:'eventos', label:'Eventos', icon:'calendar'},
       {tab:'conferencia', label:'Conferência', icon:'check', badge:conferenciaCount},
       {tab:'destaques', label:'Destaques do Dia', icon:'star'}
     ]},
@@ -226,6 +228,7 @@ function renderAdmin(){
   const c = document.getElementById('tab-content');
   if(ADMIN_TAB==='apostas') c.innerHTML = renderApostasTab();
   if(ADMIN_TAB==='pendentes') c.innerHTML = renderPendentesTab();
+  if(ADMIN_TAB==='eventos') c.innerHTML = renderEventosTab();
   if(ADMIN_TAB==='conferencia') c.innerHTML = renderConferenciaTab();
   if(ADMIN_TAB==='clientes') c.innerHTML = renderClientesTab();
   if(ADMIN_TAB==='dashboard') c.innerHTML = renderDashboardTab();
