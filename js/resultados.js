@@ -281,13 +281,19 @@ async function resEvalLeg(leg, S, ctx){
 }
 
 // ---------- chamadas à API ----------
-async function resApi(sport, path, params){
+const resSleep = ms=>new Promise(r=>setTimeout(r, ms));
+async function resApi(sport, path, params, tent){
+  tent = tent || 0;
   const key = evtGetKey();
   const resp = await fetch('https://'+sport.host+'/'+path+'?'+params, {headers:{'x-apisports-key':key}});
   const json = await resp.json();
   const errs = json && json.errors;
   const errTxt = Array.isArray(errs) ? errs.join(' ') : (errs ? Object.values(errs).join(' ') : '');
-  if(errTxt) throw new Error(errTxt);
+  if(errTxt){
+    // limite por MINUTO (plano gratuito): espera um pouco e tenta de novo, em vez de dar o jogo como "sem resultado"
+    if(/per minute|too many requests|rate limit/i.test(errTxt) && tent < 4){ await resSleep(7000); return resApi(sport, path, params, tent+1); }
+    throw new Error(errTxt);
+  }
   return json.response || [];
 }
 async function resLoadDay(sport, qd){
@@ -296,27 +302,44 @@ async function resLoadDay(sport, qd){
 
 // ---------- processamento ----------
 let RES_RUNNING = false;
+const RES_PARALELO = 4;                       // consultas à API ao mesmo tempo (o plano gratuito limita por minuto)
+async function resPool(itens, limite, fn){
+  let i = 0; const saida = new Array(itens.length);
+  const trab = async ()=>{ while(i < itens.length){ const k = i++; saida[k] = await fn(itens[k], k); } };
+  await Promise.all(Array.from({length: Math.min(limite, itens.length)}, trab));
+  return saida;
+}
+function resProg(txt){ document.querySelectorAll('.btn-buscar-res').forEach(b=>{ b.disabled = true; b.textContent = txt; }); }
+
 async function buscarResultados(){
   if(RES_RUNNING) return;
   if(!evtGetKey()){ showToast('Cadastre a chave da API em Configurações para buscar resultados.'); return; }
   RES_RUNNING = true;
-  const btns = Array.from(document.querySelectorAll('.btn-buscar-res')); btns.forEach(b=>{ b.disabled = true; b.textContent = 'Buscando…'; });
+  resProg('Buscando…');
   const applied = [], skipped = [];
   try{
     // 1) partidas pendentes
     const legs = [];
-    STATE.tickets.forEach(t=>(t.matches||[]).forEach(m=>{ if(m.result==='pending') legs.push({t, m}); }));
-    if(!legs.length){ showToast('Nenhuma partida pendente para buscar.'); return; }
+    // Aposta que JÁ tem uma seleção red está perdida: as outras seleções dela não mudam o resultado, então não gastam consulta na API
+    let jaPerdidas = 0;
+    STATE.tickets.forEach(t=>{
+      const perdida = (t.matches||[]).some(m=>m.result==='red');
+      (t.matches||[]).forEach(m=>{ if(m.result==='pending'){ if(perdida) jaPerdidas++; else legs.push({t, m}); } });
+    });
+    window.RES_JA_PERDIDAS = jaPerdidas;
+    if(!legs.length){ showToast(jaPerdidas ? 'Nenhuma partida pendente para buscar ('+jaPerdidas+' estão em apostas já perdidas).' : 'Nenhuma partida pendente para buscar.'); return; }
     const sports = EVT_SPORTS;
-    // 2) partidas sem referência: tenta achar pelo nome (data da aposta)
     const dayCache = {};                         // sport|qd -> lista crua
     const getDay = async (sp, qd)=>{
       const k = sp.id+'|'+qd;
       if(!dayCache[k]) dayCache[k] = resLoadDay(sp, qd).catch(e=>({__err:e.message}));
       return dayCache[k];
     };
-    for(const L of legs){
-      if(L.m.ref || !L.m.away) continue;
+    // 2) partidas sem referência: tenta achar pelo nome (data da aposta)
+    const semRef = legs.filter(L=>!L.m.ref && L.m.away);
+    for(let i=0;i<semRef.length;i++){
+      const L = semRef[i];
+      resProg('Procurando jogos '+(i+1)+' de '+semRef.length+'…');
       const dates = [L.t.date]; const d2 = new Date(L.t.date+'T12:00:00'); d2.setDate(d2.getDate()+1); dates.push(d2.toISOString().slice(0,10));
       const sel = evtSelectedSports();
       outer: for(const sp of sel){
@@ -330,20 +353,30 @@ async function buscarResultados(){
         }
       }
     }
-    // 3) busca os placares (1 consulta por esporte/data)
+    // 3) baixa as listas de jogos de cada esporte/data, várias ao mesmo tempo
+    const precisa = new Map();
+    legs.forEach(L=>{ if(L.m.ref){ const sp = sports.find(s=>s.id===L.m.ref.sport); if(sp) precisa.set(sp.id+'|'+L.m.ref.qd, [sp, L.m.ref.qd]); } });
+    let feitos = 0; const listas = [...precisa.values()];
+    if(listas.length){
+      resProg('Consultando a API 0 de '+listas.length+'…');
+      await resPool(listas, RES_PARALELO, async ([sp, qd])=>{ await getDay(sp, qd); feitos++; resProg('Consultando a API '+feitos+' de '+listas.length+'…'); });
+    }
+    // 4) confere cada partida (várias ao mesmo tempo); NÃO mexe nas apostas aqui, só anota o que encontrou
     const ctxCache = {};
-    for(const L of legs){
+    let conf = 0;
+    const resultados = await resPool(legs, RES_PARALELO, async (L)=>{
       const lab = L.m.home+(L.m.away?' x '+L.m.away:'');
       const base = {t:L.t, m:L, label:lab};
-      if(!L.m.ref){ skipped.push({...base, why: L.m.away ? 'jogo não encontrado na API (escolha o jogo na lista ao cadastrar para ficar automático)' : 'aposta de longo prazo'}); continue; }
+      const fim = (o)=>{ conf++; resProg('Conferindo '+conf+' de '+legs.length+'…'); return o; };
+      if(!L.m.ref) return fim({skip:{...base, why: L.m.away ? 'jogo não encontrado na API (escolha o jogo na lista ao cadastrar para ficar automático)' : 'aposta de longo prazo'}});
       const sp = sports.find(s=>s.id===L.m.ref.sport);
-      if(!sp){ skipped.push({...base, why:'esporte não suportado'}); continue; }
+      if(!sp) return fim({skip:{...base, why:'esporte não suportado'}});
       const list = await getDay(sp, L.m.ref.qd);
-      if(!Array.isArray(list)){ skipped.push({...base, why:'API: '+(list&&list.__err||'erro')}); continue; }
+      if(!Array.isArray(list)) return fim({skip:{...base, why:'API: '+(list&&list.__err||'erro')}});
       const it = list.find(x=>String(sp.itemId(x))===String(L.m.ref.id));
-      if(!it){ skipped.push({...base, why:'jogo não veio na consulta da API'}); continue; }
+      if(!it) return fim({skip:{...base, why:'jogo não veio na consulta da API'}});
       let S; try{ S = sp.score(it); }catch(e){ S = null; }
-      if(!S){ skipped.push({...base, why:'formato do placar inesperado'}); continue; }
+      if(!S) return fim({skip:{...base, why:'formato do placar inesperado'}});
       const fid = sp.id+'|'+L.m.ref.id;
       const ctx = {
         events: ()=> (ctxCache[fid+'e'] = ctxCache[fid+'e'] || (sp.id==='football' ? resApi(sp,'fixtures/events','fixture='+L.m.ref.id).catch(()=>null) : Promise.resolve(null))),
@@ -351,32 +384,56 @@ async function buscarResultados(){
       };
       let ev;
       try{ ev = await resEvalLeg(L.m, S, ctx); }catch(e){ ev = {r:'manual', note:'erro ao avaliar: '+e.message}; }
-      if(ev.r==='green' || ev.r==='red' || ev.r==='void' || ev.r==='half_green' || ev.r==='half_red'){
-        L.m.result = ev.r; L.m.autoNote = ev.note || ''; L.m.autoAt = new Date().toISOString();
-        applied.push({...base, r:ev.r, note:ev.note});
-      } else {
-        skipped.push({...base, why: ev.note || 'não resolvido'});
-      }
-    }
-    // 4) grava no banco (um update por aposta alterada) — desfaz se der erro
+      if(['green','red','void','half_green','half_red'].includes(ev.r)) return fim({ok:{...base, r:ev.r, note:ev.note}});
+      return fim({skip:{...base, why: ev.note || 'não resolvido'}});
+    });
+    resultados.forEach(r=>{ if(r.ok) applied.push(r.ok); else if(r.skip) skipped.push(r.skip); });
+    // 5) grava. Antes de gravar, lê a versão ATUAL de cada aposta no banco: se você (ou outra pessoa) mexeu numa partida
+    //    durante a busca, o que você fez é mantido e o resultado automático dessa partida é descartado.
+    resProg('Salvando…');
     const touched = new Map();
     applied.forEach(a=>touched.set(a.t.id, a.t));
-    for(const [id, t] of touched){
-      const {error} = await supabaseClient.from('tickets').update({matches: t.matches}).eq('id', id);
+    const refOnly = new Map();
+    legs.forEach(L=>{ if(L.refTemp) refOnly.set(L.t.id, L.t); });
+    const ids = [...new Set([...touched.keys(), ...refOnly.keys()])];
+    let frescas = new Map();
+    if(ids.length){
+      const {data, error} = await supabaseClient.from('tickets').select('id,matches').in('id', ids);
+      if(error){ showToast('Não consegui conferir as apostas antes de salvar: '+error.message); applied.forEach(a=>{ a.failed = true; skipped.push({...a, why:'não salvo (erro ao conferir o banco)'}); }); ids.length = 0; }
+      else (data||[]).forEach(r=>frescas.set(r.id, r));
+    }
+    for(const id of ids){
+      const t = (touched.get(id) || refOnly.get(id));
+      const f = frescas.get(id);
+      if(!f){ applied.filter(a=>a.t.id===id).forEach(a=>{ a.failed = true; skipped.push({...a, why:'a aposta não foi encontrada no banco'}); }); continue; }
+      const matches = JSON.parse(JSON.stringify(f.matches||[]));
+      let mudou = false;
+      legs.filter(L=>L.t.id===id && L.refTemp).forEach(L=>{
+        const i = (t.matches||[]).indexOf(L.m), cur = matches[i];
+        if(cur && cur.selection===L.m.selection && !cur.ref){ cur.ref = L.m.ref; mudou = true; }       // referência achada pelo nome fica guardada
+      });
+      const aplic = [];
+      applied.filter(a=>a.t.id===id).forEach(a=>{
+        const i = (t.matches||[]).indexOf(a.m.m), cur = matches[i];
+        if(!cur || cur.selection!==a.m.m.selection || cur.home!==a.m.m.home){ a.failed = true; skipped.push({...a, why:'a aposta foi alterada durante a busca; resultado não aplicado'}); return; }
+        if(cur.result!=='pending'){ a.failed = true; skipped.push({...a, why:'você já tinha definido essa partida durante a busca; mantive o seu'}); return; }
+        cur.result = a.r; cur.autoNote = a.note || ''; cur.autoAt = new Date().toISOString();
+        aplic.push(a); mudou = true;
+      });
+      if(!mudou) continue;
+      const {error} = await supabaseClient.from('tickets').update({matches}).eq('id', id);
       if(error){
         showToast('Erro ao salvar resultados de uma aposta: '+error.message);
-        applied.filter(a=>a.t.id===id).forEach(a=>{ a.m.m.result='pending'; a.failed=true; });
+        aplic.forEach(a=>{ a.failed = true; skipped.push({...a, why:'não salvo: '+error.message}); });
+      } else {
+        t.matches = matches;           // a tela passa a refletir o que está no banco (inclusive o que você mexeu)
       }
     }
-    // referências achadas pelo nome ficam guardadas mesmo sem resultado
-    const refOnly = new Map();
-    legs.forEach(L=>{ if(L.refTemp && !touched.has(L.t.id)) refOnly.set(L.t.id, L.t); });
-    for(const [id,t] of refOnly){ await supabaseClient.from('tickets').update({matches: t.matches}).eq('id', id); }
   } catch(e){
     showToast('Erro ao buscar resultados: '+e.message);
   } finally {
     RES_RUNNING = false;
-    btns.forEach(b=>{ b.disabled = false; b.textContent = '🔄 Buscar resultados'; });
+    document.querySelectorAll('.btn-buscar-res').forEach(b=>{ b.disabled = false; b.textContent = '🔄 Buscar resultados'; });
   }
   render();
   resShowReport(applied.filter(a=>!a.failed), skipped);
@@ -394,7 +451,7 @@ function resShowReport(applied, skipped){
   ov.onclick = (e)=>{ if(e.target===ov) ov.remove(); };
   ov.innerHTML = `<div class="card" style="max-width:720px;width:100%;margin:0">
     <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Resultados encontrados</h3><button class="btn-ghost btn-sm" onclick="document.getElementById('res-overlay').remove()">Fechar</button></div>
-    <p style="font-size:13px;color:var(--text-muted)">${applied.length} partida${applied.length===1?'':'s'} atualizada${applied.length===1?'':'s'} · ${skipped.length} sem resultado automático.</p>
+    <p style="font-size:13px;color:var(--text-muted)">${applied.length} partida${applied.length===1?'':'s'} atualizada${applied.length===1?'':'s'} · ${skipped.length} sem resultado automático.${window.RES_JA_PERDIDAS ? '<br>'+window.RES_JA_PERDIDAS+' partida'+(window.RES_JA_PERDIDAS===1?'':'s')+' de apostas que já têm um red não foram buscadas (a aposta já está perdida).' : ''}</p>
     ${applied.length ? '<label>Atualizadas</label>'+applied.map(rowA).join('') : ''}
     ${skipped.length ? '<label>Continuam pendentes</label>'+skipped.map(rowS).join('') : ''}
   </div>`;
